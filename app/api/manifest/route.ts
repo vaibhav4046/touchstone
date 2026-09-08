@@ -94,6 +94,13 @@ export async function GET(): Promise<Response> {
       "Claim analysis — each claim marked verifiable, unverifiable, or contradicted, with quotes",
     ],
 
+    rightOfReply: {
+      policy:
+        "A vendor may assay their own listing, free and unlimited. Every finding names the rule that produced it and quotes the sentence that triggered it; the rules are public in lib/assay/patterns.ts. Fix the listing and re-run it.",
+      dispute:
+        "A false positive is the one failure that makes this product worthless. Send the case and it becomes a regression test. Touchstone sells to buyers, never to vendors, and there is no tier that buys a better verdict.",
+    },
+
     whatItDoesNot: [
       "It does not probe a vendor's live endpoint without an approved escalation. A buyer paying for an assay is not authority to spend a third party's resources.",
       "It does not rate a vendor it has no material for. No material, no verdict.",

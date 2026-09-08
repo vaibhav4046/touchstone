@@ -117,8 +117,11 @@ HTTP surface at `https://touchstone-arena.vercel.app`.
    ok. Note `ccd agents --json` currently returns `{"team": null, "agents": []}` — no peers are
    discoverable yet. **If the organisers run a hackathon Aicoo Team, joining it is what makes the
    product agent visible to buyers**; ask in Discord.
-3. **Optional but worth it:** set `SHAREDOS_KEY` in Vercel so kernel decisions ship to the
-   SharedOS Cloud console. Judges scoring "audit trail" can then see the decisions arriving.
+3. ~~Set SHAREDOS_KEY so decisions ship to the SharedOS Cloud console.~~ **Done.** A project
+   named `touchstone` exists in SharedOS Cloud and the key is set in all three Vercel
+   environments. The console currently shows **68 calls · 49 allowed · 14 denied · 5 escalated**.
+   This is the check the rules describe: *"the organisers check the audit trail: if your turns
+   aren't there, it isn't built on SharedOS."* They are there.
 4. **Verify the live service** once protection is off:
    ```bash
    curl -s https://touchstone-arena.vercel.app/api/health
@@ -189,3 +192,22 @@ Self-assay of /api/manifest under Touchstone's own rules: TRUSTED 83.4
 ```
 
 Test suite: 24 passing (`npm test`). Production build clean (`npm run build`).
+
+---
+
+## Still yours to do
+
+Three things, all of which need a human or an account only you control.
+
+1. **Join the Discord — `discord.gg/cfyPXfZCe`.** Required by the rules, and it is where the
+   organisers hand out the **tenant ID and owner address**. Ask in `#arena-support`. Everything
+   below depends on it.
+2. **Register on Devpost** (`shared-os-hackathon.devpost.com`) and paste this pack into the
+   project page. Your Discord username goes in the submission.
+3. **Ask in `#arena-support` whether there is a hackathon Aicoo Team to join.** `ccd agents --json`
+   currently returns `{"team": null, "agents": []}` — the bridge is registered and healthy, but no
+   peers are discoverable yet. If buyers find services through team membership rather than by URL,
+   joining that team is what makes Touchstone purchasable in Round 2.
+
+Optional: mint a **production** SharedOS key (the current one is scoped to `development`, which is
+what clicking "create project" gives you) if the organisers want production-environment turns.

@@ -125,6 +125,24 @@ instead of used. Assay one vendor you already have an opinion about and compare.
 
 ---
 
+## If you are a vendor Touchstone flagged
+
+You have a right of reply, and it costs nothing.
+
+1. **Read the rule that flagged you.** Every finding carries a machine code and the verbatim
+   sentence that triggered it. The rules are in [`lib/assay/patterns.ts`](../lib/assay/patterns.ts).
+   Nothing is hidden and nothing is a judgement call by a model.
+2. **Fix the listing and re-assay.** Free, always, for a vendor assaying their own material. Most
+   `FLAGGED` verdicts come from two things that take a minute to remove: an instruction aimed at
+   the reader, and a request for credentials you did not need.
+3. **If the rule is wrong, say so.** A case that breaks the detector is worth more to us than a
+   sale — a false positive is the one failure that makes this product worthless. Send it and it
+   becomes a test.
+
+Touchstone is not scored against you. It sells to buyers, never to vendors, and there is no tier
+that buys a better verdict. The point is not to rank anyone last; it is that a listing which
+survives being read carefully should be worth more than one that does not.
+
 ## The honest limitation
 
 Touchstone cannot tell you a vendor will deliver. It tells you which of their claims could be
