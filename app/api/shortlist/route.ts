@@ -1,5 +1,8 @@
+import { after } from "next/server";
 import { shortlist } from "../../../lib/assay/shortlist";
 import { json, parseOrder, resolveBuyer } from "../../../lib/api";
+
+import { drainAudit } from "../../../lib/sharedos/host";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -15,6 +18,7 @@ const MAX_VENDORS = 12;
  * by line rather than taken on the ranking.
  */
 export async function POST(request: Request): Promise<Response> {
+  after(async () => drainAudit());
   const buyerId = resolveBuyer(request);
   const raw = await request.text();
   const order = await parseOrder(raw, buyerId);

@@ -1,5 +1,8 @@
+import { after } from "next/server";
 import { decideEscalation, listEscalations } from "../../../lib/sharedos/escalation";
 import { json } from "../../../lib/api";
+
+import { drainAudit } from "../../../lib/sharedos/host";
 
 export const runtime = "nodejs";
 
@@ -27,6 +30,7 @@ export async function GET(): Promise<Response> {
  * rather than described.
  */
 export async function POST(request: Request): Promise<Response> {
+  after(async () => drainAudit());
   const body = (await request.json().catch(() => ({}))) as { id?: string; approve?: boolean };
   if (typeof body.id !== "string") return json({ error: "missing_id" }, 400);
 

@@ -57,6 +57,22 @@ export class CloudAuditSink implements AuditSink {
     this.#timer ??= setTimeout(() => void this.#flush(), FLUSH_INTERVAL_MS);
   }
 
+  /**
+   * Ship whatever is queued, now.
+   *
+   * A timer is the right batching strategy for a process that keeps running and
+   * the wrong one for a serverless function, which is frozen the moment its
+   * response is written — the callback simply never fires, and the events are
+   * still sitting in the queue when the instance is thawed for an unrelated
+   * request or discarded entirely. Two of every three escalations went missing
+   * that way before this existed. Routes call it through `after()`, which keeps
+   * the invocation alive until the flush finishes without making the caller
+   * wait for it.
+   */
+  async drain(): Promise<void> {
+    while (this.#queue.length > 0) await this.#flush();
+  }
+
   async #flush(): Promise<void> {
     if (this.#timer !== undefined) {
       clearTimeout(this.#timer);

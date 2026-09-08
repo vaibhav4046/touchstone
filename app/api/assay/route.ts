@@ -1,5 +1,8 @@
+import { after } from "next/server";
 import { assay } from "../../../lib/assay/engine";
 import { json, parseOrder, resolveBuyer } from "../../../lib/api";
+
+import { drainAudit } from "../../../lib/sharedos/host";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,6 +16,7 @@ export const maxDuration = 60;
  * requires onboarding before it can be evaluated will not be evaluated.
  */
 export async function POST(request: Request): Promise<Response> {
+  after(async () => drainAudit());
   const buyerId = resolveBuyer(request);
   const raw = await request.text();
   const order = await parseOrder(raw, buyerId);
