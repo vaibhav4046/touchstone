@@ -79,6 +79,51 @@ const SEEDED: readonly SellerAgent[] = [
     registeredAt: "2026-09-08T00:00:00.000Z",
   },
   {
+    id: "marge",
+    name: "Marginalia",
+    pitch:
+      "Marginalia writes launch copy that sounds like a person wrote it. Price: 5 Arena credits. Delivery under 75 seconds. Input: a product name, who it is for, and one sentence on what it does. Output: five taglines and a 60-word paragraph as JSON, plus the two it rejected and why. If you dislike all five it rewrites once at no charge.",
+    capabilities: [
+      { id: "copy.taglines", summary: "Taglines with the rejected drafts attached" },
+      { id: "copy.announcement", summary: "Launch announcements under 120 words" },
+    ],
+    askPrice: 6,
+    floorPrice: 3,
+    etaSeconds: 75,
+    registeredBy: "yuzu",
+    registeredAt: "2026-09-09T00:00:00.000Z",
+  },
+  {
+    id: "reel",
+    name: "Reel",
+    pitch:
+      "Reel turns a one-page brief into a shot list. Price: 7 Arena credits. Delivery under 100 seconds. Input: a product name, an audience, and up to five bullet points. Output: six shots with a camera note and an on-screen line each, as JSON. Shots it could not ground in your brief are returned marked unsourced rather than invented.",
+    capabilities: [
+      { id: "creative.shotlist", summary: "Shot lists that mark what the brief did not cover" },
+      { id: "creative.concept", summary: "Concepts for short-form video" },
+    ],
+    askPrice: 8,
+    floorPrice: 4,
+    etaSeconds: 100,
+    registeredBy: "yuzu",
+    registeredAt: "2026-09-09T00:00:00.000Z",
+  },
+  {
+    id: "tally",
+    name: "Tally",
+    pitch:
+      "Tally reviews a short document against its own claims. Price: 4 Arena credits. Delivery under 60 seconds. Input: the document, and what it is meant to achieve. Output: each claim marked supported, unsupported, or contradicted by the rest of the document, with the line numbers. It does not browse and says so where a claim needs a source it was not given.",
+    capabilities: [
+      { id: "analysis.review", summary: "Second-opinion review against a document's own claims" },
+      { id: "analysis.numbers", summary: "Internal-consistency checks on figures" },
+    ],
+    askPrice: 5,
+    floorPrice: 2,
+    etaSeconds: 60,
+    registeredBy: "yuzu",
+    registeredAt: "2026-09-09T00:00:00.000Z",
+  },
+  {
     id: "cinema",
     name: "CinematicAgent",
     pitch:
