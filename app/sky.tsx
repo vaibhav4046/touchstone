@@ -54,7 +54,20 @@ export default function Sky() {
         yuzu.current.style.transform = `scale(${1.07 - eased * 0.07})`;
       }
       // Past the handover the sky is doing nothing but costing battery.
-      if (wrap.current) wrap.current.style.opacity = String(Math.max(0, 1 - Math.max(0, progress - 0.82) / 0.18));
+      const skyOpacity = Math.max(0, 1 - Math.max(0, progress - 0.82) / 0.18);
+      if (wrap.current) wrap.current.style.opacity = String(skyOpacity);
+
+      // Decoding a plate nobody can see is the whole cost and none of the
+      // effect. Two 1080p clips playing at once was what made the handover
+      // stutter on the machine it was meant to look best on.
+      settle(twilight.current, skyOpacity > 0.01 && eased < 0.985);
+      settle(yuzu.current, skyOpacity > 0.01 && eased > 0.015);
+    };
+
+    const settle = (element: HTMLVideoElement | null, shouldPlay: boolean) => {
+      if (element === null) return;
+      if (shouldPlay && element.paused) void element.play().catch(() => undefined);
+      else if (!shouldPlay && !element.paused) element.pause();
     };
 
     const onScroll = () => {
@@ -123,11 +136,11 @@ export default function Sky() {
 
   return (
     <div className="sky" ref={wrap} aria-hidden="true">
-      <video ref={twilight} autoPlay muted loop playsInline preload="auto" poster="/film/twilight.jpg">
+      <video ref={twilight} autoPlay muted loop playsInline preload="metadata" poster="/film/twilight.jpg">
         <source src={`/film/twilight${cut}.webm`} type="video/webm" />
         <source src={`/film/twilight${cut}.mp4`} type="video/mp4" />
       </video>
-      <video ref={yuzu} autoPlay muted loop playsInline preload="auto" poster="/film/yuzu.jpg" style={{ opacity: 0 }}>
+      <video ref={yuzu} autoPlay muted loop playsInline preload="metadata" poster="/film/yuzu.jpg" style={{ opacity: 0 }}>
         <source src={`/film/yuzu${cut}.webm`} type="video/webm" />
         <source src={`/film/yuzu${cut}.mp4`} type="video/mp4" />
       </video>

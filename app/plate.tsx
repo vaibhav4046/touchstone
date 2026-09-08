@@ -28,7 +28,19 @@ export default function Plate({
     const element = video.current;
     if (element === null) return;
     element.playbackRate = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : rate;
-  }, [rate]);
+
+    // A plate three screens down should not be decoding while somebody reads
+    // the top of the page.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting === true) void element.play().catch(() => undefined);
+        else element.pause();
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [rate, cut]);
 
   // Until the cut is known the poster stands in, so nothing downloads twice.
   if (cut === undefined) return <img className="plate" src={poster} alt="" aria-hidden="true" />;
