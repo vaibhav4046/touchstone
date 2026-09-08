@@ -198,3 +198,29 @@ describe("receipt integrity", () => {
     expect(verify(null).valid).toBe(false);
   });
 });
+
+describe("escalations survive a cold instance", () => {
+  it("approves a ticket this process has never seen before", async () => {
+    const { escalation } = await assay(
+      { vendor: "RenderKit", pitch: HONEST, buyerId: buyer },
+      { probeEndpoint: "https://example.com/health" },
+    );
+    expect(escalation).toBeDefined();
+
+    // Serverless routinely puts the approval on a different instance than the
+    // one that opened the request. Simulate that by wiping the store.
+    globalThis.__touchstoneEscalations?.clear();
+    expect(getEscalation(escalation!.id)).toBeUndefined();
+
+    const approved = decideEscalation(escalation!.id, true);
+    expect(approved?.state).toBe("approved");
+    expect(approved?.grant?.constraints.maxUses).toBe(1);
+    expect(approved?.grant?.capabilities[0]?.actions).toEqual(["probe"]);
+  }, 60_000);
+
+  it("refuses a forged ticket", () => {
+    expect(decideEscalation("esc_eyJiIjoiYXR0YWNrZXIifQ.notarealsignature", true)).toBeUndefined();
+    expect(decideEscalation("esc_garbage", true)).toBeUndefined();
+    expect(decideEscalation("not-an-escalation", true)).toBeUndefined();
+  });
+});

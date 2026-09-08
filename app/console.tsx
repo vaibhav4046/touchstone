@@ -31,18 +31,41 @@ interface AssayResponse {
   dimensions?: Dimension[];
   claims?: Claim[];
   notChecked?: string[];
-  receipt?: { receiptId: string; signature: { value: string } };
+  receipt?: {
+    receiptId: string;
+    signature: { value: string };
+    decisions?: { action: string; resource: string; outcome: string; reasonCode: string; grantId?: string }[];
+  };
   meta?: { elapsedMs: number; analysis: string; interpretation: string };
   error?: string;
   message?: string;
 }
-interface Decision {
+interface AuditDecision {
   at: string;
   outcome: string;
   action?: string;
   resource?: { namespace: string; path: string[] };
   grantId?: string;
   type: string;
+}
+
+/**
+ * One shape for both sources.
+ *
+ * The live stream and the receipt describe the same decisions, and both are
+ * needed. On serverless the request that runs an assay and the request holding
+ * the event stream are different instances, so the stream alone shows an empty
+ * panel next to a finished report — which reads as "the kernel did nothing".
+ * The receipt's copy is the authoritative one anyway: it is signed.
+ */
+interface Decision {
+  key: string;
+  outcome: string;
+  action: string;
+  resource: string;
+  grantId?: string;
+  reasonCode?: string;
+  source: "receipt" | "live";
 }
 interface Escalation {
   id: string;
@@ -90,8 +113,16 @@ export default function Console() {
     source.onopen = () => setLive(true);
     source.onerror = () => setLive(false);
     source.addEventListener("decision", (event) => {
-      const decision = JSON.parse((event as MessageEvent).data) as Decision;
-      if (decision.type !== "authorization.checked") return;
+      const audit = JSON.parse((event as MessageEvent).data) as AuditDecision;
+      if (audit.type !== "authorization.checked") return;
+      const decision: Decision = {
+        key: `${audit.at}-${audit.action ?? ""}`,
+        outcome: audit.outcome,
+        action: audit.action ?? "unknown",
+        resource: audit.resource ? audit.resource.path.join("/") : "—",
+        grantId: audit.grantId,
+        source: "live",
+      };
       setDecisions((current) => [decision, ...current].slice(0, 40));
     });
     source.addEventListener("escalation", (event) => {
@@ -115,7 +146,34 @@ export default function Console() {
           probeEndpoint: probe === "" ? undefined : probe,
         }),
       });
-      setResult((await response.json()) as AssayResponse);
+      const body = (await response.json()) as AssayResponse;
+      setResult(body);
+
+      // The receipt's decisions are the signed record. Show those rather than
+      // relying on the event stream having landed on this instance.
+      const fromReceipt: Decision[] = (body.receipt?.decisions ?? []).map((decision, index) => ({
+        key: `${body.receipt?.receiptId ?? "r"}-${index}`,
+        outcome: decision.outcome,
+        action: decision.action,
+        resource: decision.resource.replace(/^assay\//, ""),
+        grantId: decision.grantId,
+        reasonCode: decision.reasonCode,
+        source: "receipt",
+      }));
+      if (fromReceipt.length > 0) {
+        setDecisions((current) => [...fromReceipt, ...current].slice(0, 40));
+      }
+
+      // Same reason: the escalation was opened by whichever instance served
+      // this request, and the stream may not be on it.
+      if (body.escalation !== undefined) {
+        const opened = body.escalation;
+        setEscalations((current) => [
+          { id: opened.id, state: opened.state, action: "probe", resource: "vendors/…/probe", reason: opened.reason },
+          ...current.filter((item) => item.id !== opened.id),
+        ]);
+      }
+
       reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
       setResult({ error: "network", message: error instanceof Error ? error.message : "Request failed." });
@@ -267,16 +325,14 @@ export default function Console() {
             <p className="empty">Waiting for the first authorization.</p>
           ) : (
             decisions.map((decision, index) => (
-              <div className="decision" data-o={decision.outcome} key={`${decision.at}-${index}`}>
+              <div className="decision" data-o={decision.outcome} key={`${decision.key}-${index}`}>
                 <span className="out">{decision.outcome}</span>
                 <span className="res">
-                  {decision.action} <span>·</span> {decision.resource?.path.join("/") ?? "—"}
-                  {decision.grantId ? (
-                    <>
-                      {" "}
-                      <span>· {decision.grantId}</span>
-                    </>
-                  ) : null}
+                  {decision.action} <span>·</span> {decision.resource}
+                  <span>
+                    {" · "}
+                    {decision.grantId ?? decision.reasonCode ?? ""}
+                  </span>
                 </span>
               </div>
             ))
