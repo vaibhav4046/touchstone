@@ -12,6 +12,7 @@ export async function GET(): Promise<Response> {
     version: "1.0.0",
     kernel: "@aicoo/sharedos 0.1.0-alpha.5",
     analysis: llmAvailable() ? "deterministic+classifier+model" : "deterministic",
+    modelFallback: process.env.GEMINI_API_KEY ? "gemini-3.6-flash" : "none",
     auditShipping: process.env.SHAREDOS_KEY ? "enabled" : "local-only",
     lastDecisionAt: events[0]?.at ?? null,
     now: new Date().toISOString(),

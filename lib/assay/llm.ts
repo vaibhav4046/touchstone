@@ -48,7 +48,67 @@ export async function complete(options: {
     if (again.ok) return again;
     last = again;
   }
+
+  /**
+   * A second supplier, for the hour that matters.
+   *
+   * Retrying a rate limit harder is still asking the same exhausted account.
+   * The Arena runs for two hours under sustained load from every agent in the
+   * room, and a market that stops trading because one provider is busy is not a
+   * market. Gemini answers the analyst calls when Groq will not.
+   *
+   * The classifier has no second supplier — prompt-guard is a specific model,
+   * not a capability — so when Groq is out the injection score is simply
+   * missing, and the report says so rather than substituting a general model's
+   * opinion for a measurement.
+   */
+  if (RETRYABLE.test(last.error ?? "") && options.model === MODELS.analyst) {
+    const fallback = await viaGemini(options);
+    if (fallback.ok) return fallback;
+  }
+
   return last;
+}
+
+const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+const GEMINI_MODEL = "gemini-3.6-flash";
+
+async function viaGemini(options: {
+  readonly system?: string;
+  readonly user: string;
+  readonly maxTokens?: number;
+  readonly temperature?: number;
+  readonly timeoutMs?: number;
+}): Promise<LlmOutcome> {
+  const key = process.env.GEMINI_API_KEY;
+  const started = Date.now();
+  if (key === undefined || key.length === 0) return { ok: false, text: "", ms: 0, error: "no_fallback_key" };
+
+  try {
+    const response = await fetch(`${GEMINI_ENDPOINT}/${GEMINI_MODEL}:generateContent?key=${key}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: options.user }] }],
+        ...(options.system === undefined ? {} : { systemInstruction: { parts: [{ text: options.system }] } }),
+        generationConfig: {
+          maxOutputTokens: options.maxTokens ?? 1400,
+          temperature: options.temperature ?? 0,
+        },
+      }),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 25_000),
+    });
+
+    if (!response.ok) return { ok: false, text: "", ms: Date.now() - started, error: `gemini_${response.status}` };
+
+    const body = (await response.json()) as {
+      candidates?: ReadonlyArray<{ content?: { parts?: ReadonlyArray<{ text?: string }> } }>;
+    };
+    const text = body.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+    return { ok: text.length > 0, text, ms: Date.now() - started, error: text.length > 0 ? undefined : "gemini_empty" };
+  } catch (error) {
+    return { ok: false, text: "", ms: Date.now() - started, error: error instanceof Error ? error.name : "unknown" };
+  }
 }
 
 const RETRYABLE = /^http_(429|5\d\d)$/;
