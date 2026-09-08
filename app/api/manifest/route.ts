@@ -102,7 +102,7 @@ export async function GET(): Promise<Response> {
     ],
 
     sharedos: {
-      kernel: "@aicoo/sharedos 0.1.0-alpha.2",
+      kernel: "@aicoo/sharedos 0.1.0-alpha.5",
       purposes: ["touchstone.assay", "touchstone.shortlist", "touchstone.dossier", "touchstone.probe"],
       namespace: "arena",
       resourcePlane: "assay",

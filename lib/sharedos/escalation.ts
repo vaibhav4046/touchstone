@@ -1,7 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { CapabilityGrant } from "@aicoo/sharedos";
-import { PURPOSES, type Purpose } from "./identity";
+import type { AccessContext } from "@aicoo/sharedos";
+import { ASSAY_NAMESPACE, PURPOSES, TOUCHSTONE, type Purpose } from "./identity";
 import { mintEscalationGrant } from "./grants";
+import { host } from "./host";
+import { depositGrant } from "./authority";
 
 /**
  * What a denial turns into.
@@ -98,13 +101,46 @@ function unseal(id: string): Ticket | undefined {
   }
 }
 
-export function requestEscalation(input: {
+/**
+ * Opening one is a kernel event, not just a row in our own table.
+ *
+ * `recordEscalation` mints nothing and unblocks nothing — it writes a single
+ * audit event with outcome `escalated` and hands back the stub the turn ends
+ * on. That matters because alpha.5 made `escalated` a distinct outcome rather
+ * than a flavour of denial: a denial is a decision SharedOS made, an escalation
+ * is one it declined to make, and filing them together would inflate the
+ * refusal rate with every case where the system correctly asked for help.
+ */
+export async function requestEscalation(input: {
   readonly buyerId: string;
   readonly resourcePath: readonly string[];
   readonly action: string;
   readonly reason: string;
-}): Escalation {
+  readonly context?: AccessContext;
+}): Promise<Escalation> {
   expire();
+
+  if (input.context !== undefined) {
+    try {
+      await host().kernel.recordEscalation(input.context, input.reason, {
+        requestedAuthority: {
+          capabilities: [
+            {
+              resource: { namespace: ASSAY_NAMESPACE, path: [...input.resourcePath], owner: TOUCHSTONE },
+              actions: [input.action],
+              scope: "exact",
+            },
+          ],
+          purpose: PURPOSES.probe,
+          constraints: { purposes: [PURPOSES.probe], maxUses: 1 },
+        },
+      });
+    } catch {
+      // The escalation still stands. Failing to record it is worth less than
+      // losing the request that a human is about to be asked to decide.
+    }
+  }
+
   const escalation: Escalation = {
     id: seal({ b: input.buyerId, p: input.resourcePath, a: input.action, r: input.reason, t: Date.now() }),
     buyerId: input.buyerId,
@@ -155,6 +191,8 @@ export function decideEscalation(id: string, approve: boolean): Escalation | und
       action: escalation.action,
       now: new Date(),
     });
+    // Approval is only real if the kernel can load it on the next turn.
+    depositGrant(escalation.grant);
   }
   emit(escalation);
   return escalation;

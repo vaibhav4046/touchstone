@@ -10,7 +10,7 @@ export async function GET(): Promise<Response> {
     ok: true,
     service: "touchstone",
     version: "1.0.0",
-    kernel: "@aicoo/sharedos 0.1.0-alpha.2",
+    kernel: "@aicoo/sharedos 0.1.0-alpha.5",
     analysis: llmAvailable() ? "deterministic+classifier+model" : "deterministic",
     auditShipping: process.env.SHAREDOS_KEY ? "enabled" : "local-only",
     lastDecisionAt: events[0]?.at ?? null,

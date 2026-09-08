@@ -268,7 +268,7 @@ checks expect prose loses the failure policy and the latency statement.
 
 | Layer | Choice |
 |---|---|
-| Kernel | `@aicoo/sharedos` 0.1.0-alpha.2 |
+| Kernel | `@aicoo/sharedos` 0.1.0-alpha.5 |
 | Runtime | Next.js 15, Node runtime, Vercel |
 | Analyst | `openai/gpt-oss-120b` via Groq |
 | Injection classifier | `meta-llama/llama-prompt-guard-2-86m` via Groq |

@@ -7,6 +7,7 @@ import type { AnalystResult } from "./analyst";
 import { PURPOSES, slug } from "../sharedos/identity";
 import { mintOrderGrant } from "../sharedos/grants";
 import { buildContext, callTool, traceFor } from "../sharedos/host";
+import { depositGrant, withdrawGrant } from "../sharedos/authority";
 import { closeOrder, openOrder } from "../sharedos/orders";
 import { requestEscalation, type Escalation } from "../sharedos/escalation";
 
@@ -42,7 +43,8 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
     now: new Date(),
   });
 
-  const context = buildContext({ buyerId: input.buyerId, purpose: PURPOSES.assay, grants: [grant], traceId });
+  depositGrant(grant);
+  const context = buildContext({ buyerId: input.buyerId, purpose: PURPOSES.assay, traceId });
   const args = { orderId, vendor: vendorSlug };
   const claimsPath = ["vendors", vendorSlug, "claims"];
 
@@ -90,11 +92,12 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
         { path: ["vendors", vendorSlug, "probe"], action: "probe" },
       );
       if (probe.denied !== undefined) {
-        escalation = requestEscalation({
+        escalation = await requestEscalation({
           buyerId: input.buyerId,
           resourcePath: ["vendors", vendorSlug, "probe"],
           action: "probe",
           reason: `Buyer asked for a live probe of ${options.probeEndpoint}. An order grant does not carry authority to reach a third party.`,
+          context,
         });
         notChecked.push(
           `Live behaviour of ${options.probeEndpoint}: not probed. Reaching a third party needs an approved escalation (${escalation.id}), and this order grant does not carry it.`,
@@ -178,6 +181,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
     return { receipt, escalation, elapsedMs: Date.now() - started };
   } finally {
     closeOrder(orderId);
+    withdrawGrant(grant.id);
   }
 }
 

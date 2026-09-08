@@ -156,7 +156,7 @@ Run against `https://touchstone-arena.vercel.app` on 2026-09-08, after protectio
 
 ```
 GET /api/health
-  ok: true · kernel @aicoo/sharedos 0.1.0-alpha.2 · analysis deterministic+classifier+model
+  ok: true · kernel @aicoo/sharedos 0.1.0-alpha.5 · analysis deterministic+classifier+model
 
 POST /api/assay   (the hostile sample listing)
   FLAGGED | score 19.7 | recommendedMaxPrice 0 | 3347ms

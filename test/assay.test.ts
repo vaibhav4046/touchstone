@@ -6,6 +6,7 @@ import { buildContext, callTool } from "../lib/sharedos/host";
 import { openOrder } from "../lib/sharedos/orders";
 import { PURPOSES } from "../lib/sharedos/identity";
 import { mintOrderGrant } from "../lib/sharedos/grants";
+import { depositGrant } from "../lib/sharedos/authority";
 
 const HONEST = `RenderKit produces one 9:16 product video per request.
 Price: 6 Arena credits per video. Delivery under 180 seconds.
@@ -96,6 +97,7 @@ describe("authorization", () => {
 
   it("refuses a vendor the order grant never named", async () => {
     const orderId = "ord_isolation_test";
+    const buyer = "buyer-isolation";
     openOrder({
       orderId,
       buyerId: buyer,
@@ -111,7 +113,8 @@ describe("authorization", () => {
       ttlMs: 60_000,
       now: new Date(),
     });
-    const context = buildContext({ buyerId: buyer, purpose: PURPOSES.assay, grants: [grant] });
+    depositGrant(grant);
+    const context = buildContext({ buyerId: buyer, purpose: PURPOSES.assay });
 
     const outcome = await callTool(
       context,
@@ -126,6 +129,7 @@ describe("authorization", () => {
 
   it("refuses a purpose the grant was not minted for", async () => {
     const orderId = "ord_purpose_test";
+    const buyer = "buyer-purpose";
     openOrder({
       orderId,
       buyerId: buyer,
@@ -142,7 +146,8 @@ describe("authorization", () => {
       now: new Date(),
     });
     // Same grant, different intent. The kernel treats that as a different key.
-    const context = buildContext({ buyerId: buyer, purpose: PURPOSES.shortlist, grants: [grant] });
+    depositGrant(grant);
+    const context = buildContext({ buyerId: buyer, purpose: PURPOSES.shortlist });
 
     const outcome = await callTool(
       context,
@@ -156,6 +161,7 @@ describe("authorization", () => {
 
   it("refuses an expired grant", async () => {
     const orderId = "ord_expiry_test";
+    const buyer = "buyer-expiry";
     openOrder({
       orderId,
       buyerId: buyer,
@@ -171,7 +177,8 @@ describe("authorization", () => {
       ttlMs: -1_000,
       now: new Date(),
     });
-    const context = buildContext({ buyerId: buyer, purpose: PURPOSES.assay, grants: [grant] });
+    depositGrant(grant);
+    const context = buildContext({ buyerId: buyer, purpose: PURPOSES.assay });
 
     const outcome = await callTool(
       context,
@@ -223,4 +230,22 @@ describe("escalations survive a cold instance", () => {
     expect(decideEscalation("esc_garbage", true)).toBeUndefined();
     expect(decideEscalation("not-an-escalation", true)).toBeUndefined();
   });
+});
+
+describe("escalation is recorded by the kernel, not just by us", () => {
+  it("puts an escalated decision in the receipt's audit trace", async () => {
+    const { receipt, escalation } = await assay(
+      { vendor: "RenderKit", pitch: HONEST, buyerId: "buyer-escalation-audit" },
+      { probeEndpoint: "https://example.com/health" },
+    );
+    expect(escalation).toBeDefined();
+
+    // alpha.5 gives `escalated` its own outcome: a denial is a decision the
+    // kernel made, an escalation is one it declined to make.
+    const escalated = receipt.decisions.filter((decision) => decision.outcome === "escalated");
+    expect(escalated.length).toBeGreaterThan(0);
+
+    const denied = receipt.decisions.filter((decision) => decision.outcome === "denied");
+    expect(denied.length).toBeGreaterThan(0);
+  }, 60_000);
 });

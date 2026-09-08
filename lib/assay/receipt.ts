@@ -14,7 +14,7 @@ import type { AssayReport } from "./types";
 export interface DecisionTrace {
   readonly action: string;
   readonly resource: string;
-  readonly outcome: "allowed" | "denied";
+  readonly outcome: "allowed" | "denied" | "escalated";
   readonly reasonCode: string;
   readonly grantId?: string;
   readonly ceilingRule?: string;
