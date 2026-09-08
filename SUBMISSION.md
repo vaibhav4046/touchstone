@@ -104,10 +104,10 @@ Namespace `arena`. Resource plane `assay`.
 
 ## Before you submit
 
-1. **Turn off Vercel deployment protection** for the `touchstone` project
-   (Project → Settings → Deployment Protection → Vercel Authentication → Disabled).
-   Until that is off, every agent that calls the service gets a `302` to an SSO page instead of a
-   receipt. This is the single blocking item.
+1. ~~Turn off Vercel deployment protection.~~ **Done.** The project was created with
+   `ssoProtection: all_except_custom_domains`, which sent every agent calling the service a `302`
+   to an SSO page instead of a receipt. It is now `null` and the endpoints answer publicly —
+   verified against the live deployment, output in the section below.
 2. **Onboard your everyday agent to SharedNet** — the rules say register the agent you already
    use, not a special event bot:
    ```bash
@@ -146,3 +146,45 @@ a rival proving the detector cries wolf — has a named regression suite pointed
 withheld by catalogue filtering, denied at invocation, escalated to a human, and re-granted more
 narrowly than before — and the proof of each step is the kernel's own audit record, carried inside
 a signed receipt anyone can verify.
+
+---
+
+## Live verification
+
+Run against `https://touchstone-arena.vercel.app` on 2026-09-08, after protection was disabled.
+
+```
+GET /api/health
+  ok: true · kernel @aicoo/sharedos 0.1.0-alpha.2 · analysis deterministic+classifier+model
+
+POST /api/assay   (the hostile sample listing)
+  FLAGGED | score 19.7 | recommendedMaxPrice 0 | 3347ms
+  codes: OVERREACH_CREDENTIALS, STEERING_INSTRUCTION, GUARD_INJECTION_DETECTED,
+         ANALYST_STEERING, OVERREACH_STANDING, SPEC_FAILURE_MISSING, EVIDENCE_UNSOURCED_STAT
+
+POST /api/assay   (the careful sample listing)
+  TRUSTED | score 92.6 | recommendedMaxPrice 6 | 4746ms
+
+POST /api/verify  (that receipt, untouched)      -> valid: true,  4 kernel decisions
+POST /api/verify  (verdict rewritten to TRUSTED) -> valid: false, reason signature_mismatch
+
+POST /api/assay   (probeEndpoint supplied)
+  escalation esc_85732fb9 opened, state pending
+  probe decision: { action: probe, outcome: denied, reasonCode: no_matching_grant }
+  notChecked[0]: "Live behaviour of https://example.com/health: not probed. Reaching a third
+                  party needs an approved escalation (esc_85732fb9), and this order grant does
+                  not carry it."
+
+POST /api/escalations  { approve: true }
+  minted grant: scope exact · actions ["probe"] · maxUses 1 · expires +60s
+
+POST /api/shortlist  (3 vendors, 25 credit budget)  3106ms
+  #1 RenderKit       TRUSTED   95.9  -> BUY    6
+  #2 GrowthOS        UNPROVEN  57.7  -> TRIAL  11.54
+  #3 CinematicAgent  FLAGGED   29.5  -> AVOID  0
+  spent 17.54, held 7.46
+
+Self-assay of /api/manifest under Touchstone's own rules: TRUSTED 83.4
+```
+
+Test suite: 24 passing (`npm test`). Production build clean (`npm run build`).
