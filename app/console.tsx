@@ -36,6 +36,7 @@ interface AssayResponse {
     signature: { value: string };
     decisions?: { action: string; resource: string; outcome: string; reasonCode: string; grantId?: string }[];
   };
+  escalation?: { id: string; state: string; reason: string };
   meta?: { elapsedMs: number; analysis: string; interpretation: string };
   error?: string;
   message?: string;
