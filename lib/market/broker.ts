@@ -136,7 +136,14 @@ export async function runBroker(input: {
   for (const bid of shortlist) {
     proofs.push(await challenge(bid, rfp));
   }
-  mark("prove", `${proofs.filter((proof) => proof.passed).length} of ${proofs.length} passed a live challenge.`, { proofs });
+  const unproven = proofs.filter((proof) => proof.sample.length === 0 && proof.passed);
+  mark(
+    "prove",
+    unproven.length > 0
+      ? `${proofs.filter((proof) => proof.passed).length} of ${proofs.length} cleared the challenge, ${unproven.length} unproven because the challenge could not be run.`
+      : `${proofs.filter((proof) => proof.passed).length} of ${proofs.length} passed a live challenge.`,
+    { proofs },
+  );
 
   const passed = shortlist.filter((bid) => proofs.find((proof) => proof.sellerId === bid.sellerId)?.passed === true);
   if (passed.length === 0) {
@@ -407,6 +414,13 @@ async function challenge(bid: Bid, rfp: Rfp): Promise<ProofChallenge> {
   const latencyMs = Date.now() - started;
 
   if (!outcome.ok) {
+    // "Produced nothing" and "we could not ask" are different facts about
+    // different parties. A rate-limited upstream is ours, and failing a seller
+    // for it is a false negative that quietly decides the market — on the first
+    // live run it emptied a shortlist of two and bought nothing at all. An
+    // unrunnable challenge carries forward as unproven, and the receipt says
+    // which of the two happened.
+    const unrunnable = /^http_(429|5\d\d)$|^TimeoutError$|^AbortError$|^no_api_key$/.test(outcome.error ?? "");
     return {
       sellerId: bid.sellerId,
       prompt,
@@ -414,8 +428,10 @@ async function challenge(bid: Bid, rfp: Rfp): Promise<ProofChallenge> {
       score: 0,
       adherence: 0,
       latencyMs,
-      passed: false,
-      reason: `No sample returned (${outcome.error ?? "unknown"}). A seller that cannot produce one is not shortlisted.`,
+      passed: unrunnable,
+      reason: unrunnable
+        ? `Challenge could not be run (${outcome.error}). That is our upstream and not the seller, so this is unproven rather than failed.`
+        : `No sample returned (${outcome.error ?? "unknown"}). A seller that cannot produce one is not shortlisted.`,
     };
   }
 

@@ -35,15 +35,20 @@ export async function complete(options: {
   readonly temperature?: number;
   readonly timeoutMs?: number;
 }): Promise<LlmOutcome> {
-  const first = await attempt(options);
-  // One retry, and only for the two failures that are about the upstream being
-  // busy rather than the request being wrong. A dropped dimension changes the
-  // score's denominator, so losing one to a transient 429 is a worse outcome
-  // than waiting 700ms.
-  if (first.ok || !RETRYABLE.test(first.error ?? "")) return first;
-  await new Promise((resolve) => setTimeout(resolve, 700));
-  const second = await attempt(options);
-  return second.ok ? second : first;
+  // Two retries with a widening gap, and only for the failures that are about
+  // the upstream being busy rather than the request being wrong. A burst of
+  // assay calls followed by proof challenges is exactly the shape that trips a
+  // rate limit, and a dropped call there does not just lose a dimension — it
+  // fails a seller for something the seller did not do.
+  let last = await attempt(options);
+  for (const wait of [700, 2200]) {
+    if (last.ok || !RETRYABLE.test(last.error ?? "")) return last;
+    await new Promise((resolve) => setTimeout(resolve, wait));
+    const again = await attempt(options);
+    if (again.ok) return again;
+    last = again;
+  }
+  return last;
 }
 
 const RETRYABLE = /^http_(429|5\d\d)$/;
