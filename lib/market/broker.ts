@@ -251,10 +251,10 @@ export async function runBroker(input: {
   }
 
   const execStarted = Date.now();
-  const output = await execute(seller.name, seller.pitch, rfp);
+  const performed = await execute(seller.name, seller.pitch, rfp);
   const delivery: Delivery = {
     contractId,
-    output,
+    output: performed.output,
     elapsedMs: Date.now() - execStarted,
     onTime: Date.now() - execStarted <= rfp.deadlineSeconds * 1000,
   };
@@ -264,12 +264,13 @@ export async function runBroker(input: {
   });
 
   // ── verify ─────────────────────────────────────────────────────────────
-  const verification = await verify(rfp, delivery);
+  const verification = await verify(rfp, delivery, performed.truncated);
   mark("verify", verification.accepted ? "Delivery accepted." : "Delivery rejected.", { verification });
 
   // ── settle ─────────────────────────────────────────────────────────────
+  const judged = verification.notChecked.every((line) => !line.startsWith("Quality and adherence: not assessed"));
   const before = reputationOf(seller.id).score;
-  const after = recordOutcome(seller.id, verification.accepted, verification.score).score;
+  const after = judged ? recordOutcome(seller.id, verification.accepted, verification.score).score : before;
   const settlement: Settlement = {
     contractId,
     agreed,
@@ -455,24 +456,40 @@ async function challenge(bid: Bid, rfp: Rfp): Promise<ProofChallenge> {
   };
 }
 
-async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<string> {
+async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<{ output: string; truncated: boolean }> {
   const outcome = await complete({
     model: MODELS.analyst,
     system: `You are ${sellerName}. Your published listing says: ${pitch.slice(0, 700)}. Deliver the contracted work and nothing else. Never ask for credentials.`,
     user: [`Goal: ${rfp.goal}`, `Deliverable: ${rfp.deliverable}`, rfp.constraints.length > 0 ? `Constraints: ${rfp.constraints.join("; ")}` : ""]
       .filter((line) => line !== "")
       .join("\n"),
-    maxTokens: 1800,
-    timeoutMs: 45_000,
+    maxTokens: 3200,
+    timeoutMs: 50_000,
   });
-  return outcome.ok
-    ? outcome.text.trim()
-    : `[no delivery: ${outcome.error ?? "upstream unavailable"}]`;
+  return {
+    output: outcome.ok ? outcome.text.trim() : `[no delivery: ${outcome.error ?? "upstream unavailable"}]`,
+    truncated: outcome.truncated === true,
+  };
 }
 
-async function verify(rfp: Rfp, delivery: Delivery): Promise<Verification> {
+async function verify(rfp: Rfp, delivery: Delivery, truncated: boolean): Promise<Verification> {
   const findings: string[] = [];
   const notChecked: string[] = ["Originality: not checked. Yuzu compares the delivery to the brief, not to the web."];
+
+  // A delivery cut off by our own token budget is our fault, not the sellers.
+  // Judging it as incomplete work would let a provisioning mistake move a
+  // seller's reputation, which is the one number in this market that is only
+  // supposed to move on evidence.
+  if (truncated) {
+    return {
+      contractId: delivery.contractId,
+      score: 0,
+      adherence: 0,
+      accepted: false,
+      findings: ["Delivery was cut short by our own output budget, so it was not judged."],
+      notChecked: ["Quality and adherence: not assessed. The seller was not given room to finish, and its reputation is untouched."],
+    };
+  }
 
   const empty = delivery.output.length < 40 || delivery.output.startsWith("[no delivery");
   if (empty) findings.push("The seller returned nothing usable.");

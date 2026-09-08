@@ -20,6 +20,8 @@ export interface LlmOutcome {
   readonly text: string;
   readonly ms: number;
   readonly error?: string;
+  /** The provider stopped because it ran out of budget, not because it was done. */
+  readonly truncated?: boolean;
 }
 
 export function llmAvailable(): boolean {
@@ -102,10 +104,17 @@ async function viaGemini(options: {
     if (!response.ok) return { ok: false, text: "", ms: Date.now() - started, error: `gemini_${response.status}` };
 
     const body = (await response.json()) as {
-      candidates?: ReadonlyArray<{ content?: { parts?: ReadonlyArray<{ text?: string }> } }>;
+      candidates?: ReadonlyArray<{ content?: { parts?: ReadonlyArray<{ text?: string }> }; finishReason?: string }>;
     };
-    const text = body.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
-    return { ok: text.length > 0, text, ms: Date.now() - started, error: text.length > 0 ? undefined : "gemini_empty" };
+    const candidate = body.candidates?.[0];
+    const text = candidate?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+    return {
+      ok: text.length > 0,
+      text,
+      ms: Date.now() - started,
+      error: text.length > 0 ? undefined : "gemini_empty",
+      truncated: candidate?.finishReason === "MAX_TOKENS",
+    };
   } catch (error) {
     return { ok: false, text: "", ms: Date.now() - started, error: error instanceof Error ? error.name : "unknown" };
   }
@@ -155,10 +164,17 @@ async function attempt(options: {
     }
 
     const body = (await response.json()) as {
-      choices?: ReadonlyArray<{ message?: { content?: string } }>;
+      choices?: ReadonlyArray<{ message?: { content?: string }; finish_reason?: string }>;
     };
-    const text = body.choices?.[0]?.message?.content ?? "";
-    return { ok: text.length > 0, text, ms: Date.now() - started, error: text.length > 0 ? undefined : "empty" };
+    const choice = body.choices?.[0];
+    const text = choice?.message?.content ?? "";
+    return {
+      ok: text.length > 0,
+      text,
+      ms: Date.now() - started,
+      error: text.length > 0 ? undefined : "empty",
+      truncated: choice?.finish_reason === "length",
+    };
   } catch (error) {
     const reason = error instanceof Error ? error.name : "unknown";
     return { ok: false, text: "", ms: Date.now() - started, error: reason };
