@@ -31,6 +31,18 @@ export interface AssayOptions {
   readonly probeEndpoint?: string;
   readonly traceId?: string;
   /**
+   * Keep the rules and the classifier; skip the model claim analysis.
+   *
+   * The broker assays every bidder before pricing, and at that moment the only
+   * question is whether a listing trips a floor — steering, a request for
+   * credentials — and those are decided deterministically. Running the full
+   * claim-by-claim analysis on each bidder spends model budget where it changes
+   * no decision, and on a rate-limited upstream it spends it in a burst that
+   * then fails the calls which do matter. The first live run bought nothing for
+   * exactly that reason.
+   */
+  readonly fast?: boolean;
+  /**
    * Wake a person when the record cannot answer. Off unless a caller says so.
    *
    * `sharedos.escalate` puts a bridge into `escalation_pending`, where it stops
@@ -83,7 +95,9 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
     const [steeringCall, staticCall, analystCall] = await Promise.all([
       callTool(context, "assay.steering_scan", args, { path: claimsPath, action: "classify" }),
       callTool(context, "assay.static_checks", args, { path: claimsPath, action: "analyze" }),
-      callTool(context, "assay.claim_analysis", args, { path: claimsPath, action: "analyze" }),
+      options.fast === true
+        ? Promise.resolve({ result: undefined })
+        : callTool(context, "assay.claim_analysis", args, { path: claimsPath, action: "analyze" }),
     ]);
 
     const steeringDimension = outputOf<DimensionResult>(steeringCall.result);

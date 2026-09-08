@@ -89,7 +89,7 @@ export async function runBroker(input: {
   for (const seller of candidates) {
     const { receipt } = await assay(
       { vendor: seller.name, pitch: seller.pitch, askingPrice: seller.askPrice, buyerId: input.buyerId },
-      { traceId },
+      { traceId, fast: true },
     );
     const reputation = reputationOf(seller.id);
     bids.push({
