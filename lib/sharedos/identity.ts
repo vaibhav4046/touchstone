@@ -15,6 +15,10 @@ export const PURPOSES = {
   shortlist: "touchstone.shortlist",
   dossier: "touchstone.dossier",
   probe: "touchstone.probe",
+  contract: "yuzu.contract",
+  deliver: "yuzu.deliver",
+  broker: "yuzu.broker",
+  prove: "yuzu.prove",
 } as const;
 
 export type Purpose = (typeof PURPOSES)[keyof typeof PURPOSES];

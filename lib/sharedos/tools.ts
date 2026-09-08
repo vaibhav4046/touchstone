@@ -23,6 +23,7 @@ import { runAnalyst } from "../assay/analyst";
  */
 
 const VendorArgs = z.object({ orderId: z.string().min(1), vendor: z.string().min(1) }).strict();
+const DeliverArgs = z.object({ contractId: z.string().min(1), capabilityFamily: z.string().min(1) }).strict();
 const ProbeArgs = z
   .object({ orderId: z.string().min(1), vendor: z.string().min(1), endpoint: z.string().url() })
   .strict();
@@ -108,6 +109,51 @@ function tool(options: {
 
 export function createAssayTools(): readonly ToolHandler[] {
   return [
+    /**
+     * One delivery under a contract, and one credit.
+     *
+     * The handler does almost nothing, which is the point: everything
+     * interesting happened before it was reached. Invoking it consumes a use of
+     * the contract's derived grant, so a buyer who paid three credits gets three
+     * deliveries and the fourth is refused as `grant_exhausted` — by the same
+     * authorizer that refuses everything else, not by a balance check in this
+     * file that somebody could forget to write.
+     */
+    {
+      definition: {
+        name: "market.deliver",
+        description:
+          "Take one delivery under a contract. Spends exactly one credit, and a credit is one use of the contract's grant.",
+        namespace: ASSAY_NAMESPACE,
+        source: "yuzu",
+        readWrite: "write",
+        inputSchema: {
+          type: "object",
+          properties: { contractId: { type: "string" }, capabilityFamily: { type: "string" } },
+          required: ["contractId", "capabilityFamily"],
+          additionalProperties: false,
+        } as unknown as JsonObject,
+        requiredCapability: {
+          resource: { namespace: ASSAY_NAMESPACE, path: ["market"], owner: TOUCHSTONE },
+          action: "deliver",
+        },
+        annotations: { readOnly: false, destructive: false, idempotent: false },
+      },
+      parseArguments: (args) => DeliverArgs.parse(args),
+      resolveRequirement: (_context, call) => {
+        const args = call.arguments as { capabilityFamily?: unknown };
+        const family = typeof args.capabilityFamily === "string" ? args.capabilityFamily : "unknown";
+        return {
+          resource: { namespace: ASSAY_NAMESPACE, path: ["market", family], owner: TOUCHSTONE },
+          action: "deliver",
+        };
+      },
+      invoke: async (_context, call) => {
+        const args = DeliverArgs.parse(call.arguments);
+        return succeeded(call, { delivered: true, contractId: args.contractId, at: new Date().toISOString() });
+      },
+    },
+
     tool({
       name: "assay.read_claims",
       description: "Read the vendor material a buyer supplied for this order.",

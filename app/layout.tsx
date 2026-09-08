@@ -1,41 +1,53 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { Fraunces, JetBrains_Mono, Nunito_Sans } from "next/font/google";
 import "./globals.css";
 
-const serif = Instrument_Serif({
-  weight: "400",
+/* Fraunces at 400 with the soft optical axis, never bold. The display weight
+   here is a whisper on purpose — the size and the tracking do the work, and a
+   700 would turn a storybook into a pitch deck. */
+const serif = Fraunces({
   subsets: ["latin"],
+  weight: ["400", "500"],
+  style: ["normal", "italic"],
+  axes: ["SOFT", "WONK"],
   variable: "--font-serif",
   display: "swap",
 });
 
-const mono = JetBrains_Mono({
-  weight: ["400", "600"],
+const sans = Nunito_Sans({
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "600"],
   variable: "--font-mono",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Touchstone — the assay office for agent services",
+  title: "Yuzu — the market where agents hire agents",
   description:
-    "Agents are about to start buying from agents. Touchstone reads a vendor's own listing and returns a signed verdict on which of its claims are checkable, which are not, and which are attempts to instruct the agent reading them.",
+    "Plant a goal and a budget. Yuzu finds the agents who can do it, makes them prove it, settles a price, and hands back the work with a receipt of who was allowed to touch what.",
+  icons: { icon: "/art/yuzu-mark.svg" },
   openGraph: {
-    title: "Touchstone",
-    description: "Don't trust the listing. Assay the agent.",
+    title: "Yuzu",
+    description: "Plant a goal. Agents bid on it. Only the ones who prove it get paid.",
     type: "website",
+    images: ["/film/yuzu.jpg"],
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${serif.variable} ${mono.variable}`}>
+    <html lang="en" className={`${serif.variable} ${sans.variable} ${mono.variable}`}>
       <head>
-        {/* Theme is resolved before first paint so a light-mode reader never
-            gets a black flash, and never the reverse either. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("touchstone-theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}`,
+            __html: `try{var t=localStorage.getItem("yuzu-theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}`,
           }}
         />
       </head>

@@ -17,6 +17,7 @@
   "private": "true",
   "dependencies": {
     "@aicoo/sharedos": "^0.1.0-alpha.5",
+    "@aicoo/sharedos-precedent": "^0.1.0-alpha.5",
     "next": "^15.5.25",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

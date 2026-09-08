@@ -1,5 +1,5 @@
 import type { AccessContext, CapabilityGrant } from "@aicoo/sharedos";
-import type { GrantSource } from "@aicoo/sharedos";
+import type { DelegationChainResolver, GrantSource } from "@aicoo/sharedos";
 import { addressesEqual } from "@aicoo/sharedos";
 
 /**
@@ -102,6 +102,28 @@ export function createGrantSource(): GrantSource {
       // and the two are meant to be separable: the ceiling narrows, the grant
       // authorizes, and neither is allowed to do the other's job.
       return held.filter((grant) => addressesEqual(grant.issuer, context.authority));
+    },
+  };
+}
+
+/**
+ * Ancestors, resolved from the store rather than from the child.
+ *
+ * A derived grant names its parent but cannot be trusted to describe it, so the
+ * kernel re-reads the ancestor here. Without this port a grant that claims a
+ * parent authorizes nothing at all — which is the correct default, and the
+ * reason a contract grant derived from the shelf was refused on its very first
+ * delivery until this existed.
+ */
+export function createDelegationResolver(): DelegationChainResolver {
+  return {
+    async resolve(namespaceId: string, grantId: string): Promise<CapabilityGrant | undefined> {
+      for (const held of grants.values()) {
+        for (const grant of held) {
+          if (grant.namespaceId === namespaceId && grant.id === grantId) return grant;
+        }
+      }
+      return undefined;
     },
   };
 }

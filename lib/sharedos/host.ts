@@ -12,7 +12,7 @@ import {
 import { ASSAY_NAMESPACE, NAMESPACE, TOUCHSTONE, buyerAddress, type Purpose } from "./identity";
 import { CloudAuditSink, MemoryAuditSink } from "./audit";
 import { TouchstoneCeiling } from "./ceiling";
-import { createGrantSource } from "./authority";
+import { createDelegationResolver, createGrantSource } from "./authority";
 import { createAssayProvider } from "./provider";
 import { createAssayTools } from "./tools";
 import type { DecisionTrace } from "../assay/receipt";
@@ -30,6 +30,7 @@ interface Host {
   readonly kernel: SharedOSKernel;
   readonly memoryAudit: MemoryAuditSink;
   readonly cloudAudit: CloudAuditSink;
+  readonly usage: InMemoryGrantUsageStore;
 }
 
 declare global {
@@ -40,12 +41,16 @@ declare global {
 function build(): Host {
   const memoryAudit = new MemoryAuditSink();
   const cloudAudit = new CloudAuditSink();
+  // One store for the whole process: a credit is a grant use, and a meter that
+  // is rebuilt per request is not a meter.
+  const usage = new InMemoryGrantUsageStore();
   const kernel = new SharedOSKernel({
     // Authority is loaded by the kernel, from a store the caller cannot reach.
     grantSource: createGrantSource(),
     authorizer: new CapabilityAuthorizer({
-      usageStore: new InMemoryGrantUsageStore(),
+      usageStore: usage,
       hostCeiling: new TouchstoneCeiling({ probesPerMinute: 6 }),
+      delegationResolver: createDelegationResolver(),
     }),
     audit: new CompositeAuditSink([memoryAudit, cloudAudit]),
     onAuditError: () => {
@@ -57,7 +62,7 @@ function build(): Host {
   kernel.registerResourceProvider(createAssayProvider());
   for (const handler of createAssayTools()) kernel.registerTool(handler);
 
-  return { kernel, memoryAudit, cloudAudit };
+  return { kernel, memoryAudit, cloudAudit, usage };
 }
 
 export function host(): Host {
@@ -171,6 +176,10 @@ export function traceFor(traceId: string): readonly DecisionTrace[] {
  * audit trail, so an event that was recorded correctly and never left the
  * instance is the same as one that was never recorded.
  */
+export function usageStore(): InMemoryGrantUsageStore {
+  return host().usage;
+}
+
 export async function drainAudit(): Promise<void> {
   await host().cloudAudit.drain();
 }
