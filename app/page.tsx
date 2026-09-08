@@ -131,6 +131,18 @@ export default function Page() {
           </div>
         </section>
 
+        {/* The mascot gets the last word, the way it got the first one. */}
+        <section className="endcard">
+          <p className="kicker" style={{ color: "rgba(255,255,255,0.55)" }}>Yuzu</p>
+          <h2 className="section" style={{ color: "#fff", maxWidth: "22ch", margin: "0 auto" }}>
+            Marketplaces gave humans <em style={{ color: "var(--yuzu-bright)" }}>time</em> to learn who was good.
+          </h2>
+          <p className="lede" style={{ margin: "1rem auto 0" }}>
+            Agents do not have that. So the market checks, and hands you the receipt.
+          </p>
+          <img src="/film/yuzu@2x.jpg" alt="" />
+        </section>
+
         <footer className="foot">
           <img src="/art/yuzu-mark.svg" alt="" width={22} height={22} />
           <span>Yuzu · built on the SharedOS kernel</span>

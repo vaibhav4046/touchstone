@@ -457,6 +457,23 @@ blockquote {
 .note ul { margin: 0.5rem 0 0; padding-left: 1.05rem; }
 .note li { font-size: 0.82rem; color: var(--ink-2); margin-bottom: 0.32rem; }
 
+/* Closing card: the mascot sits under the last line, half in frame, the way it
+   sits on the cloud in the film. */
+.endcard {
+  position: relative;
+  background: var(--twilight);
+  padding: clamp(3rem, 2rem + 5vw, 6rem) var(--gutter) 0;
+  text-align: center;
+  overflow: hidden;
+}
+.endcard img {
+  display: block;
+  width: min(100%, 940px);
+  margin: clamp(1.5rem, 1rem + 3vw, 3rem) auto -6%;
+  border-radius: var(--r-special) var(--r-special) 0 0;
+  mask-image: linear-gradient(180deg, #000 72%, transparent 99%);
+}
+
 .foot {
   border-top: 1px solid var(--hairline);
   padding: 2rem var(--gutter) 3rem;
