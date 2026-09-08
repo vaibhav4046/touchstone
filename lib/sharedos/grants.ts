@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import type { CapabilityGrant } from "@aicoo/sharedos";
+import { createHash, randomUUID } from "node:crypto";
+import type { Capability, CapabilityConstraints, CapabilityGrant, JsonObject } from "@aicoo/sharedos";
 import { ASSAY_NAMESPACE, NAMESPACE, TOUCHSTONE, buyerAddress, type Purpose } from "./identity";
 
 /**
@@ -98,5 +98,50 @@ export function mintEscalationGrant(input: {
     },
     issuedAt: new Date(input.now.getTime() - ISSUE_BACKDATE_MS).toISOString(),
     metadata: { escalationId: input.escalationId, tier: "escalation" },
+  };
+}
+
+/**
+ * A grant the record issued, rather than a person.
+ *
+ * Nothing here decides anything. `admitAutoDecision` already bounded the width
+ * by every precedent cited (R2) and took the tightest envelope across them
+ * (R3); this only puts the result somewhere the kernel will load it on the next
+ * turn, exactly as an approved escalation does. The marker rides through
+ * untouched, because R4's whole value is that an operator can select every
+ * grant one matcher produced and revoke that generation in one action.
+ */
+export function mintAutoDecidedGrant(input: {
+  readonly requestId: string;
+  readonly buyerId: string;
+  readonly capabilities: readonly Capability[];
+  readonly constraints: CapabilityConstraints;
+  readonly metadata: JsonObject;
+  readonly now: Date;
+}): CapabilityGrant {
+  // The request id is a SHA-256 of the ask and too long to read in a receipt.
+  // Fingerprint it, as the escalation grant does with its ticket.
+  //
+  // A nonce goes on the end because the request id is deliberately
+  // time-invariant: the same ask keeps one identifier across turns, which is
+  // right for correlating a question and wrong for naming a grant. The uses
+  // meter is keyed on grant id, so reusing one would have the second identical
+  // probe refused as `grant_exhausted` by a budget the first one spent. What
+  // groups a generation for revocation is the marker, not the id.
+  const fingerprint = createHash("sha256").update(input.requestId).digest("hex").slice(0, 10);
+
+  return {
+    id: `grant_auto_${fingerprint}_${randomUUID().slice(0, 8)}`,
+    namespaceId: NAMESPACE,
+    subject: buyerAddress(input.buyerId),
+    issuer: TOUCHSTONE,
+    capabilities: input.capabilities.map((capability) => ({
+      ...capability,
+      actions: [...capability.actions],
+      resource: { ...capability.resource, path: [...capability.resource.path] },
+    })),
+    constraints: input.constraints,
+    issuedAt: new Date(input.now.getTime() - ISSUE_BACKDATE_MS).toISOString(),
+    metadata: { ...input.metadata, buyerId: input.buyerId, tier: "auto" },
   };
 }

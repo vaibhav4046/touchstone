@@ -64,7 +64,8 @@ describe("authorization", () => {
   it("denies a live probe under an order grant and opens an escalation", async () => {
     const { receipt, escalation } = await assay(
       { vendor: "RenderKit", pitch: HONEST, buyerId: buyer },
-      { probeEndpoint: "https://example.com/health" },
+      // The human path is off by default now; these tests are about that path.
+      { probeEndpoint: "https://example.com/health", allowHumanEscalation: true },
     );
 
     expect(escalation).toBeDefined();
@@ -79,7 +80,8 @@ describe("authorization", () => {
   it("approval mints a narrower grant rather than widening the order grant", async () => {
     const { escalation } = await assay(
       { vendor: "RenderKit", pitch: HONEST, buyerId: buyer },
-      { probeEndpoint: "https://example.com/health" },
+      // The human path is off by default now; these tests are about that path.
+      { probeEndpoint: "https://example.com/health", allowHumanEscalation: true },
     );
     expect(escalation).toBeDefined();
 
@@ -210,7 +212,8 @@ describe("escalations survive a cold instance", () => {
   it("approves a ticket this process has never seen before", async () => {
     const { escalation } = await assay(
       { vendor: "RenderKit", pitch: HONEST, buyerId: buyer },
-      { probeEndpoint: "https://example.com/health" },
+      // The human path is off by default now; these tests are about that path.
+      { probeEndpoint: "https://example.com/health", allowHumanEscalation: true },
     );
     expect(escalation).toBeDefined();
 
@@ -236,7 +239,8 @@ describe("escalation is recorded by the kernel, not just by us", () => {
   it("puts an escalated decision in the receipt's audit trace", async () => {
     const { receipt, escalation } = await assay(
       { vendor: "RenderKit", pitch: HONEST, buyerId: "buyer-escalation-audit" },
-      { probeEndpoint: "https://example.com/health" },
+      // The human path is off by default now; these tests are about that path.
+      { probeEndpoint: "https://example.com/health", allowHumanEscalation: true },
     );
     expect(escalation).toBeDefined();
 

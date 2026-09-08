@@ -67,6 +67,24 @@ export default function Sky() {
     };
   }, [still]);
 
+  /**
+   * Slow, and seamless.
+   *
+   * The clips are ten seconds of drifting cloud, which at native speed reads as
+   * a loop rather than as weather — the eye catches the repeat and the spell
+   * breaks. Both plates are now palindromes (forward, then the same footage
+   * reversed), so the seam is mathematically identical on both sides and there
+   * is no cut to notice. Playing them at just under half speed turns twenty
+   * seconds of file into forty-odd seconds of apparent drift, which is long
+   * enough that nobody is counting.
+   */
+  useEffect(() => {
+    if (still) return;
+    for (const element of [twilight.current, yuzu.current]) {
+      if (element !== null) element.playbackRate = 0.45;
+    }
+  }, [still]);
+
   // A tab nobody is looking at should not be decoding two 1080p clips.
   useEffect(() => {
     if (still) return;

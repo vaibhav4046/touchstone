@@ -85,7 +85,7 @@ body {
   line-height: 1.5;
   letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 h1, h2, h3 {
@@ -242,7 +242,12 @@ h1.display em { font-style: italic; color: var(--yuzu-bright); }
 
 /* ─────────────────────────  sections  ───────────────────────── */
 
-.band { padding: clamp(3.5rem, 2rem + 6vw, 7rem) var(--gutter); }
+.band {
+  position: relative;
+  padding: clamp(3.5rem, 2rem + 6vw, 7rem) var(--gutter);
+  background: var(--parchment);
+}
+.band-open { background: transparent; }
 .band-paper { background: var(--parchment); }
 .wrap { max-width: var(--page); margin: 0 auto; }
 .narrow { max-width: 46rem; margin: 0 auto; }

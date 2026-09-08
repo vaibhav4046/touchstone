@@ -1,22 +1,45 @@
 import { randomUUID } from "node:crypto";
 import type { AssayInput, AssayReport, DimensionResult, Finding } from "./types";
 import { allFindings, deterministicScore, rankedRisks, recommendedMaxPrice, verdictFor, weightedScore } from "./score";
-import { sign, type DecisionTrace, type Receipt } from "./receipt";
+import { sign, type AutoDecisionTrace, type DecisionTrace, type Receipt } from "./receipt";
 import { llmAvailable } from "./llm";
 import type { AnalystResult } from "./analyst";
-import { PURPOSES, slug } from "../sharedos/identity";
-import { mintOrderGrant } from "../sharedos/grants";
+import { ASSAY_NAMESPACE, PURPOSES, slug } from "../sharedos/identity";
+import { mintAutoDecidedGrant, mintOrderGrant } from "../sharedos/grants";
 import { buildContext, callTool, traceFor } from "../sharedos/host";
 import { depositGrant, withdrawGrant } from "../sharedos/authority";
 import { closeOrder, openOrder } from "../sharedos/orders";
 import { requestEscalation, type Escalation } from "../sharedos/escalation";
+import { decideFromPrecedent } from "../sharedos/precedent";
+import { askPayload, probeQuestion, seedPrecedents } from "../sharedos/precedent-seed";
+import type { JsonObject } from "@aicoo/sharedos";
 
 const RECEIPT_TTL_MS = 7 * 24 * 60 * 60_000;
 
+/**
+ * The matcher behind every auto-decision this engine makes, named and versioned.
+ *
+ * R4 wants a class handle rather than a per-request one: a matcher will be
+ * improved, some improvement will be wrong, and the difference between that
+ * being an incident and being a rollback is whether an operator can select
+ * everything one generation produced and revoke it in a single action.
+ */
+const PROBE_MATCHER = "touchstone.probe.exact-question.v1";
+
 export interface AssayOptions {
-  /** A live endpoint the buyer wants probed. Always requires an escalation. */
+  /** A live endpoint the buyer wants probed. Never covered by an order grant. */
   readonly probeEndpoint?: string;
   readonly traceId?: string;
+  /**
+   * Wake a person when the record cannot answer. Off unless a caller says so.
+   *
+   * `sharedos.escalate` puts a bridge into `escalation_pending`, where it stops
+   * answering until somebody resolves it. That is correct behaviour and a
+   * losing move in a room that forbids a human in the loop for two hours, so
+   * the path stays here fully working behind a flag that is off during a run:
+   * what the record cannot answer is named in the receipt and left for after.
+   */
+  readonly allowHumanEscalation?: boolean;
 }
 
 export interface AssayOutcome {
@@ -30,6 +53,10 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
   const orderId = `ord_${randomUUID().slice(0, 8)}`;
   const traceId = options.traceId ?? randomUUID();
   const vendorSlug = slug(input.vendor);
+
+  // The owner's answers go on the record before the run can consult them. It
+  // is a fixed table, and a no-op after the first assay a given buyer runs.
+  await seedPrecedents(input.buyerId);
 
   openOrder({ orderId, buyerId: input.buyerId, purpose: PURPOSES.assay, vendors: [input] });
 
@@ -83,25 +110,84 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
 
     // The probe is attempted, not skipped. The denial is the finding.
     let escalation: Escalation | undefined;
+    const autoDecisions: AutoDecisionTrace[] = [];
     const notChecked: string[] = [...unrun];
     if (options.probeEndpoint !== undefined) {
-      const probe = await callTool(
-        context,
-        "assay.probe_vendor",
-        { ...args, endpoint: options.probeEndpoint },
-        { path: ["vendors", vendorSlug, "probe"], action: "probe" },
-      );
+      const probePath = ["vendors", vendorSlug, "probe"];
+      const probeArgs = { ...args, endpoint: options.probeEndpoint };
+      const requirement = { path: probePath, action: "probe" };
+      const probe = await callTool(context, "assay.probe_vendor", probeArgs, requirement);
+
       if (probe.denied !== undefined) {
-        escalation = await requestEscalation({
-          buyerId: input.buyerId,
-          resourcePath: ["vendors", vendorSlug, "probe"],
+        // Authority the order grant does not carry. Ask the record before
+        // asking a person: the owner answered this question in front of the
+        // room, and inside the room there is nobody left to ask.
+        const decided = await decideFromPrecedent(context, askPayload(probeQuestion(vendorSlug)), PROBE_MATCHER);
+        autoDecisions.push({
+          matcher: decided.asked,
+          resource: `${ASSAY_NAMESPACE}/${probePath.join("/")}`,
           action: "probe",
-          reason: `Buyer asked for a live probe of ${options.probeEndpoint}. An order grant does not carry authority to reach a third party.`,
-          context,
+          admitted: decided.admitted,
+          allowed: decided.allowed,
+          match: decided.match,
+          narrowed: decided.narrowed,
+          citedRequestIds: decided.citedRequestIds,
+          reason: decided.reason,
         });
-        notChecked.push(
-          `Live behaviour of ${options.probeEndpoint}: not probed. Reaching a third party needs an approved escalation (${escalation.id}), and this order grant does not carry it.`,
-        );
+
+        if (
+          decided.admitted &&
+          decided.allowed &&
+          decided.requestId !== undefined &&
+          decided.capabilities !== undefined &&
+          decided.constraints !== undefined
+        ) {
+          // The order grant is never widened. The record issues a second and
+          // strictly smaller one, exactly as an approved escalation would.
+          const grant = mintAutoDecidedGrant({
+            requestId: decided.requestId,
+            buyerId: input.buyerId,
+            capabilities: decided.capabilities,
+            constraints: decided.constraints,
+            metadata: (decided.metadata ?? {}) as JsonObject,
+            now: new Date(),
+          });
+          depositGrant(grant);
+          try {
+            // Probing is its own intent, and the envelope the record handed
+            // back says so. A grant minted for it authorises nothing under the
+            // assay purpose, so the retry states the purpose it is for.
+            const probeContext = buildContext({ buyerId: input.buyerId, purpose: PURPOSES.probe, traceId });
+            const retried = await callTool(probeContext, "assay.probe_vendor", probeArgs, requirement);
+            if (retried.denied !== undefined) {
+              notChecked.push(
+                `Live behaviour of ${options.probeEndpoint}: not probed. The owner's record allowed it, but the call was still refused (${retried.denied.reasonCode}).`,
+              );
+            }
+          } finally {
+            // The grant covered one probe. It does not outlive it.
+            withdrawGrant(grant.id);
+          }
+        } else if (options.allowHumanEscalation === true) {
+          escalation = await requestEscalation({
+            buyerId: input.buyerId,
+            resourcePath: probePath,
+            action: "probe",
+            reason: `Buyer asked for a live probe of ${options.probeEndpoint}. An order grant does not carry authority to reach a third party.`,
+            context,
+          });
+          notChecked.push(
+            `Live behaviour of ${options.probeEndpoint}: not probed. Reaching a third party needs an approved escalation (${escalation.id}), and this order grant does not carry it.`,
+          );
+        } else {
+          notChecked.push(
+            `Live behaviour of ${options.probeEndpoint}: not probed. ${
+              decided.admitted
+                ? "The owner refused this question before the Arena opened."
+                : `The owner's record does not answer this question (${decided.reason ?? "unknown"}).`
+            } Nobody is woken mid-run to answer it.`,
+          );
+        }
       }
     } else {
       notChecked.push("Live behaviour: not probed. No endpoint was supplied and no escalation was requested.");
@@ -165,6 +251,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
       traceId,
       report,
       decisions,
+      autoDecisions,
       escalations:
         escalation === undefined
           ? []

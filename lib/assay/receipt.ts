@@ -20,6 +20,31 @@ export interface DecisionTrace {
   readonly ceilingRule?: string;
 }
 
+/**
+ * Authority answered from the owner's own record instead of by waking a person.
+ *
+ * It sits beside `escalations` rather than inside them because it is the
+ * opposite event. An escalation is a decision nobody has made yet; this is one
+ * that was made before the room opened and merely read back — so filing them
+ * together would count a machine answer as a request for help.
+ */
+export interface AutoDecisionTrace {
+  /** The matcher that produced it. R4's handle: the thing an operator revokes. */
+  readonly matcher: string;
+  readonly resource: string;
+  readonly action: string;
+  /** Whether the record could answer at all, separate from what it answered. */
+  readonly admitted: boolean;
+  readonly allowed: boolean;
+  /** Whether the cited evidence was the identical question, or merely a similar one. */
+  readonly match?: string;
+  /** True when resemblance carried it and the grant was bounded by the ask as well. */
+  readonly narrowed?: boolean;
+  readonly citedRequestIds: readonly string[];
+  /** Why the record could not answer, when it could not. */
+  readonly reason?: string;
+}
+
 export interface Receipt {
   readonly version: "touchstone.receipt.v1";
   readonly receiptId: string;
@@ -33,6 +58,11 @@ export interface Receipt {
   /** Every authorization the kernel made while producing this report. */
   readonly decisions: readonly DecisionTrace[];
   readonly escalations: readonly { id: string; resource: string; action: string; state: string }[];
+  /**
+   * Authority the record answered, so a reader can audit what ran without a
+   * person. Absent on a receipt from a path that never asked for any.
+   */
+  readonly autoDecisions?: readonly AutoDecisionTrace[];
   readonly signature: { alg: "HMAC-SHA256"; value: string };
 }
 

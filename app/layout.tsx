@@ -7,9 +7,12 @@ import "./globals.css";
    700 would turn a storybook into a pitch deck. */
 const serif = Fraunces({
   subsets: ["latin"],
-  weight: ["400", "500"],
+  // Variable across the whole weight range, which is what lets the optical
+  // axes below be set at all — naming fixed weights turns the family static
+  // and next/font refuses the axes outright.
+  weight: "variable",
   style: ["normal", "italic"],
-  axes: ["SOFT", "WONK"],
+  axes: ["SOFT", "WONK", "opsz"],
   variable: "--font-serif",
   display: "swap",
 });
