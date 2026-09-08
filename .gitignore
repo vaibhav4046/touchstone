@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.env*.local
+.vercel
+*.log
+
+.vercel
+.env*
+.claude/
+.signing-key.txt
