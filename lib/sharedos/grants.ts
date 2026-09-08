@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CapabilityGrant } from "@aicoo/sharedos";
 import { ASSAY_NAMESPACE, NAMESPACE, TOUCHSTONE, buyerAddress, type Purpose } from "./identity";
 
@@ -73,8 +74,13 @@ export function mintEscalationGrant(input: {
   readonly action: string;
   readonly now: Date;
 }): CapabilityGrant {
+  // The escalation id carries its whole signed ticket, which is right for a
+  // thing that travels between instances and wrong for a label that shows up in
+  // a receipt and a console row. Fingerprint it instead.
+  const fingerprint = createHash("sha256").update(input.escalationId).digest("hex").slice(0, 10);
+
   return {
-    id: `grant_esc_${input.escalationId}`,
+    id: `grant_esc_${fingerprint}`,
     namespaceId: NAMESPACE,
     subject: buyerAddress(input.buyerId),
     issuer: TOUCHSTONE,
