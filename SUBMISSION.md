@@ -82,7 +82,7 @@ Namespace `arena`. Resource plane `assay`.
 
 ## Repository
 
-**[YOU]** — push and paste the URL. See "Before you submit" below.
+https://github.com/vaibhav4046/touchstone
 
 ## Representative agent's SharedNet node id
 
