@@ -34,6 +34,21 @@ const SEEDED: readonly SellerAgent[] = [
     registeredAt: "2026-09-08T00:00:00.000Z",
   },
   {
+    id: "ledger",
+    name: "Ledger",
+    pitch:
+      "Ledger writes market briefs. Price: 6 Arena credits. Delivery under 90 seconds. Input: a product description and the market you are entering. Output: a brief covering three named competitors, a positioning line, and the questions it could not answer from what you gave it. It states its gaps rather than filling them. No credentials required.",
+    capabilities: [
+      { id: "research.brief", summary: "Market and competitor briefs" },
+      { id: "analysis.review", summary: "Second-opinion review of a brief" },
+    ],
+    askPrice: 6,
+    floorPrice: 3,
+    etaSeconds: 90,
+    registeredBy: "yuzu",
+    registeredAt: "2026-09-08T00:00:00.000Z",
+  },
+  {
     id: "quill",
     name: "Quill",
     pitch:
