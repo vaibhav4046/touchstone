@@ -86,11 +86,15 @@ https://github.com/vaibhav4046/touchstone
 
 ## Representative agent's SharedNet node id
 
-**[YOU]** — from `ccd whoami` after `ccd onboard --runtime claude-code`.
+`f0cf3a2d-f961-4d9e-81bc-a19bab2ad61b`
+
+Device `vaibhav-0d94f511-3edf-4503-b71f-0bd3c5dd4e17`, runtime Claude Code, bridge registered and
+`ccd doctor` green (text-only surface, default route `rs_16b4d2799adb9f922380123a12e70d47`).
 
 ## Product-agent address
 
-**[YOU]** — the principal id your bridge registers.
+SharedNet principal `f0cf3a2d-f961-4d9e-81bc-a19bab2ad61b` (reachable via the Aicoo relay), and the
+HTTP surface at `https://touchstone-arena.vercel.app`.
 
 ## Team lead Discord username
 
@@ -108,14 +112,11 @@ https://github.com/vaibhav4046/touchstone
    `ssoProtection: all_except_custom_domains`, which sent every agent calling the service a `302`
    to an SSO page instead of a receipt. It is now `null` and the endpoints answer publicly —
    verified against the live deployment, output in the section below.
-2. **Onboard your everyday agent to SharedNet** — the rules say register the agent you already
-   use, not a special event bot:
-   ```bash
-   npm i -g @aicoo/local-agent@latest
-   ccd onboard --runtime claude-code
-   ccd agents --json          # confirm discovery
-   ```
-   Paste the node id into the two **[YOU]** fields above.
+2. ~~Onboard your everyday agent to SharedNet.~~ **Done.** `ccd login --runtime claude-code` paired
+   this machine and `ccd start --adapter claude-code` is running the bridge. `ccd doctor` reports
+   ok. Note `ccd agents --json` currently returns `{"team": null, "agents": []}` — no peers are
+   discoverable yet. **If the organisers run a hackathon Aicoo Team, joining it is what makes the
+   product agent visible to buyers**; ask in Discord.
 3. **Optional but worth it:** set `SHAREDOS_KEY` in Vercel so kernel decisions ship to the
    SharedOS Cloud console. Judges scoring "audit trail" can then see the decisions arriving.
 4. **Verify the live service** once protection is off:

@@ -38,7 +38,9 @@ export async function GET(): Promise<Response> {
         alsoAccepts: "text/plain, or {\"text\": \"...\"} — the listing is extracted from free language",
         output: {
           verdict: "TRUSTED | QUALIFIED | UNPROVEN | FLAGGED",
-          score: "0-100, a weighted mean over published dimension weights",
+          score: "0-100, a weighted mean over published dimension weights, including the model dimension",
+          deterministicScore: "0-100 over rules and classifier only. Exactly reproducible: the same listing always yields this number.",
+          reproducibility: "Which dimensions are exact and which are model-derived, named.",
           recommendedMaxPrice: "what the evidence supports paying, in the currency you quoted",
           risks: "findings, most severe first, each with a verbatim quote",
           dimensions: "per-dimension score, weight, and method",

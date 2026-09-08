@@ -25,6 +25,8 @@ interface Claim {
 interface AssayResponse {
   verdict?: "TRUSTED" | "QUALIFIED" | "UNPROVEN" | "FLAGGED";
   score?: number;
+  deterministicScore?: number;
+  reproducibility?: { exact: string[]; modelDerived: string[]; note: string };
   headline?: string;
   recommendedMaxPrice?: number;
   risks?: Finding[];
@@ -378,6 +380,13 @@ function Report({ result }: { result: AssayResponse }) {
         {result.meta?.elapsedMs}ms · {result.meta?.analysis} · receipt {result.receipt?.receiptId} ·{" "}
         {result.receipt?.signature.value.slice(0, 16)}…
       </p>
+      {result.reproducibility ? (
+        <p className="meta-line" title={result.reproducibility.note}>
+          reproducible score {result.deterministicScore?.toFixed(1)} · exact:{" "}
+          {result.reproducibility.exact.length} dimensions · model-derived:{" "}
+          {result.reproducibility.modelDerived.length}
+        </p>
+      ) : null}
 
       <div className="streak">
         {result.dimensions?.map((dimension) => (

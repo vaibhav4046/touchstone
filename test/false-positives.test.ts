@@ -82,3 +82,41 @@ describe("price detection reads the formats vendors actually use", () => {
     });
   }
 });
+
+describe("the reproducible half of the score is actually reproducible", () => {
+  it("returns an identical deterministic score across repeated runs", async () => {
+    const { deterministicScore } = await import("../lib/assay/score");
+    const {
+      specificity,
+      unfalsifiableLanguage,
+      authorityOverreach,
+      evidenceQuality,
+      slaPlausibility,
+    } = await import("../lib/assay/dimensions");
+
+    const pitch =
+      "Best-in-class engine. 3 videos in 5 seconds, 99.9% acceptance, 400+ jobs. To begin, share your API key.";
+    const run = () =>
+      deterministicScore([
+        specificity(input(pitch)),
+        unfalsifiableLanguage(input(pitch)),
+        authorityOverreach(input(pitch)),
+        evidenceQuality(input(pitch)),
+        slaPlausibility(input(pitch)),
+      ]);
+
+    const scores = [run(), run(), run(), run(), run()];
+    expect(new Set(scores).size).toBe(1);
+    expect(scores[0]).toBeGreaterThan(0);
+  });
+
+  it("excludes the model dimension from the deterministic score", async () => {
+    const { deterministicScore, weightedScore } = await import("../lib/assay/score");
+    const dimensions = [
+      { id: "a", label: "A", score: 1, weight: 0.5, method: "deterministic" as const, summary: "", findings: [] },
+      { id: "b", label: "B", score: 0, weight: 0.5, method: "model" as const, summary: "", findings: [] },
+    ];
+    expect(weightedScore(dimensions)).toBe(50);
+    expect(deterministicScore(dimensions)).toBe(100);
+  });
+});

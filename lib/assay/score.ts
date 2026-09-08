@@ -7,6 +7,24 @@ import type { DimensionResult, Finding, Verdict } from "./types";
  * from the dimensions in the receipt and find the same number. Nothing here
  * consults a model.
  */
+/**
+ * The half of the score a critic can reproduce exactly.
+ *
+ * One dimension comes from a language model, and a model is not a function:
+ * eight identical calls to this service produced scores from 33.3 to 45.8
+ * before this existed. The verdict held — the FLAGGED floor is deterministic —
+ * but a buyer told "recompute it yourself" would have got a different number
+ * and been right to say so.
+ *
+ * Publishing both numbers is the honest fix. This one is rules and classifier
+ * only: same input, same output, every time. The headline score still includes
+ * the model's judgement, because dropping it would lose real signal — but
+ * nobody has to take that part on faith to check the rest.
+ */
+export function deterministicScore(dimensions: readonly DimensionResult[]): number {
+  return weightedScore(dimensions.filter((dimension) => dimension.method !== "model"));
+}
+
 export function weightedScore(dimensions: readonly DimensionResult[]): number {
   const scored = dimensions.filter((dimension) => dimension.weight > 0 && dimension.method !== "not-run");
   const total = scored.reduce((sum, dimension) => sum + dimension.weight, 0);

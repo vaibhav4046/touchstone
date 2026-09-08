@@ -35,6 +35,27 @@ export async function complete(options: {
   readonly temperature?: number;
   readonly timeoutMs?: number;
 }): Promise<LlmOutcome> {
+  const first = await attempt(options);
+  // One retry, and only for the two failures that are about the upstream being
+  // busy rather than the request being wrong. A dropped dimension changes the
+  // score's denominator, so losing one to a transient 429 is a worse outcome
+  // than waiting 700ms.
+  if (first.ok || !RETRYABLE.test(first.error ?? "")) return first;
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  const second = await attempt(options);
+  return second.ok ? second : first;
+}
+
+const RETRYABLE = /^http_(429|5\d\d)$/;
+
+async function attempt(options: {
+  readonly model: string;
+  readonly system?: string;
+  readonly user: string;
+  readonly maxTokens?: number;
+  readonly temperature?: number;
+  readonly timeoutMs?: number;
+}): Promise<LlmOutcome> {
   const key = process.env.GROQ_API_KEY;
   const started = Date.now();
   if (key === undefined || key.length === 0) {
@@ -56,7 +77,10 @@ export async function complete(options: {
         model: options.model,
         messages,
         max_completion_tokens: options.maxTokens ?? 1400,
-        temperature: options.temperature ?? 0.15,
+        // Zero, because this number ends up in a score someone is asked to
+        // trust. It does not make the model deterministic — sampling is only
+        // one source of drift — but it removes the one this code controls.
+        temperature: options.temperature ?? 0,
       }),
       signal: AbortSignal.timeout(options.timeoutMs ?? 25_000),
     });

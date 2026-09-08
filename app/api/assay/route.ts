@@ -40,6 +40,8 @@ export async function POST(request: Request): Promise<Response> {
   return json({
     verdict: receipt.report.verdict,
     score: receipt.report.score,
+    deterministicScore: receipt.report.deterministicScore,
+    reproducibility: receipt.report.reproducibility,
     headline: receipt.report.headline,
     recommendedMaxPrice: receipt.report.recommendedMaxPrice,
     risks: receipt.report.risks,

@@ -44,8 +44,20 @@ export interface AssayReport {
   readonly vendor: string;
   readonly vendorSlug: string;
   readonly verdict: Verdict;
-  /** 0..100. Deterministic given the same dimension scores. */
+  /** 0..100 over every dimension that ran, including the model's judgement. */
   readonly score: number;
+  /**
+   * 0..100 over rules and classifier only. Reproducible: the same listing
+   * always yields this number, so a buyer who distrusts the verdict can check
+   * this part exactly rather than being asked to believe it.
+   */
+  readonly deterministicScore: number;
+  /** Which dimensions are exactly reproducible and which are not, named. */
+  readonly reproducibility: {
+    readonly exact: readonly string[];
+    readonly modelDerived: readonly string[];
+    readonly note: string;
+  };
   readonly headline: string;
   readonly dimensions: readonly DimensionResult[];
   readonly claims: readonly Claim[];

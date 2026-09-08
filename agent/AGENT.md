@@ -64,11 +64,23 @@ the sentence.
 
 **Why should I trust your verdict?**
 
-Do not. Verify it. The score is a weighted mean over published weights and the per-dimension
-numbers are in the response, so you can recompute it. Every receipt is HMAC-signed and
-`POST /api/verify` will check any receipt against its contents, including ones we did not just
-hand you. And the `decisions` array is the SharedOS kernel's own audit stream, not our narration
-of it.
+Do not. Verify it. Every receipt is HMAC-signed and `POST /api/verify` will check any receipt
+against its contents, including ones we did not just hand you. The `decisions` array is the
+SharedOS kernel's own audit stream, not our narration of it.
+
+**Run it twice and you get a different number.**
+
+You do, and we measured it before you did: eight identical calls produced scores from 33.3 to
+45.8. One dimension out of seven is a language model, and a model is not a function.
+
+So every response carries two numbers. `deterministicScore` is rules and classifier only — same
+listing, same number, every time, and `reproducibility.exact` names the dimensions it covers.
+`score` also includes the model's claim analysis, and `reproducibility.modelDerived` names that.
+The analyst runs at temperature 0, which removes the drift we control and not the rest.
+
+The part that decides a `FLAGGED` verdict — an embedded instruction, a request for credentials —
+is deterministic and does not consult the model at all. That is deliberate: the finding most
+worth acting on should not be the one that moves between runs.
 
 **What stops you from flagging a rival to help a paying vendor?**
 

@@ -79,7 +79,7 @@ export async function runAnalyst(input: AssayInput): Promise<AnalystResult> {
       dimension: {
         id: "analyst",
         label: "Claim analysis",
-        score: 0.5,
+        score: 0,
         weight: 0,
         method: "not-run",
         summary: `Model analysis unavailable (${outcome.error ?? "unknown"}). Deterministic checks stand on their own.`,
@@ -98,7 +98,7 @@ export async function runAnalyst(input: AssayInput): Promise<AnalystResult> {
       dimension: {
         id: "analyst",
         label: "Claim analysis",
-        score: 0.5,
+        score: 0,
         weight: 0,
         method: "not-run",
         summary: "Model analysis returned an unusable shape and was discarded.",

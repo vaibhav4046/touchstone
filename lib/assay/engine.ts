@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AssayInput, AssayReport, DimensionResult, Finding } from "./types";
-import { allFindings, rankedRisks, recommendedMaxPrice, verdictFor, weightedScore } from "./score";
+import { allFindings, deterministicScore, rankedRisks, recommendedMaxPrice, verdictFor, weightedScore } from "./score";
 import { sign, type DecisionTrace, type Receipt } from "./receipt";
 import { llmAvailable } from "./llm";
 import type { AnalystResult } from "./analyst";
@@ -116,11 +116,25 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
     const { verdict, reason } = verdictFor(score, findings);
     const risks: Finding[] = [...rankedRisks(findings), ...(analyst?.risks ?? [])].slice(0, 10);
 
+    const modelDerived = dimensions.filter((d) => d.method === "model" && d.weight > 0).map((d) => d.label);
+    const exact = dimensions
+      .filter((d) => d.method !== "model" && d.method !== "not-run" && d.weight > 0)
+      .map((d) => d.label);
+
     const report: AssayReport = {
       vendor: input.vendor,
       vendorSlug,
       verdict,
       score,
+      deterministicScore: deterministicScore(dimensions),
+      reproducibility: {
+        exact,
+        modelDerived,
+        note:
+          modelDerived.length === 0
+            ? "Every dimension in this report is reproducible: the same listing yields the same score."
+            : "deterministicScore covers the rules and the classifier and is exactly reproducible. score also includes the model's claim analysis, which may shift between runs. The verdict floors — steering and credential requests — are deterministic and do not depend on the model.",
+      },
       headline: reason ?? analyst?.headline ?? defaultHeadline(verdict, score, dimensions),
       dimensions,
       claims: analyst?.claims ?? [],

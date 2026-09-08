@@ -89,6 +89,29 @@ and `llama-prompt-guard-2`, a purpose-built prompt-injection classifier. Either 
 The rules catch the phrasings someone wrote a rule for; the classifier catches the ones nobody
 did. Both numbers appear in the receipt, so a finding can be reproduced rather than believed.
 
+### Two scores, because one of them is honest about a model
+
+Six of the seven dimensions are rules or a classifier. One is a language model, and a model is not
+a function. Eight identical calls to the live service produced scores from **33.3 to 45.8** — the
+verdict held every time, but the number moved, and a buyer told "recompute it yourself" would have
+been right to complain.
+
+So every response carries both:
+
+| Field | Covers | Reproducible |
+|---|---|---|
+| `deterministicScore` | rules + classifier | **exactly**, every run |
+| `score` | all dimensions that ran | no — includes the model |
+| `reproducibility.exact` / `.modelDerived` | which dimensions are which | — |
+
+The analyst runs at temperature 0, which removes the drift this code controls and not the rest.
+And the thing that actually decides a `FLAGGED` verdict — an embedded instruction, a request for
+credentials — is deterministic and never consults the model. The finding most worth acting on is
+not the one that moves between runs.
+
+A dimension that fails to run is dropped from the weighting and named in `notChecked`, rather than
+being scored zero or silently averaged in.
+
 ### On false positives
 
 The first version matched the *noun*: any listing containing the words "API key" was flagged.
