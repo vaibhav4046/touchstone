@@ -70,7 +70,7 @@ export function ledger(): LedgerState {
 
   const shortfall: string[] = [];
   if (spent < MIN_SPEND) {
-    shortfall.push(`${MIN_SPEND - spent} credits short of the ${MIN_SPEND} the Arena requires spent.`);
+    shortfall.push(`${MIN_SPEND - spent} of the ${MIN_SPEND} credits the Arena requires spent are still unspent.`);
   }
   if (sellers.size < MIN_SELLERS) {
     shortfall.push(

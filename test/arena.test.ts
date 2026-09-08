@@ -91,6 +91,11 @@ describe("round 1: try, disagree, rank", () => {
     expect(dead?.trial.answered).toBe(false);
     expect(dead?.trial.note).toContain("did not answer");
     expect(dead?.reason).toContain("ranks below anything that answered");
+    // A published endpoint that refuses is a broken promise, so it sinks below
+    // a listing of similar quality that never claimed to have one.
+    const untested = result.ranking.find((entry) => entry.product === HONEST.name);
+    expect(dead?.rank).toBeGreaterThan(untested?.rank ?? 0);
+    expect(dead?.standing).toBeLessThan(untested?.standing ?? 0);
 
     const flagged = result.ranking.find((entry) => entry.product === HOSTILE.name);
     expect(flagged?.flagged).toBe(true);

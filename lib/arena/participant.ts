@@ -33,6 +33,12 @@ const TRIAL_TIMEOUT_MS = 8_000;
 const PURCHASE_TIMEOUT_MS = 8_000;
 /** Below this a listing has nothing to assay; the trial carries the judgement instead. */
 const MIN_ASSAYABLE = 20;
+/** A listing that steers its reader cannot buy its way up with a good pitch. */
+const FLAGGED_CEILING = 15;
+/** A published endpoint that did not answer is a broken promise, not a missing one. */
+const FAILED_TRIAL_CEILING = 30;
+/** No endpoint published: unproven rather than failed, so it scores between silence and delivery. */
+const UNPROVEN_TRIAL = 25;
 
 const TRIAL_TASK =
   "Trial request from an autonomous buyer: in one response, produce your smallest real unit of work for a coffee brand called Ember, and state what it costs and how long it took.";
@@ -46,6 +52,8 @@ export interface Candidate {
 
 export interface TrialRecord {
   readonly answered: boolean;
+  /** Whether a call was actually made. A published endpoint that fails is a breach; no endpoint is only silence. */
+  readonly attempted: boolean;
   readonly latencyMs: number;
   /** What the product actually returned, truncated. Untrusted text, quoted but never obeyed. */
   readonly excerpt: string;
@@ -240,6 +248,7 @@ async function runTrial(candidate: Candidate): Promise<TrialRecord> {
   if (endpoint === undefined || !/^https?:\/\//i.test(endpoint)) {
     return {
       answered: false,
+      attempted: false,
       latencyMs: 0,
       excerpt: "",
       note: "published no reachable endpoint, so nothing could be exercised and only its listing was examined",
@@ -257,13 +266,26 @@ async function runTrial(candidate: Candidate): Promise<TrialRecord> {
     const body = (await response.text()).slice(0, 2_000);
     const latencyMs = Date.now() - started;
     if (!response.ok) {
-      return { answered: false, latencyMs, excerpt: body.slice(0, 300), note: `answered HTTP ${response.status} in ${latencyMs} ms` };
+      return {
+        answered: false,
+        attempted: true,
+        latencyMs,
+        excerpt: body.slice(0, 300),
+        note: `answered HTTP ${response.status} in ${latencyMs} ms`,
+      };
     }
     if (body.trim().length === 0) {
-      return { answered: false, latencyMs, excerpt: "", note: `answered HTTP ${response.status} in ${latencyMs} ms with an empty body` };
+      return {
+        answered: false,
+        attempted: true,
+        latencyMs,
+        excerpt: "",
+        note: `answered HTTP ${response.status} in ${latencyMs} ms with an empty body`,
+      };
     }
     return {
       answered: true,
+      attempted: true,
       latencyMs,
       excerpt: body.slice(0, 300),
       note: `answered HTTP ${response.status} in ${latencyMs} ms with ${body.length} characters`,
@@ -271,7 +293,13 @@ async function runTrial(candidate: Candidate): Promise<TrialRecord> {
   } catch (error) {
     const latencyMs = Date.now() - started;
     const reason = error instanceof Error ? error.name : "unknown";
-    return { answered: false, latencyMs, excerpt: "", note: `did not answer within ${TRIAL_TIMEOUT_MS} ms (${reason})` };
+    return {
+      answered: false,
+      attempted: true,
+      latencyMs,
+      excerpt: "",
+      note: `did not answer within ${TRIAL_TIMEOUT_MS} ms (${reason})`,
+    };
   }
 }
 
@@ -331,17 +359,19 @@ function rank(attempts: readonly Attempt[]): readonly Ranked[] {
  * Listing evidence carries the ranking; observed behaviour breaks the ties.
  *
  * The deterministic half of the assay is used rather than the full score, so a
- * ranking can be recomputed from the same listings and come out the same. A
- * flagged listing is floored instead of merely penalised: a product that tries
- * to steer the buyer reading it should not be able to out-rank an honest one by
- * being fast.
+ * ranking can be recomputed from the same listings and come out the same. Two
+ * things are floored rather than merely penalised, because a penalty can be
+ * out-earned by a good listing and these should not be: a product that steers
+ * the buyer reading it, and a product whose own published endpoint did not
+ * answer. Publishing no endpoint is unproven and scores between the two —
+ * silence is weaker than delivery and better than a broken promise.
  */
 function standingOf(attempt: Attempt): number {
   const listing = attempt.report?.deterministicScore ?? 0;
-  const observed = attempt.trial.answered ? 100 : 0;
+  const observed = attempt.trial.answered ? 100 : attempt.trial.attempted ? 0 : UNPROVEN_TRIAL;
   const raw = listing * 0.8 + observed * 0.2;
-  const capped = attempt.report?.verdict === "FLAGGED" ? Math.min(raw, 15) : raw;
-  return Math.round(capped * 10) / 10;
+  const ceiling = attempt.report?.verdict === "FLAGGED" ? FLAGGED_CEILING : attempt.trial.attempted && !attempt.trial.answered ? FAILED_TRIAL_CEILING : 100;
+  return Math.round(Math.min(raw, ceiling) * 10) / 10;
 }
 
 function reasonFor(attempt: Attempt, standing: number): string {
@@ -353,7 +383,9 @@ function reasonFor(attempt: Attempt, standing: number): string {
       : `Assay: ${attempt.report.verdict} at ${attempt.report.deterministicScore.toFixed(1)} on the reproducible dimensions.`;
   const trial = attempt.trial.answered
     ? `Trial: it ${attempt.trial.note}.`
-    : `Trial: it ${attempt.trial.note}, so it ranks below anything that answered.`;
+    : attempt.trial.attempted
+      ? `Trial: it ${attempt.trial.note}, so it ranks below anything that answered and below listings that were never put to the test.`
+      : `Trial: it ${attempt.trial.note}, so it ranks below anything that answered.`;
   const points = `${attempt.critique.disagreements.length} disagreements stand unanswered. Standing ${standing}.`;
   return `${assayed} ${trial} ${points}`;
 }
@@ -373,11 +405,23 @@ function ruleGaps(ranking: readonly Ranked[]): readonly string[] {
 /** Buying is a call to the seller. Silence still costs credits; it is recorded as silence. */
 async function buy(candidate: Candidate | undefined, credits: number): Promise<TrialRecord> {
   if (candidate === undefined) {
-    return { answered: false, latencyMs: 0, excerpt: "", note: "Bought against its listing; the product was not in this round's candidate set." };
+    return {
+      answered: false,
+      attempted: false,
+      latencyMs: 0,
+      excerpt: "",
+      note: "Bought against its listing; the product was not in this round's candidate set.",
+    };
   }
   const endpoint = candidate.endpoint;
   if (endpoint === undefined || !/^https?:\/\//i.test(endpoint)) {
-    return { answered: false, latencyMs: 0, excerpt: "", note: "Bought against its listing; it published no endpoint to deliver through." };
+    return {
+      answered: false,
+      attempted: false,
+      latencyMs: 0,
+      excerpt: "",
+      note: "Bought against its listing; it published no endpoint to deliver through.",
+    };
   }
 
   const started = Date.now();
@@ -393,6 +437,7 @@ async function buy(candidate: Candidate | undefined, credits: number): Promise<T
     const answered = response.ok && body.trim().length > 0;
     return {
       answered,
+      attempted: true,
       latencyMs,
       excerpt: body.slice(0, 300),
       note: answered
@@ -403,6 +448,7 @@ async function buy(candidate: Candidate | undefined, credits: number): Promise<T
     const reason = error instanceof Error ? error.name : "unknown";
     return {
       answered: false,
+      attempted: true,
       latencyMs: Date.now() - started,
       excerpt: "",
       note: `Paid and got no delivery within ${PURCHASE_TIMEOUT_MS} ms (${reason}).`,

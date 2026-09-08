@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { plateCut } from "./density";
 
 /**
  * One sky, two plates.
@@ -20,6 +21,9 @@ export default function Sky() {
   const yuzu = useRef<HTMLVideoElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [still, setStill] = useState(false);
+  const [cut, setCut] = useState<string | undefined>();
+
+  useEffect(() => setCut(plateCut()), []);
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -99,6 +103,15 @@ export default function Sky() {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [still]);
 
+  if (cut === undefined) {
+    return (
+      <div className="sky" ref={wrap} aria-hidden="true">
+        <img className="plate" src="/film/twilight.jpg" alt="" />
+        <div className="veil" />
+      </div>
+    );
+  }
+
   if (still) {
     return (
       <div className="sky" ref={wrap} aria-hidden="true">
@@ -111,12 +124,12 @@ export default function Sky() {
   return (
     <div className="sky" ref={wrap} aria-hidden="true">
       <video ref={twilight} autoPlay muted loop playsInline preload="auto" poster="/film/twilight.jpg">
-        <source src="/film/twilight.webm" type="video/webm" />
-        <source src="/film/twilight.mp4" type="video/mp4" />
+        <source src={`/film/twilight${cut}.webm`} type="video/webm" />
+        <source src={`/film/twilight${cut}.mp4`} type="video/mp4" />
       </video>
       <video ref={yuzu} autoPlay muted loop playsInline preload="auto" poster="/film/yuzu.jpg" style={{ opacity: 0 }}>
-        <source src="/film/yuzu.webm" type="video/webm" />
-        <source src="/film/yuzu.mp4" type="video/mp4" />
+        <source src={`/film/yuzu${cut}.webm`} type="video/webm" />
+        <source src={`/film/yuzu${cut}.mp4`} type="video/mp4" />
       </video>
       <div className="veil" />
     </div>

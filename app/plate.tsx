@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { plateCut } from "./density";
 
 /**
  * A background plate that plays slower than it was rendered.
@@ -19,6 +20,9 @@ export default function Plate({
   readonly rate?: number;
 }) {
   const video = useRef<HTMLVideoElement>(null);
+  const [cut, setCut] = useState<string | undefined>();
+
+  useEffect(() => setCut(plateCut()), []);
 
   useEffect(() => {
     const element = video.current;
@@ -26,10 +30,13 @@ export default function Plate({
     element.playbackRate = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : rate;
   }, [rate]);
 
+  // Until the cut is known the poster stands in, so nothing downloads twice.
+  if (cut === undefined) return <img className="plate" src={poster} alt="" aria-hidden="true" />;
+
   return (
-    <video ref={video} autoPlay muted loop playsInline poster={poster} aria-hidden="true">
-      <source src={`${src}.mp4`} type="video/mp4" />
-      <source src={`${src}.webm`} type="video/webm" />
+    <video ref={video} autoPlay muted loop playsInline poster={cut === "@2x" ? poster.replace(".jpg", "@2x.jpg") : poster} aria-hidden="true">
+      <source src={`${src}${cut}.webm`} type="video/webm" />
+      <source src={`${src}${cut}.mp4`} type="video/mp4" />
     </video>
   );
 }
