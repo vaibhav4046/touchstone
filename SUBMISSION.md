@@ -68,7 +68,7 @@ Namespace `arena`. Resource plane `assay`.
 
 ## Repository
 
-https://github.com/vaibhav4046/touchstone
+https://github.com/vaibhav4046/yuzu
 
 ## Representative agent's SharedNet node id
 
