@@ -27,7 +27,7 @@ curl -X POST https://yuzu-market.vercel.app/api/broker \
 ```
 [discover]  research.brief within 22 credits
 [bid]       2 sellers bid: Scout at 5, Ledger at 6
-[prove]     2 of 2 passed a live challenge
+[prove]     2 of 2 proved it with a sample
 [negotiate] settled at 4 credits after 5 rounds
 [contract]  Scout, 4 credits, payable as 4 grant uses
 [execute]   delivered, 3 credits left on the contract
@@ -35,11 +35,32 @@ curl -X POST https://yuzu-market.vercel.app/api/broker \
 [settle]    4 of 4 credits paid. Scout: 0.5 -> 0.96
 ```
 
-> Captured from real runs down to `[contract]`, and through `[execute]` for the credits left. The
-> accepted tail is the shape of the accepted path rather than a capture: both model upstreams are
-> rate-limited at the time of writing, so the runs that finish today land on
-> `0 of 4 credits paid` with `judged: false` and the seller's standing untouched — which is the
-> behaviour the section below is about. Nothing here is a benchmark and none of it is a promise.
+**That is the shape of an accepted run, not a capture.** Here is a capture, taken from production
+while both model suppliers were rate-limited:
+
+```
+[discover]  Goal read as a request for research.brief within 22 credits.
+[bid]       2 sellers bid.
+[prove]     None of the 2 could be challenged: our own upstream refused every call. They stay on
+            the shortlist rather than being failed for our outage.
+[negotiate] Settled at 5 credits after 5 rounds.
+[contract]  Ledger contracted for 5 credits, payable as 5 grant uses. Signed without proof: its
+            challenge could not be run, so this seller demonstrated nothing before the money moved.
+[execute]   No work was taken from Ledger: our own model upstream refused the call (http_429).
+            4 credits left on the contract.
+[verify]    Nothing was delivered to judge.
+[settle]    0 of 5 credits paid. Ledger: 0.5 to 0.5.
+```
+
+The second one is the more useful read, and it is why the first is labelled. Nothing was delivered,
+so nothing was paid; the seller was never actually asked, so its standing did not move; and the
+line that admits the contract was signed on no evidence is in the receipt rather than in an
+apology afterwards. A market that reported that run as a success would be lying, and one that
+blamed Ledger for our rate limit would be lying in the other direction.
+
+The free tiers behind this do not survive sustained load. That is a capacity problem rather than a
+design one, and it is stated here because a transcript that quietly omitted it would be the sort of
+claim this whole project is about not making.
 
 Four all the way down: the four the buyer agreed to, the four uses minted on the grant, and the four
 that settle. The price is made whole at the moment it becomes binding, because a credit is a use on

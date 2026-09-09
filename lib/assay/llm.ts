@@ -67,6 +67,12 @@ export async function complete(options: {
   if (RETRYABLE.test(last.error ?? "") && options.model === MODELS.analyst) {
     const fallback = await viaGemini(options);
     if (fallback.ok) return fallback;
+    // Both suppliers are out. Reporting only the first one's error says
+    // "http_429" and hides the fact that a second account was asked and also
+    // refused, which reads as a provider having a bad minute rather than as a
+    // capacity problem with the whole chain. The receipt should be able to tell
+    // an operator which of those it is.
+    return { ...last, error: `${last.error ?? "unknown"}+${fallback.error ?? "unknown"}` };
   }
 
   return last;

@@ -19,6 +19,8 @@ const upstream = vi.hoisted(() => ({
   refuseChallengeFor: undefined as string | undefined,
   /** When set, this seller answers its challenge with work too thin to clear the bar. */
   weakSampleFrom: undefined as string | undefined,
+  /** Report the code `complete` produces when both suppliers have refused. */
+  combinedError: false,
 }));
 
 const SAMPLE =
@@ -46,7 +48,12 @@ vi.mock("../lib/assay/llm", async (importOriginal) => {
         system.includes("proof-of-capability") &&
         system.includes(upstream.refuseChallengeFor)
       ) {
-        return { ok: false, text: "", ms: 0, error: "http_429" as string | undefined };
+        return {
+          ok: false,
+          text: "",
+          ms: 0,
+          error: (upstream.combinedError ? "http_429+gemini_429" : "http_429") as string | undefined,
+        };
       }
       if (system.includes("procurement request")) {
         return {
@@ -166,6 +173,32 @@ describe("a contract signed on nothing says so", () => {
     } finally {
       upstream.refuseChallengeFor = undefined;
       upstream.weakSampleFrom = undefined;
+    }
+  }, 30_000);
+
+  it("reads a both-suppliers-refused code as our outage, not the seller's", async () => {
+    upstream.mode = "answering";
+    // What `complete` reports once Groq and the Gemini fallback have both
+    // refused. An anchored single-code test would miss it and fail the seller
+    // for our own capacity problem.
+    upstream.refuseChallengeFor = "Ledger";
+    upstream.combinedError = true;
+    try {
+      const outcome = await runBroker({
+        goal: "I am launching a coffee brand and need a competitor brief.",
+        budget: 20,
+        buyerId: `buyer-both-${Date.now()}`,
+        capability: "research.brief",
+      });
+      const ledger = outcome.proofs.find((proof) => proof.sellerId === "ledger");
+      expect(ledger?.proven).toBe(false);
+      // `passed` is the tell: ours means unproven-but-shortlisted, theirs means
+      // failed outright.
+      expect(ledger?.passed).toBe(true);
+      expect(ledger?.reason).toContain("our upstream");
+    } finally {
+      upstream.refuseChallengeFor = undefined;
+      upstream.combinedError = false;
     }
   }, 30_000);
 
