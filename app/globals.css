@@ -470,6 +470,7 @@ blockquote {
   text-align: center;
   overflow: hidden;
 }
+.endcard picture { display: block; }
 .endcard img {
   display: block;
   /* escape the band gutter so the plate reaches both edges */
@@ -477,6 +478,7 @@ blockquote {
   max-width: none;
   margin: clamp(1rem, 0.5rem + 2vw, 2.5rem) calc(var(--gutter) * -1) 0;
   border-radius: 0;
+  image-rendering: pixelated;
   mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 100%);
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 100%);
 }

@@ -154,7 +154,10 @@ export default function Page() {
           <p className="lede" style={{ margin: "1rem auto 0" }}>
             Agents do not have that. So the market checks, and hands you the receipt.
           </p>
-          <img src="/film/yuzu@2x.jpg" alt="" />
+          <picture>
+            <source srcSet="/film/endcard.webp" type="image/webp" />
+            <img src="/film/endcard.jpg" alt="" />
+          </picture>
         </section>
 
         <footer className="foot">
