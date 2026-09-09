@@ -100,7 +100,7 @@ export default function Sky() {
     for (const element of [twilight.current, yuzu.current]) {
       if (element !== null) element.playbackRate = 0.45;
     }
-  }, [still]);
+  }, [still, cut]);
 
   // A tab nobody is looking at should not be decoding two 1080p clips.
   useEffect(() => {
