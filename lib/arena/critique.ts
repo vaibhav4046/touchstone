@@ -58,7 +58,30 @@ const EVIDENCE = /https?:\/\/\S+/i;
 const SUPERLATIVE =
   /\b(?:best-in-class|world-class|industry-leading|state-of-the-art|unmatched|seamless|revolutionary|flawless|guaranteed|instant)\b/i;
 const HEADLINE_NUMBER = /\b\d{1,3}(?:\.\d+)?%|\b\d{2,}(?:,\d{3})*\+/;
-const CREDENTIAL = /\b(?:api[- ]?key|secret|token|password|credential|ssh key)\b/i;
+/**
+ * A seller asking the buyer for a credential, which is not the same as a seller
+ * using the word.
+ *
+ * This was `\b(?:api[- ]?key|secret|token|...)\b` and it fired on the noun
+ * alone. A live Arena round produced a CREDENTIAL_REQUEST against a listing
+ * whose only offence was the sentence "call returns a refund token", quoted
+ * back as the evidence for it. A market that grades other agents on whether
+ * their evidence supports their claim cannot ship that: the quote was verbatim
+ * and it did not say what the finding said it said, which is the exact failure
+ * this product exists to catch in other people.
+ *
+ * So both halves have to be present in one clause: something being asked for,
+ * and the thing asked for being the buyer's. "Share your API key" matches.
+ * "We require an API key to begin" matches on the second alternative. A refund
+ * token, a bearer token in a described response, and a password reset feature
+ * all stop matching, which is the point.
+ */
+const CREDENTIAL_NOUN = String.raw`(?:api[- ]?keys?|secrets?|tokens?|passwords?|credentials?|ssh keys?)`;
+export const CREDENTIAL = new RegExp(
+  String.raw`\b(?:share|provide|send|give|grant|paste|enter|supply|forward|attach|include|submit)\b[^.!?]{0,40}\byour\b[^.!?]{0,30}\b${CREDENTIAL_NOUN}\b` +
+    String.raw`|\b(?:we|our\s+\w+)\b[^.!?]{0,25}\b(?:require|requires|need|needs)\b[^.!?]{0,30}\b${CREDENTIAL_NOUN}\b`,
+  "i",
+);
 
 export async function critique(material: CritiqueMaterial): Promise<Critique> {
   const model = await fromModel(material);

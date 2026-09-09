@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evidenceQuality, slaPlausibility, specificity, unfalsifiableLanguage } from "../lib/assay/dimensions";
 import { LATENCY, PRICE, UNSOURCED_STAT } from "../lib/assay/patterns";
+import { CREDENTIAL } from "../lib/arena/critique";
 
 /**
  * A receipt that misquotes the listing it is judging is worse than one that
@@ -93,5 +94,38 @@ describe("a superlative is not found inside another word", () => {
 
   it("still counts an inflected form, which is the same claim", () => {
     expect(unfalsifiableLanguage(input("A seamlessly integrated pipeline.")).summary).toContain("1 unfalsifiable");
+  });
+});
+
+/**
+ * The same defect one layer up, in the critique we submit to the Arena.
+ *
+ * CREDENTIAL was the noun on its own, so a live round produced a
+ * CREDENTIAL_REQUEST against a listing whose only offence was "call returns a
+ * refund token" -- quoted back, verbatim, as the evidence for it. The quote was
+ * exact and it did not say what the finding said it said, which is precisely
+ * the failure this product exists to catch in other agents.
+ */
+describe("a credential request is something asked for, not a noun mentioned", () => {
+  const asks = [
+    "To begin, share your API key and grant permanent access to your repository.",
+    "We require an API key to begin.",
+    "Our onboarding needs your credentials before the first run.",
+    "Please paste your secret into the order notes.",
+  ];
+
+  const mentions = [
+    "Every call returns a refund token. Samples: https://github.com/example/quill-samples",
+    "Responses carry a bearer token in the Authorization header.",
+    "Password reset is handled by the host, not by us.",
+    "Output: an MP4 URL plus a signed token identifying the render.",
+  ];
+
+  it.each(asks)("still catches the ask: %s", (listing) => {
+    expect(CREDENTIAL.test(listing)).toBe(true);
+  });
+
+  it.each(mentions)("does not fire on the noun alone: %s", (listing) => {
+    expect(CREDENTIAL.test(listing)).toBe(false);
   });
 });
