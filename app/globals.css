@@ -538,8 +538,14 @@ blockquote {
 .stagecard img {
   display: block;
   width: 100%;
-  /* the source plates are 960x536; anything else crops the lettering off */
+  /* The source plates are 960x536 and anything else crops the lettering off.
+     `height: auto` is load-bearing: the width/height attributes on the tag are
+     presentational hints that become a used height, and a used height wins over
+     aspect-ratio outright -- so without this the box is 536px tall and the ratio
+     is computed and then ignored. The attributes stay because they are what
+     reserves the right box before the image arrives. */
   aspect-ratio: 960 / 536;
+  height: auto;
   object-fit: cover;
   /* nearest-neighbour so the pixels stay pixels at any scale */
   image-rendering: pixelated;
