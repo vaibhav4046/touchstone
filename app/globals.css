@@ -166,6 +166,18 @@ h1, h2, h3 {
 }
 .top[data-over="true"] .brand b,
 .top[data-over="true"] .top-link { color: #fff; }
+
+/* There is no sky on a flat page, so nothing is ever over one.
+   `data-over` is set from scroll position alone and starts true, which is
+   right on the home page and wrong everywhere else: on /deal and /dashboard
+   the top of the page is cream, so the masthead rendered white-on-cream and
+   the whole nav was invisible until you scrolled. Answering it in CSS rather
+   than in the scroll handler also means there is no first-frame flash to get
+   wrong in the other direction. */
+.stage-flat .top[data-over="true"] .brand b,
+.stage-flat .top[data-over="true"] .top-link { color: var(--ink); }
+.stage-flat .top[data-over="true"] .theme-btn { color: var(--ink-2); border-color: var(--hairline); }
+.stage-flat .top[data-over="true"] .theme-btn:hover { color: var(--ink); border-color: var(--ink-3); }
 .top .spacer { flex: 1; }
 
 .top-link {

@@ -795,6 +795,18 @@ async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Per
       // assumption dutifully noted underneath, which followed the letter of the
       // instruction above and none of its point. The gap is the job.
       `An assumption is something you act on, not something you file instead of working. ` +
+      // The third shape of the same refusal, and the one that survived the
+      // first two rules because it is neither a question nor a placeholder.
+      // A live deal on "turn my coffee brand one-pager into a six-shot list"
+      // came back as {"error":"Missing input: The coffee brand one-pager was
+      // not provided in the prompt."} -- correct of the model, useless as a
+      // market. A buyer planting a goal in one sentence has nothing to attach
+      // it to and there is no second turn in which to send it, so what the
+      // brief says about a document is everything that document is.
+      `The brief may name a document, a file, a page or an attachment. Nothing is attached and ` +
+      `nothing further is coming: what the brief says about it is all it is, and you build the ` +
+      `rest. Never return an error, an object with an "error" key, or any other report about ` +
+      `why the work could not be done. There is no turn after this one. ` +
       `Never return a placeholder: no "to be defined", no "none provided", no empty section ` +
       `where the work belongs. If the brief does not name the specifics, choose the most ` +
       `plausible ones for this market, do the work on those, and say in one line at the end ` +

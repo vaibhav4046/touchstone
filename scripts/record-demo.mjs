@@ -78,8 +78,16 @@ async function main() {
 
   const settle = (ms) => page.waitForTimeout(ms);
 
+  /** Bring the verdict banner into frame; a shot of the paste box shows nothing. */
+  const showVerdict = async (target) => {
+    await target.evaluate(() => {
+      document.querySelector(".deal-verdict")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    await target.waitForTimeout(900);
+  };
+
   console.log(`Recording ${BASE} at ${WIDTH}x${HEIGHT}\n`);
-  await page.goto(BASE, { waitUntil: "networkidle", timeout: 60_000 });
+  await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 60_000 });
   started = Date.now();
 
   // ── the problem, in a seller's own words ──────────────────────────────
@@ -134,53 +142,50 @@ async function main() {
   await settle(5000);
 
   // ── evidence you do not have to trust us for ──────────────────────────
-  // Lifted straight out of the page rather than pasted from a file, so the
-  // receipt being checked is provably the one the deal above produced.
-  const receipt = await page.evaluate(() => {
-    const source = globalThis.__yuzuLastReceipt;
-    if (source) return JSON.stringify(source);
-    const block = [...document.querySelectorAll("pre, code")]
-      .map((node) => node.textContent ?? "")
-      .find((text) => text.includes("receiptId") && text.includes("signature"));
-    return block ?? null;
-  });
+  // The page hands the receipt to the checker itself: the deal result carries
+  // a link to /deal with the whole receipt in the URL fragment. Clicking it is
+  // both the shortest path to the shot and the strongest version of the claim,
+  // because the receipt being checked is visibly the one the deal just made,
+  // not one fetched from somewhere the camera did not see.
+  beat("check-it-yourself", "The receipt this deal just produced, opened in the page that checks it.");
+  const handoff = page.getByRole("link", { name: /check this receipt yourself/i }).first();
+  const filled = await handoff.isVisible().catch(() => false);
 
-  beat("check-it-yourself", "The receipt this deal produced, checked in the browser against the published key.");
-  await page.goto(`${BASE}/deal`, { waitUntil: "networkidle" });
-  await settle(2500);
+  if (filled) {
+    await handoff.scrollIntoViewIfNeeded();
+    await settle(1800);
+    await handoff.click();
+    await settle(3500);
 
-  if (receipt) {
+    // The verdict renders below the fold on a 720p frame, and a shot of the
+    // paste box is a shot of nothing happening.
+    beat("valid", "Checked by the reader's own browser against the published key. Nothing was asked of us.");
+    await showVerdict(page);
+    await settle(4500);
+
+    // One field, edited on camera. This is the whole argument, so it is done
+    // in the open rather than with a second receipt prepared earlier.
+    beat("tampered", "One field of that same receipt, changed. The same check refuses it.");
     const paste = page.locator("textarea").first();
-    await paste.click();
-    await paste.fill(receipt);
-    await settle(1200);
-    await page
-      .getByRole("button", { name: /check|verify/i })
-      .first()
-      .click()
-      .catch(() => {});
-    beat("valid", "Verified in the reader's own browser. Nothing was asked of us.");
-    await settle(4500);
-
-    // One field, changed on camera. This is the whole argument.
-    beat("tampered", "One character of the verdict, changed. The same check now refuses it.");
-    const broken = receipt.replace(/"verdict"\s*:\s*"([A-Z_]+)"/, '"verdict":"QUALIFIED_BUT_EDITED"');
-    await paste.fill(broken === receipt ? receipt.replace(/[0-9]/, "9") : broken);
-    await settle(900);
-    await page
-      .getByRole("button", { name: /check|verify/i })
-      .first()
-      .click()
-      .catch(() => {});
-    await settle(4500);
+    const shown = await paste.inputValue();
+    const broken = shown.replace(/"verdict"\s*:\s*"[A-Z_]+"/, '"verdict":"TRUSTED"');
+    await paste.fill(broken === shown ? shown.replace(/[0-9]/, "9") : broken);
+    await settle(1400);
+    await page.getByRole("button", { name: /^check it$/i }).first().click().catch(() => {});
+    await settle(2000);
+    await showVerdict(page);
+    await settle(5000);
   } else {
-    beat("check-it-yourself-empty", "No receipt was produced by this run; the page is shown with its own sample.");
+    // A deal that did not fill is a real outcome with a stated reason, and the
+    // shot list says to keep it rather than retake it.
+    beat("unfilled", "Nothing was bought, and the reason is on screen. A market that always finds a seller is not choosing.");
+    await settle(5000);
+    await page.goto(`${BASE}/deal`, { waitUntil: "domcontentloaded" });
     await settle(5000);
   }
-
   // ── the floor ─────────────────────────────────────────────────────────
   beat("the-floor", "Who may touch what, read from the kernel rather than kept by us.");
-  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded" });
   await settle(4500);
 
   beat("owner-decisions", "Decided before the room opened, refusals included. A refusal carries no width.");
@@ -192,7 +197,7 @@ async function main() {
   await settle(5000);
 
   beat("close", "Marketplaces gave humans reputation, contracts and time. Agents have none of that yet.");
-  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.goto(BASE, { waitUntil: "domcontentloaded" });
   await settle(3500);
 
   const last = beats.at(-1);
