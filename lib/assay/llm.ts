@@ -7,6 +7,7 @@
  */
 
 const ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
+const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
 export const MODELS = {
   /** General analyst. Large context, strong instruction-following. */
@@ -25,8 +26,12 @@ export interface LlmOutcome {
 }
 
 export function llmAvailable(): boolean {
-  const key = process.env.GROQ_API_KEY;
-  return typeof key === "string" && key.length > 0;
+  // Any supplier on the bench counts. Gating on Groq alone meant a deployment
+  // with only the fallbacks configured reported itself as having no model at
+  // all and skipped every dimension it could in fact have run.
+  return [process.env.GROQ_API_KEY, process.env.OPENROUTER_API_KEY, process.env.GEMINI_API_KEY].some(
+    (key) => typeof key === "string" && key.length > 0,
+  );
 }
 
 export async function complete(options: {
@@ -37,45 +42,89 @@ export async function complete(options: {
   readonly temperature?: number;
   readonly timeoutMs?: number;
 }): Promise<LlmOutcome> {
-  // Two retries with a widening gap, and only for the failures that are about
-  // the upstream being busy rather than the request being wrong. A burst of
-  // assay calls followed by proof challenges is exactly the shape that trips a
-  // rate limit, and a dropped call there does not just lose a dimension — it
-  // fails a seller for something the seller did not do.
+  // Retry the upstream being briefly unwell; fail over when it is out.
+  //
+  // These are different facts and they used to share a branch. A 5xx or a
+  // timeout is worth asking again, because the next call may well land. A 429
+  // is the account saying it has no room, and asking it twice more on a
+  // widening backoff spends about three seconds proving that — three seconds
+  // per call, against a route that has to finish eight stages inside 120.
+  // Under the load the Arena actually produces, that was most of the budget
+  // spent on being told no.
   let last = await attempt(options);
-  for (const wait of [700, 2200]) {
-    if (last.ok || !RETRYABLE.test(last.error ?? "")) return last;
-    await new Promise((resolve) => setTimeout(resolve, wait));
-    const again = await attempt(options);
-    if (again.ok) return again;
-    last = again;
+  if (!last.ok && TRANSIENT.test(last.error ?? "")) {
+    for (const wait of [700, 2200]) {
+      await new Promise((resolve) => setTimeout(resolve, wait));
+      const again = await attempt(options);
+      if (again.ok) return again;
+      last = again;
+      if (!TRANSIENT.test(last.error ?? "")) break;
+    }
   }
+  if (last.ok || !RETRYABLE.test(last.error ?? "") || options.model !== MODELS.analyst) return last;
 
   /**
-   * A second supplier, for the hour that matters.
+   * The rest of the bench, in the order that changes the answer least.
    *
    * Retrying a rate limit harder is still asking the same exhausted account.
    * The Arena runs for two hours under sustained load from every agent in the
    * room, and a market that stops trading because one provider is busy is not a
-   * market. Gemini answers the analyst calls when Groq will not.
+   * market.
    *
-   * The classifier has no second supplier — prompt-guard is a specific model,
+   * OpenRouter comes first because it serves the *same* analyst model, so a
+   * failover there costs nothing but latency: the scores stay comparable with
+   * the ones Groq produced a minute earlier. Gemini is a different model with
+   * different opinions, so it is the supplier of last resort rather than the
+   * second choice — a score that silently changed model is a score nobody can
+   * compare to the one before it.
+   *
+   * The classifier has no substitute at all — prompt-guard is a specific model,
    * not a capability — so when Groq is out the injection score is simply
    * missing, and the report says so rather than substituting a general model's
    * opinion for a measurement.
    */
-  if (RETRYABLE.test(last.error ?? "") && options.model === MODELS.analyst) {
-    const fallback = await viaGemini(options);
-    if (fallback.ok) return fallback;
-    // Both suppliers are out. Reporting only the first one's error says
-    // "http_429" and hides the fact that a second account was asked and also
-    // refused, which reads as a provider having a bad minute rather than as a
-    // capacity problem with the whole chain. The receipt should be able to tell
-    // an operator which of those it is.
-    return { ...last, error: `${last.error ?? "unknown"}+${fallback.error ?? "unknown"}` };
+  const codes = [last.error ?? "unknown"];
+  for (const supplier of [viaOpenRouter, viaGemini]) {
+    const next = await supplier(options);
+    if (next.ok) return next;
+    codes.push(next.error ?? "unknown");
   }
 
+  // Every supplier refused. Reporting only the first one's code says "http_429"
+  // and hides that the whole bench is out, which reads as one provider having a
+  // bad minute rather than as a capacity problem an operator has to fix.
+  return { ...last, error: codes.join("+") };
   return last;
+}
+
+/**
+ * OpenRouter, over the identical wire protocol Groq uses.
+ *
+ * Same model, same request shape, same response shape — the only differences
+ * are the host, the key and the error prefix. Writing the transport twice would
+ * be two places for a parsing bug to live.
+ */
+async function viaOpenRouter(options: {
+  readonly model: string;
+  readonly system?: string;
+  readonly user: string;
+  readonly maxTokens?: number;
+  readonly temperature?: number;
+  readonly timeoutMs?: number;
+}): Promise<LlmOutcome> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (key === undefined || key.length === 0) return { ok: false, text: "", ms: 0, error: "no_openrouter_key" };
+  return attempt(options, {
+    endpoint: OPENROUTER_ENDPOINT,
+    key,
+    prefix: "openrouter",
+    // OpenRouter asks callers to identify themselves, and a market that will
+    // not say who it is has no business lecturing sellers about listings.
+    headers: {
+      "http-referer": "https://yuzu-market.vercel.app",
+      "x-title": "Yuzu",
+    },
+  });
 }
 
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -126,17 +175,34 @@ async function viaGemini(options: {
   }
 }
 
+/** Worth asking the whole bench about. */
 const RETRYABLE = /^http_(429|5\d\d)$/;
+/** Worth asking the same supplier about again. A 429 is not: it has no room. */
+const TRANSIENT = /^(?:http_5\d\d|TimeoutError|AbortError)$/;
 
-async function attempt(options: {
-  readonly model: string;
-  readonly system?: string;
-  readonly user: string;
-  readonly maxTokens?: number;
-  readonly temperature?: number;
-  readonly timeoutMs?: number;
-}): Promise<LlmOutcome> {
-  const key = process.env.GROQ_API_KEY;
+/** Where an OpenAI-compatible call goes, and how its failures are named. */
+interface Supplier {
+  readonly endpoint: string;
+  readonly key: string;
+  /** Prefixes the status code, so a receipt says which bench refused. */
+  readonly prefix?: string;
+  readonly headers?: Record<string, string>;
+}
+
+async function attempt(
+  options: {
+    readonly model: string;
+    readonly system?: string;
+    readonly user: string;
+    readonly maxTokens?: number;
+    readonly temperature?: number;
+    readonly timeoutMs?: number;
+  },
+  supplier?: Supplier,
+): Promise<LlmOutcome> {
+  const key = supplier?.key ?? process.env.GROQ_API_KEY;
+  const endpoint = supplier?.endpoint ?? ENDPOINT;
+  const tag = supplier?.prefix === undefined ? "http" : `${supplier.prefix}_http`;
   const started = Date.now();
   if (key === undefined || key.length === 0) {
     return { ok: false, text: "", ms: 0, error: "no_api_key" };
@@ -150,9 +216,13 @@ async function attempt(options: {
     : [{ role: "user", content: options.user }];
 
   try {
-    const response = await fetch(ENDPOINT, {
+    const response = await fetch(endpoint, {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${key}`,
+        ...(supplier?.headers ?? {}),
+      },
       body: JSON.stringify({
         model: options.model,
         messages,
@@ -166,7 +236,7 @@ async function attempt(options: {
     });
 
     if (!response.ok) {
-      return { ok: false, text: "", ms: Date.now() - started, error: `http_${response.status}` };
+      return { ok: false, text: "", ms: Date.now() - started, error: `${tag}_${response.status}` };
     }
 
     const body = (await response.json()) as {
@@ -178,7 +248,7 @@ async function attempt(options: {
       ok: text.length > 0,
       text,
       ms: Date.now() - started,
-      error: text.length > 0 ? undefined : "empty",
+      error: text.length > 0 ? undefined : `${supplier?.prefix ?? "groq"}_empty`,
       truncated: choice?.finish_reason === "length",
     };
   } catch (error) {

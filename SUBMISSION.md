@@ -67,7 +67,8 @@ Names only; the template is `.env.example` and holds no values.
 | `TOUCHSTONE_SIGNING_KEY` | **Yes, in production** | HMAC key for receipt signatures and escalation tickets. In production a missing key is a hard failure at the point of use — signing and verifying refuse rather than fall back to the development key, which is public in this repository. Locally it falls back so `npm test` and `npm run dev` run unconfigured. |
 | `TOUCHSTONE_OPERATOR_KEY` | Only to decide escalations | Operator secret for `POST /api/escalations`, sent as `x-operator-key` and compared in constant time. The escalation ticket id is handed to the party that asked for the probe, so without a separate credential the "human decision" would be a curl the requester makes on its own request. **Unset means the approve path refuses**, and pending escalations expire on their own. |
 | `GROQ_API_KEY` | No | Claim analysis and the prompt-injection classifier. Without it the rule dimensions still run and the receipt names what did not; `deterministicScore` is unchanged either way. |
-| `GEMINI_API_KEY` | No | Second supplier for analyst calls when Groq is rate-limited. The classifier has no substitute. |
+| `OPENROUTER_API_KEY` | No | Second supplier for analyst calls. Serves the *same* model as Groq, so a failover costs latency and nothing else — the scores stay comparable with the ones produced a minute earlier. |
+| `GEMINI_API_KEY` | No | Supplier of last resort. A different model with different opinions, so it is third rather than second: a score that silently changed model cannot be compared to the one before it. The classifier has no substitute at any position. |
 | `SHAREDOS_KEY` | No | Ships kernel decisions to SharedOS Cloud. The audit stays local without it. |
 | `TOUCHSTONE_BASE_URL` | No | The base URL advertised in `/api/manifest`. Defaults to `https://yuzu-market.vercel.app`. |
 

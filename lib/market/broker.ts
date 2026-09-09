@@ -494,7 +494,8 @@ async function challenge(bid: Bid, rfp: Rfp): Promise<ProofChallenge> {
     // an anchored single-code test would not match it -- so the seller would be
     // failed for our outage, which is precisely the false negative this whole
     // branch exists to prevent.
-    const OURS = /^(?:http_(?:429|5\d\d)|gemini_(?:429|5\d\d)|TimeoutError|AbortError|no_api_key|no_fallback_key|gemini_empty)$/;
+    const OURS =
+      /^(?:(?:openrouter_)?http_(?:429|5\d\d)|gemini_(?:429|5\d\d)|TimeoutError|AbortError|no_api_key|no_fallback_key|no_openrouter_key|(?:groq|openrouter|gemini)_empty)$/;
     const parts = (outcome.error ?? "").split("+");
     const unrunnable = parts.length > 0 && parts.every((part) => OURS.test(part));
     return {

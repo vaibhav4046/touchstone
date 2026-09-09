@@ -160,7 +160,7 @@ and never consult a model.
 | Kernel | `@aicoo/sharedos` 0.1.0-alpha.5 — `grantSource`, `hostCeiling`, `recordEscalation`, `deriveGrant` |
 | Precedent | `@aicoo/sharedos-precedent` — `admitAutoDecision` (ADR 0022) |
 | Runtime | Next.js 15, Node runtime, Vercel |
-| Analyst | `gpt-oss-120b` via Groq, falling through to Gemini 3.6 Flash |
+| Analyst | `gpt-oss-120b` via Groq, then the same model via OpenRouter, then Gemini 3.6 Flash |
 | Injection classifier | `llama-prompt-guard-2-86m` — no fallback, because it is a measurement rather than an opinion |
 | Storage | none — receipts and escalation tickets are self-contained and signed |
 | Tests | Vitest, 68 |
@@ -187,7 +187,8 @@ npm test                       # 68 tests
 | Variable | Required | Purpose |
 |---|---|---|
 | `GROQ_API_KEY` | no | Analyst and injection classifier. Absent, deterministic checks still run. |
-| `GEMINI_API_KEY` | no | Analyst fallback when Groq rate-limits. |
+| `OPENROUTER_API_KEY` | no | Second analyst supplier. Same model as Groq, so failing over does not move the scores. |
+| `GEMINI_API_KEY` | no | Analyst of last resort. A different model, so it is third by design. |
 | `TOUCHSTONE_SIGNING_KEY` | yes in production | Signs receipts and escalation tickets. Rotating it invalidates both, by design. |
 | `SHAREDOS_KEY` | no | Ships kernel decisions to SharedOS Cloud. |
 
