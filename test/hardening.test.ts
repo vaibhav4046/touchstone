@@ -37,11 +37,19 @@ afterEach(() => {
 });
 
 describe("signing key", () => {
+  // There are two keys and they refuse for different reasons: signingKey() is
+  // the HMAC that seals escalation tickets, sign()/verify() are Ed25519 over
+  // receipts. Both assertions used to read /TOUCHSTONE_SIGNING_KEY/, and the
+  // receipt one passed only because the Ed25519 error's parenthetical mentions
+  // the old variable while explaining that receipts no longer use it. A test
+  // that names one refusal and is satisfied by another is not testing either,
+  // so each now asserts the variable its own call site is actually about.
   it("refuses to sign or verify with the committed default in production", () => {
     expect(process.env.TOUCHSTONE_SIGNING_KEY).toBeUndefined();
+    expect(process.env.TOUCHSTONE_SIGNING_SECRET).toBeUndefined();
     process.env.VERCEL = "1";
 
-    expect(() => signingKey()).toThrow(/TOUCHSTONE_SIGNING_KEY/);
+    expect(() => signingKey()).toThrow(/TOUCHSTONE_SIGNING_KEY is not set/);
     expect(() =>
       sign({
         version: "touchstone.receipt.v1",
@@ -56,10 +64,10 @@ describe("signing key", () => {
         decisions: [],
         escalations: [],
       }),
-    ).toThrow(/TOUCHSTONE_SIGNING_KEY/);
+    ).toThrow(/TOUCHSTONE_SIGNING_SECRET is not set/);
     // A forged receipt must not verify by falling back to the public key either.
     expect(() => verify({ version: "touchstone.receipt.v1", signature: { alg: "HMAC-SHA256", value: "00" } })).toThrow(
-      /TOUCHSTONE_SIGNING_KEY/,
+      /TOUCHSTONE_SIGNING_SECRET is not set/,
     );
   });
 
