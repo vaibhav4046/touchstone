@@ -6,6 +6,7 @@ import { buildContext, callTool, traceFor } from "../sharedos/host";
 import { sign, type Receipt } from "../assay/receipt";
 import { getSeller, recordOutcome, reputationOf, sellersFor } from "./registry";
 import { HOUSE_MARKER, houseWork, type HouseWork } from "./house";
+import { isProcurementNoise } from "./procurement-noise";
 import { balanceOf, chargeContract, closeContract, sellCredits } from "./settlement";
 import type { AssayReport } from "../assay/types";
 import type {
@@ -588,7 +589,7 @@ async function draftRfp(input: { goal: string; budget: number; capability?: stri
     constraints: Array.isArray(parsed.constraints)
       ? parsed.constraints
           .map(String)
-          .filter((line) => !/(budget|credits?|price|cost|spend|pay(?:ment)?)/i.test(line))
+          .filter((line) => !isProcurementNoise(line))
           .slice(0, 5)
       : [],
   };
