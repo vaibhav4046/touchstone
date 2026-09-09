@@ -48,6 +48,24 @@ export function resolveBuyer(request: Request): string {
  * one needs a shared counter (Redis, Upstash) or a spend cap set at the
  * provider, and the provider cap is the one that cannot be outrun.
  */
+/**
+ * Best-effort, and measurably so.
+ *
+ * These buckets live in the process that served the request. On Vercel that is
+ * not one process: three identical 12-vendor calls a second apart were admitted
+ * by three different instances (`x-vercel-id` 9vjc9, wpqrw, 65sjh), each with a
+ * full budget. So this bounds a careless caller and a retry storm, and it does
+ * not bound a determined one, who simply gets spread across the fleet.
+ *
+ * What actually holds regardless of instance is the per-request fan-out cap
+ * below: no single call can buy more than MAX_FANOUT assays, whichever process
+ * takes it. That is the load-bearing limit and the rate lanes are the cheap
+ * layer on top, which is the opposite of how it reads if nobody says so.
+ *
+ * ponytail: in-process token buckets. A limit that actually holds across the
+ * fleet needs shared state — Redis, Vercel KV, or the platform's own WAF rate
+ * limiting — and this repository deliberately has no datastore.
+ */
 const RATE_WINDOW_MS = 60_000;
 const PER_CALLER_UNITS = 24;
 const PER_IP_UNITS = 40;

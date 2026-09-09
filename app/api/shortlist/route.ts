@@ -65,7 +65,11 @@ export async function GET(): Promise<Response> {
     method: "POST",
     price: "10 Arena credits",
     body: { budget: "number", goal: "string, optional", vendors: "array of {vendor, pitch, askingPrice}" },
-    limit: `${MAX_VENDORS} vendors per call, refused with 429 rather than truncated. Calls are rate limited per caller, per address and overall; a 429 carries retry-after.`,
+    limit:
+      `${MAX_VENDORS} vendors per call, refused with 429 rather than truncated. That cap is the one that ` +
+      `always holds. Calls are also rate limited per caller, per address and overall, but those buckets are ` +
+      `per instance and this runs on a fleet, so treat them as a courtesy rather than a guarantee. A 429 ` +
+      `carries retry-after.`,
     returns: "A ranked buy plan with a per-vendor allocation, a decision (buy / trial / hold / avoid), and one signed receipt per vendor.",
   });
 }
