@@ -457,8 +457,12 @@ blockquote {
 .note ul { margin: 0.5rem 0 0; padding-left: 1.05rem; }
 .note li { font-size: 0.82rem; color: var(--ink-2); margin-bottom: 0.32rem; }
 
-/* Closing card: the mascot sits under the last line, half in frame, the way it
-   sits on the cloud in the film. */
+/* Closing card: the mascot is not a picture on the page, it is the page ending.
+   The plate bleeds edge to edge and fades into the band on both sides, so there
+   is no rectangle to notice — the earlier version had a hard seam along the top
+   where the band's navy met the image's slightly different navy. The footer
+   stays on the same dark ground for the same reason: one continuous night,
+   rather than a dark card sitting on cream. */
 .endcard {
   position: relative;
   background: var(--twilight);
@@ -468,11 +472,24 @@ blockquote {
 }
 .endcard img {
   display: block;
-  width: min(100%, 940px);
-  margin: clamp(1.5rem, 1rem + 3vw, 3rem) auto -6%;
-  border-radius: var(--r-special) var(--r-special) 0 0;
-  mask-image: linear-gradient(180deg, #000 72%, transparent 99%);
+  width: 100%;
+  max-width: none;
+  margin: clamp(1rem, 0.5rem + 2vw, 2.5rem) 0 0;
+  border-radius: 0;
+  mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 100%);
 }
+.endcard .lede { color: rgba(255, 255, 255, 0.72); }
+
+/* The footer follows the mascot onto the same ground. */
+.endcard + .foot {
+  background: var(--twilight);
+  border-top: none;
+  margin-top: -1px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.endcard + .foot a { color: rgba(255, 255, 255, 0.78); border-color: rgba(255, 255, 255, 0.22); }
+.endcard + .foot a:hover { color: var(--yuzu-bright); border-color: var(--yuzu-bright); }
 
 .foot {
   border-top: 1px solid var(--hairline);
