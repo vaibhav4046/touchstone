@@ -35,7 +35,7 @@ const VAGUE: Candidate = {
 const DEAD: Candidate = {
   name: "Vanish",
   pitch: `Vanish returns a launch brief in 30 seconds for 4 Arena credits. Output: markdown. If it fails you are not charged. Docs: https://example.invalid/vanish`,
-  endpoint: "http://127.0.0.1:9/trial",
+  endpoint: "http://arena-ghost.invalid/trial",
   price: 4,
 };
 
@@ -133,7 +133,7 @@ describe("critique: praise is not expressible", () => {
     const written = await critique({
       product: "Ghost",
       listing: "",
-      trial: "Trial of Ghost at http://127.0.0.1:9/trial: it did not answer within 8000 ms (TimeoutError).",
+      trial: "Trial of Ghost at http://arena-ghost.invalid/trial: it did not answer within 8000 ms (TimeoutError).",
       trialAnswered: false,
     });
 

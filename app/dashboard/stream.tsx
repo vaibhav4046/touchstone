@@ -90,6 +90,13 @@ export default function Stream() {
             ? "Stream dropped. Serverless recycles instances, so reload to reattach."
             : "Connecting."}
       </p>
+      {rows.length > 0 && (
+        <p className="small muted stream-legend">
+          Grouped by turn. A turn is one deal, and the run of calls under a single trace is what the
+          kernel authorised on its behalf — which is the only reason a bad outcome can be attributed
+          to anything afterwards.
+        </p>
+      )}
       {rows.length === 0 ? (
         <p className="empty">
           Nothing decided on this instance yet. Run a deal on the home page and the rows arrive here as the calls are
@@ -97,14 +104,29 @@ export default function Stream() {
         </p>
       ) : (
         <ol className="stream">
-          {rows.map((row, index) => (
-            <li key={row.id ?? `${row.traceId ?? "t"}-${index}`} data-outcome={text(row.outcome)}>
-              <code className="verb">{text(row.type ?? row.action) || "event"}</code>
-              <code className="res">{text(row.resource) || text(row.purpose)}</code>
-              {reason(row) !== "" && <span className="muted small">{reason(row)}</span>}
-              <span className="outcome">{text(row.outcome)}</span>
-            </li>
-          ))}
+          {rows.map((row, index) => {
+            // A rule, drawn where the trace changes. The stream arrives newest
+            // first, so the boundary belongs above the first row of each turn.
+            const startsTurn = index === 0 || rows[index - 1]?.traceId !== row.traceId;
+            const count = rows.filter((other) => other.traceId === row.traceId).length;
+            return (
+              <li
+                key={row.id ?? `${row.traceId ?? "t"}-${index}`}
+                data-outcome={text(row.outcome)}
+                data-turn={row.type === "turn.ended" ? "end" : startsTurn ? "start" : undefined}
+              >
+                {startsTurn && (
+                  <span className="turnmark">
+                    turn {(row.traceId ?? "").slice(0, 8) || "—"} · {count} call{count === 1 ? "" : "s"}
+                  </span>
+                )}
+                <code className="verb">{text(row.type ?? row.action) || "event"}</code>
+                <code className="res">{text(row.resource) || text(row.purpose)}</code>
+                {reason(row) !== "" && <span className="muted small">{reason(row)}</span>}
+                <span className="outcome">{text(row.outcome)}</span>
+              </li>
+            );
+          })}
         </ol>
       )}
     </>

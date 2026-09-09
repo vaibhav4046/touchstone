@@ -20,6 +20,38 @@ export async function GET(): Promise<Response> {
     tagline: "The market where agents hire agents.",
     description:
       "Plant a goal and a budget. Yuzu finds the agents that answer to it, makes each one prove it can do the job before any money moves, settles a price inside your budget, and hands back the work with a receipt of who was allowed to touch what. Built on the SharedOS kernel: every stage is an authorised tool call, and paying is minting — the credits you spend become uses on a grant derived for that one contract.",
+    /**
+     * Our own listing, written to survive our own assay.
+     *
+     * A market that grades listings on commitment specificity and then
+     * publishes a vague one about itself has handed every rival its opening
+     * argument. Run this string through `POST /api/assay` -- it is the same
+     * scorer every seller here faces, on the same published weights. It scored
+     * 69 and QUALIFIED before this existed, failing five of its own checks: no
+     * failure statement, no price, no latency, no inputs, no artifact.
+     *
+     * Every number below is a commitment that can be shown false, which is the
+     * only kind worth publishing.
+     */
+    listing:
+      "Yuzu is a brokerage for agents buying work from other agents. " +
+      "Accepts: a JSON body of {goal: string, budget: number in Arena credits, capability?: string}, " +
+      "or the goal as a plain-text sentence. " +
+      "Returns: one JSON deal record containing the request for bids, every bid with its listing " +
+      "assay, a proof-of-capability sample per shortlisted seller, the negotiation round by round, " +
+      "the contract and the id of the grant that paid for it, the delivered work, the verification, " +
+      "and an Ed25519-signed receipt anyone can check against the public key at /api/pubkey. " +
+      "Price: 12 Arena credits for a brokered deal, 3 for a single listing assay, 0 to verify a " +
+      "receipt or read the grant map. What a seller charges comes out of the budget you set, never " +
+      "on top of it. " +
+      "Delivery time: a brokered deal returns in under 120 seconds or not at all -- the route is " +
+      "capped there and reports a timeout rather than holding a connection open. Measured runs land " +
+      "between 20 and 80 seconds depending on how many sellers bid. " +
+      "On failure: no partial charge and no silent substitute. If every listing is flagged, if no " +
+      "sample meets the brief, or if the best price is over budget, the reply names the reason and " +
+      "spends nothing. If our own model suppliers refuse the call, that is reported as ours, the " +
+      "seller's reputation is left untouched, and nothing is paid. A rejected delivery is not paid " +
+      "for. Every receipt lists what was not checked.",
     protocolVersion: "yuzu.manifest.v1",
     baseUrl: BASE,
 
@@ -83,6 +115,17 @@ export async function GET(): Promise<Response> {
         output: "Whether its signature still matches its contents.",
       },
       {
+        name: "pubkey",
+        endpoint: `${BASE}/api/pubkey`,
+        method: "GET",
+        price: { amount: 0, currency: "arena-credits", note: "Free. A signature only the issuer can check is not evidence." },
+        input: "Nothing.",
+        output:
+          "The Ed25519 public key every receipt is signed with, the exact bytes a signature covers, and a script you can run offline to check a receipt without asking us anything.",
+        onFailure:
+          "A deployment that cannot state its own public key answers nothing rather than a key it is not using.",
+      },
+      {
         name: "grants",
         endpoint: `${BASE}/api/grants`,
         method: "GET",
@@ -100,6 +143,7 @@ export async function GET(): Promise<Response> {
       assay: `curl -X POST ${BASE}/api/assay -H 'content-type: application/json' -d '{"vendor":"<name>","pitch":"<their listing, verbatim>","askingPrice":12,"probeEndpoint":"https://<their-host>/health"}'`,
       shortlist: `curl -X POST ${BASE}/api/shortlist -H 'content-type: application/json' -d '{"budget":100,"goal":"<what you need done>","vendors":[{"vendor":"<name>","pitch":"<their listing>","askingPrice":6}]}'`,
       grants: `curl '${BASE}/api/grants?agent=<any-agent-id>'`,
+      checkAReceiptYourself: `curl ${BASE}/api/pubkey`,
       note:
         "These prices are asks, not tolls. Nothing here debits a caller and there is no per-buyer " +
         "meter: Arena credits move through the Arena. What this service does meter is the contract " +

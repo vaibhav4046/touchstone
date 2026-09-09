@@ -801,3 +801,13 @@ blockquote {
   transition: transform 180ms var(--ease), opacity 180ms var(--ease);
 }
 .stage-flat .lookup button:hover { transform: translateY(-1px); opacity: 0.9; }
+.stage-flat .stream-legend { max-width: 74ch; margin: 0 0 0.7rem; }
+.stage-flat .stream li { position: relative; }
+.stage-flat .stream li[data-turn] { margin-top: 0.9rem; }
+.stage-flat .stream li[data-turn="end"] { border-left-color: var(--violet-deep); }
+.stage-flat .turnmark {
+  position: absolute; top: -0.85rem; left: 0.4rem;
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--ink-3); background: var(--paper); padding: 0 0.35rem;
+  border: 1px solid var(--hairline); border-radius: 3px;
+}

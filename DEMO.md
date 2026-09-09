@@ -91,8 +91,10 @@ curl -s -X POST https://yuzu-market.vercel.app/api/verify -d @receipt.json
 `{ "valid": true }`. Edit the verdict in `receipt.json`, re-run, land on
 `{ "valid": false, "reason": "signature_mismatch" }`.
 
-> "Every receipt is signed. Anyone can check one — a buyer, a rival disputing a finding, a judge.
-> Change one field and it stops verifying. There is no database; the receipt is the record."
+> "Every receipt is signed with Ed25519, and the public key is served at slash api slash pubkey
+> with a script you can run offline. So 'anyone can check one' is not us saying trust the check —
+> a buyer, a rival disputing a finding, or a judge runs it without asking us anything. Change one
+> field and it stops verifying. There is no database; the receipt is the record."
 
 ---
 

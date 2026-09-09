@@ -64,12 +64,13 @@ Names only; the template is `.env.example` and holds no values.
 
 | Variable | Required | What breaks without it |
 |---|---|---|
+| `TOUCHSTONE_SIGNING_SECRET` | **Yes, in production** | Ed25519 seed, base64 of 32 bytes. Signs receipts. The public half is served at `/api/pubkey` with a runnable script, so "anyone can check a receipt" is a thing a judge can do in thirty seconds rather than a claim. Receipts sealed before the change verify as `legacy_hmac` rather than as tampered. |
 | `TOUCHSTONE_SIGNING_KEY` | **Yes, in production** | HMAC key for receipt signatures and escalation tickets. In production a missing key is a hard failure at the point of use — signing and verifying refuse rather than fall back to the development key, which is public in this repository. Locally it falls back so `npm test` and `npm run dev` run unconfigured. |
 | `TOUCHSTONE_OPERATOR_KEY` | Only to decide escalations | Operator secret for `POST /api/escalations`, sent as `x-operator-key` and compared in constant time. The escalation ticket id is handed to the party that asked for the probe, so without a separate credential the "human decision" would be a curl the requester makes on its own request. **Unset means the approve path refuses**, and pending escalations expire on their own. |
 | `GROQ_API_KEY` | No | Claim analysis and the prompt-injection classifier. Without it the rule dimensions still run and the receipt names what did not; `deterministicScore` is unchanged either way. |
 | `OPENROUTER_API_KEY` | No | Second supplier for analyst calls. Serves the *same* model as Groq, so a failover costs latency and nothing else — the scores stay comparable with the ones produced a minute earlier. |
 | `GEMINI_API_KEY` | No | Supplier of last resort. A different model with different opinions, so it is third rather than second: a score that silently changed model cannot be compared to the one before it. The classifier has no substitute at any position. |
-| `SHAREDOS_KEY` | No | Ships kernel decisions to SharedOS Cloud. The audit stays local without it. |
+| `SHAREDOS_KEY` | No | Ships decisions to SharedOS Cloud (design-partner preview, key from the Cloud console). The audit stays local and complete without it. Reported honestly: `/api/health` carries the last shipping outcome rather than the fact a variable is set, and the sink stops after three credential rejections instead of pushing a rejected request at somebody else's service for the life of the deployment. |
 | `TOUCHSTONE_BASE_URL` | No | The base URL advertised in `/api/manifest`. Defaults to `https://yuzu-market.vercel.app`. |
 
 ## SharedOS purpose strings
@@ -86,6 +87,7 @@ Namespace `arena`. Resource plane `assay`.
 | | |
 |---|---|
 | The floor | https://yuzu-market.vercel.app/dashboard |
+| Check a receipt without us | https://yuzu-market.vercel.app/api/pubkey |
 | The same thing as JSON | https://yuzu-market.vercel.app/api/grants |
 | The market, running | https://yuzu-market.vercel.app/#market |
 | Manifest | https://yuzu-market.vercel.app/api/manifest |
@@ -136,9 +138,9 @@ The rules disqualify on behaviour, not just on the build. All six checked:
 |---|---|
 | Discord username in submission | **[YOU]** — join with your real account, not the guest one |
 | Agent on SharedNet, node ID submitted | Done, above |
-| Agent online the whole 9–11 PM ET | `ccd start --adapter claude-code` running; keep it up |
-| Round 1 — try ≥3 products, specific disagreements each, submit a ranking | Built: `POST /api/arena {"round":1}` |
-| Round 2 — spend ≥80 of 100 credits across ≥3 products | Built: `POST /api/arena {"round":2}`, ledger refuses to overspend and reports shortfalls |
+| Agent online the whole 9–11 PM ET | `ccd start --adapter claude-code` verified running on 9 Sep: `ccd doctor` green on identity, default route and control-plane write, bridge log reports "Listening for incoming C2C session tasks". It does not survive a reboot or sleep — restart it before the room opens. |
+| Round 1 — try ≥3 products, specific disagreements each, submit a ranking | Built: `POST /api/arena {"round":1}`. Our own sellers are marked `house`, never count toward the three-product floor, and a round padded with them reports `meetsRule: false` — ranking your own market is not a round however honestly the prose admits it. |
+| Round 2 — spend ≥80 of 100 credits across ≥3 products | Built: `POST /api/arena {"round":2}`. The ledger refuses to overspend and reports shortfalls, and house sellers are excluded from every allocation: spending the scoreboard's credits inside our own market is the easiest thing a rival could point at. |
 | No humans in the loop | Human escalation is off by default; the market answers from precedent |
 
 Every critique carries at least two disagreements, each quoting a verbatim span of the product's own

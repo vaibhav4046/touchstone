@@ -1,8 +1,9 @@
 import type { AccessContext, JsonObject, ToolCall, ToolHandler, ToolResult } from "@aicoo/sharedos";
 import { z } from "zod";
 import type { AssayInput } from "../assay/types";
-import { ASSAY_NAMESPACE, TOUCHSTONE } from "./identity";
+import { ASSAY_NAMESPACE, TOUCHSTONE, slug } from "./identity";
 import { getOrder } from "./orders";
+import { getSeller, listSellers } from "../market/registry";
 import {
   authorityOverreach,
   evidenceQuality,
@@ -59,6 +60,131 @@ function failed(call: ToolCall, code: string, message: string): ToolResult {
     status: "failed",
     error: { code, message, retryable: false },
   };
+}
+
+function dotted(high: number, low: number): string {
+  return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+}
+
+/**
+ * Hosts a probe may never reach, whoever asked for it.
+ *
+ * Exported because the Arena participant fetches caller-supplied URLs too, on
+ * the same server, and a second copy of this list is a second place for it to
+ * fall out of date.
+ *
+ * The endpoint is caller-supplied and the fetch runs on our server, so this is
+ * the SSRF boundary and not a tidiness check. It reads the literal host rather
+ * than a resolved address: a public name that resolves into a private range
+ * still passes here, and what stops that being useful is the binding below —
+ * the name has to be one a registered seller published.
+ *
+ * ponytail: literal-host check. If sellers are ever allowed to register names
+ * outside hosts we control, this needs resolve-then-connect pinning as well.
+ */
+export function isBlockedHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  // The cloud metadata services, which are the whole point of most SSRF.
+  if (host === "metadata.google.internal" || host === "metadata" || host === "instance-data") return true;
+  if (host === "::1" || host === "::" || host === "0000::1") return true;
+  // fc00::/7 unique-local and fe80::/10 link-local.
+  if (/^f[cd][0-9a-f]{0,2}:/.test(host) || /^fe[89ab][0-9a-f]:/.test(host)) return true;
+
+  // `::ffff:127.0.0.1` is 127.0.0.1 wearing a hat, and `new URL` hands it back
+  // as `::ffff:7f00:1` -- the same address again, in hex, which a check written
+  // against the dotted form does not see.
+  const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
+  const bare =
+    mapped === null
+      ? host.startsWith("::ffff:")
+        ? host.slice(7)
+        : host
+      : dotted(Number.parseInt(mapped[1] ?? "0", 16), Number.parseInt(mapped[2] ?? "0", 16));
+  const octets = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(bare);
+  if (octets === null) return false;
+  const [a, b] = [Number(octets[1]), Number(octets[2])];
+  return (
+    a === 0 || // 0.0.0.0/8, which several stacks route to localhost
+    a === 127 || // loopback
+    a === 10 || // private
+    (a === 172 && b >= 16 && b <= 31) || // private
+    (a === 192 && b === 168) || // private
+    (a === 169 && b === 254) // link-local, and 169.254.169.254 is the metadata address
+  );
+}
+
+/**
+ * The seller the capability path names.
+ *
+ * The path segment is a slug and the registry is keyed by id, so a listing
+ * registered as `marge` and assayed as `Marginalia` is one seller under two
+ * names. `precedent-seed` resolves the same pair the same way.
+ */
+function sellerFor(vendorSlug: string): { readonly name: string; readonly endpoint?: string } | undefined {
+  return (
+    getSeller(vendorSlug) ??
+    listSellers().find((seller) => slug(seller.id) === vendorSlug || slug(seller.name) === vendorSlug)
+  );
+}
+
+/**
+ * A grant to probe Scout must not authorise probing anything else.
+ *
+ * The capability path says which vendor may be reached; the handler then
+ * fetched whatever URL the caller put in the arguments, so the path bound
+ * nothing at all and "who may touch what" was a claim about a string. The
+ * endpoint is now checked against the seller that path names, and against the
+ * hosts no probe may reach whatever it names.
+ *
+ * A refusal returns a failed result with its own code rather than throwing, so
+ * it lands in audit as `tool.invoked` with that code the way every other
+ * refusal does, and the receipt can say what happened.
+ */
+function endpointRefusal(vendorSlug: string, endpoint: string): { code: string; message: string } | undefined {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return { code: "endpoint_malformed", message: `${endpoint} is not a URL.` };
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return { code: "endpoint_scheme_blocked", message: `A probe speaks http or https, not ${url.protocol}` };
+  }
+  if (isBlockedHost(url.hostname)) {
+    return {
+      code: "endpoint_host_blocked",
+      message: `${url.hostname} is a private, loopback, link-local or metadata address. A probe reaches vendors, not this host's network.`,
+    };
+  }
+
+  const seller = sellerFor(vendorSlug);
+  if (seller === undefined) {
+    return {
+      code: "vendor_not_registered",
+      message: `No registered seller answers to ${vendorSlug}, so there is no endpoint this probe could be bound to.`,
+    };
+  }
+  if (seller.endpoint === undefined) {
+    return {
+      code: "vendor_endpoint_unpublished",
+      message: `${seller.name} has published no endpoint, so a probe of it cannot be bound to one.`,
+    };
+  }
+
+  let registered: URL;
+  try {
+    registered = new URL(seller.endpoint);
+  } catch {
+    return { code: "vendor_endpoint_malformed", message: `${seller.name} registered an endpoint that is not a URL.` };
+  }
+  if (url.hostname.toLowerCase() !== registered.hostname.toLowerCase()) {
+    return {
+      code: "endpoint_not_bound",
+      message: `Authority covers ${vendorSlug}, which published ${registered.hostname}. ${url.hostname} is somebody else.`,
+    };
+  }
+  return undefined;
 }
 
 type Material =
@@ -255,11 +381,21 @@ export function createAssayTools(): readonly ToolHandler[] {
       }),
       invoke: async (_context, call) => {
         const args = ProbeArgs.parse(call.arguments);
+
+        // The path said which vendor. This is where that stops being decorative.
+        const refusal = endpointRefusal(args.vendor, args.endpoint);
+        if (refusal !== undefined) return failed(call, refusal.code, refusal.message);
+
         const started = Date.now();
         try {
           const response = await fetch(args.endpoint, {
             method: "GET",
             headers: { "user-agent": "Touchstone-Assay/1.0 (+https://touchstone-arena.vercel.app)" },
+            // A followed redirect is a second request to a host nothing above
+            // checked, which is how a vendor endpoint that passes every rule
+            // here still reaches the metadata service. A 302 is a fact about the
+            // endpoint and is reported as one.
+            redirect: "manual",
             signal: AbortSignal.timeout(8_000),
           });
           return succeeded(call, {

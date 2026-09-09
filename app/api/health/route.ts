@@ -21,7 +21,10 @@ export async function GET(): Promise<Response> {
     ].filter((name) => name !== undefined),
     /** No substitute at any position: it is a measurement, not an opinion. */
     classifier: process.env.GROQ_API_KEY ? "groq/llama-prompt-guard-2-86m" : "unavailable",
-    auditShipping: process.env.SHAREDOS_KEY ? "enabled" : "local-only",
+    // Derived from what the last batch actually did, not from whether a key is
+    // set. A key was set in production and every batch came back 401 with a
+    // revoked project key, while this field cheerfully said "enabled".
+    auditShipping: host().cloudAudit.state(),
     lastDecisionAt: events[0]?.at ?? null,
     now: new Date().toISOString(),
   });

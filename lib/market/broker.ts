@@ -93,24 +93,31 @@ export async function runBroker(input: {
   // likely the seller thinks it is to succeed. That number costs nothing to
   // inflate and nothing here would check it, and an unchecked number printed
   // next to checked ones borrows their credibility.
-  const bids: Bid[] = [];
-  for (const seller of candidates) {
-    const { receipt } = await assay(
-      { vendor: seller.name, pitch: seller.pitch, askingPrice: seller.askPrice, buyerId: input.buyerId },
-      { traceId, fast: true },
-    );
-    const reputation = reputationOf(seller.id);
-    bids.push({
-      sellerId: seller.id,
-      sellerName: seller.name,
-      price: seller.askPrice,
-      etaSeconds: seller.etaSeconds,
-      reputation: reputation.score,
-      listingScore: receipt.report.score,
-      listingVerdict: receipt.report.verdict,
-      note: receipt.report.headline,
-    });
-  }
+  //
+  // Assayed in parallel. Each listing is judged against the brief and against
+  // itself, never against the other bids, so there is no order for these to
+  // depend on -- and a call-for-bids that takes as long as the number of
+  // sellers is a market that gets slower the more competitive it is. Promise.all
+  // keeps the order, which the utility ranking downstream relies on.
+  const bids: Bid[] = await Promise.all(
+    candidates.map(async (seller): Promise<Bid> => {
+      const { receipt } = await assay(
+        { vendor: seller.name, pitch: seller.pitch, askingPrice: seller.askPrice, buyerId: input.buyerId },
+        { traceId, fast: true },
+      );
+      const reputation = reputationOf(seller.id);
+      return {
+        sellerId: seller.id,
+        sellerName: seller.name,
+        price: seller.askPrice,
+        etaSeconds: seller.etaSeconds,
+        reputation: reputation.score,
+        listingScore: receipt.report.score,
+        listingVerdict: receipt.report.verdict,
+        note: receipt.report.headline,
+      };
+    }),
+  );
   mark("bid", `${bids.length} sellers bid.`, { bids });
 
   const viable = bids.filter((bid) => bid.listingVerdict !== "FLAGGED");

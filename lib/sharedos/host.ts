@@ -39,6 +39,28 @@ declare global {
   var __touchstoneHost: Host | undefined;
 }
 
+/**
+ * Vendors this deployment will not touch at all, read from the environment.
+ *
+ * `vendor_frozen` was a rule with no way to be true: the ceiling implemented it
+ * and the only place that ever built a ceiling passed no list, so the branch was
+ * unreachable and `/api/grants` advertised a rule that could not fire. A freeze
+ * is an operator's judgement about one deployment -- a seller under
+ * investigation, a name a legal team wants left alone -- so it belongs in the
+ * environment rather than in this file. Comma-separated names or ids; the
+ * ceiling slugs them to match the resource path.
+ *
+ * Empty by default on purpose. Seeding it with the hostile seller would refuse
+ * every read of that listing, and reading the hostile listing is exactly how the
+ * assay demonstrates it is hostile.
+ */
+function frozenVendors(): readonly string[] {
+  return (process.env.TOUCHSTONE_FROZEN_VENDORS ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 function build(): Host {
   const memoryAudit = new MemoryAuditSink();
   const cloudAudit = new CloudAuditSink();
@@ -50,7 +72,7 @@ function build(): Host {
     grantSource: createGrantSource(),
     authorizer: new CapabilityAuthorizer({
       usageStore: usage,
-      hostCeiling: new TouchstoneCeiling({ probesPerMinute: 6 }),
+      hostCeiling: new TouchstoneCeiling({ frozenVendors: frozenVendors(), probesPerMinute: 6 }),
       delegationResolver: createDelegationResolver(),
     }),
     audit: new CompositeAuditSink([memoryAudit, cloudAudit]),
@@ -230,8 +252,24 @@ export function traceFor(traceId: string): readonly DecisionTrace[] {
             : ("denied" as const),
       reasonCode: event.reason ?? String(event.outcome),
       grantId: event.grantId,
+      ceilingRule: ceilingRule(event),
     }))
     .reverse();
+}
+
+/**
+ * Which host rule refused it, when a host rule was what refused it.
+ *
+ * `host_policy_denied` says a ceiling said no and nothing about which one. The
+ * kernel carries the ceiling's own `metadata` onto the audit record, so the rule
+ * name is already there; it was simply never read, which left every receipt
+ * unable to distinguish "your grant does not cover this" from "this deployment
+ * refuses it for everyone". Those are different answers to the buyer and only
+ * one of them is worth appealing.
+ */
+function ceilingRule(event: AuditEvent): string | undefined {
+  const rule = (event.metadata as { readonly rule?: unknown } | undefined)?.rule;
+  return typeof rule === "string" ? rule : undefined;
 }
 
 /**

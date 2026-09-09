@@ -326,8 +326,30 @@ interface ProbeOutput {
  */
 export function probeDimension(
   endpoint: string,
-  result: { status: string; output?: unknown } | undefined,
+  result: { status: string; output?: unknown; error?: { code: string; message: string } } | undefined,
 ): DimensionResult | undefined {
+  // A probe the host refused is not a probe nobody asked for. The tool checks
+  // the endpoint against the seller the capability path names before it calls
+  // anything, and a receipt that omitted that refusal would read exactly like a
+  // receipt for a run where no probe was ever requested.
+  if (result?.status === "failed" && result.error !== undefined) {
+    return {
+      id: "probe",
+      label: "Live endpoint",
+      score: 0,
+      weight: 0,
+      method: "not-run",
+      summary: `${endpoint} was never called. ${result.error.message} (${result.error.code})`,
+      findings: [
+        {
+          code: "PROBE_REFUSED",
+          severity: "low",
+          statement: `The probe of ${endpoint} was refused before any request left this host: ${result.error.message} (${result.error.code}). Nothing about the vendor was learned or claimed.`,
+        },
+      ],
+    };
+  }
+
   const output = outputOf<ProbeOutput>(result);
   if (output === undefined) return undefined;
 

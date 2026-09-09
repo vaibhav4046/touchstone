@@ -6,6 +6,19 @@ import { mintEscalationGrant } from "./grants";
 import { host } from "./host";
 import { depositGrant } from "./authority";
 // One key, one guard. A second copy of the fallback is a second way to ship it.
+//
+// Receipts moved to Ed25519 so that anyone can check one. Tickets deliberately
+// did not, and this is the line where that decision is enforced: `signingKey`
+// is the symmetric secret and it never leaves the process, while the Ed25519
+// public key at /api/pubkey is served to the world.
+//
+// The difference is what a valid one buys you. A valid receipt buys knowledge —
+// this report says what it said when it was issued — so publishing the key that
+// checks it costs nothing, because the public half cannot mint one. A valid
+// ticket buys authority: `decideEscalation` below reads the path and action out
+// of the ticket and mints a capability grant from them. Verifying and forging
+// are the same operation for an HMAC, so anyone who could check a ticket could
+// write one. There is no public half here to publish, and there must not be.
 import { signingKey } from "../assay/receipt";
 
 /**

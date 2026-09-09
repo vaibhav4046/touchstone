@@ -60,6 +60,7 @@ though they agreed. That is the exact disagreement the design exists to make imp
 | `POST /api/assay` | 3 · **first free** | A verdict on one listing, every finding quoting the sentence that produced it |
 | `POST /api/verify` | free | Whether a receipt's signature still matches its contents |
 | `GET /api/grants` | free | The grant map for one actor: reach, budgets, every grant that has existed, and the owner's allow/refuse table |
+| `GET /api/pubkey` | free | The Ed25519 public key every receipt is signed with, and a script that checks one offline without us |
 
 ---
 
@@ -147,6 +148,7 @@ and never consult a model.
 | Runtime | Next.js 15, Node runtime, Vercel |
 | Analyst | `gpt-oss-120b` via Groq, then the same model via OpenRouter, then Gemini 3.6 Flash |
 | Injection classifier | `llama-prompt-guard-2-86m` — no fallback, because it is a measurement rather than an opinion |
+| Signatures | Ed25519 for receipts, public key at `/api/pubkey`; HMAC for escalation tickets, because a ticket is authority |
 | Storage | none — receipts and escalation tickets are self-contained and signed |
 | Tests | Vitest, 68 |
 
@@ -174,8 +176,9 @@ npm test                       # 68 tests
 | `GROQ_API_KEY` | no | Analyst and injection classifier. Absent, deterministic checks still run. |
 | `OPENROUTER_API_KEY` | no | Second analyst supplier. Same model as Groq, so failing over does not move the scores. |
 | `GEMINI_API_KEY` | no | Analyst of last resort. A different model, so it is third by design. |
-| `TOUCHSTONE_SIGNING_KEY` | yes in production | Signs receipts and escalation tickets. Rotating it invalidates both, by design. |
-| `SHAREDOS_KEY` | no | Ships kernel decisions to SharedOS Cloud. |
+| `TOUCHSTONE_SIGNING_SECRET` | yes in production | Ed25519 seed, base64 of 32 bytes. Signs receipts. The public half is served at `/api/pubkey`, so verification needs nothing from us. |
+| `TOUCHSTONE_SIGNING_KEY` | yes in production | HMAC key, escalation tickets only. A ticket is authority — it mints a grant — and for a symmetric key verifying and forging are the same operation, which is exactly why it must not be public. |
+| `SHAREDOS_KEY` | no | Ships decisions to SharedOS Cloud. A project key from the Cloud console — the placeholder currently in production is rejected `401`, and `/api/health` says so rather than claiming the shipping works. |
 
 ---
 

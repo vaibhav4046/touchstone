@@ -1,4 +1,5 @@
 import type { AccessContext, AllowedDecision, AuthorizationRequest, HostCeiling, HostCeilingVerdict } from "@aicoo/sharedos";
+import { slug } from "./identity";
 
 /**
  * Policy the grant language cannot state.
@@ -19,8 +20,16 @@ export class TouchstoneCeiling implements HostCeiling {
   readonly #probeBudget = new Map<string, { count: number; windowStart: number }>();
   readonly #probesPerMinute: number;
 
+  /**
+   * `frozenVendors` is normalised here rather than at each call site.
+   *
+   * The set is compared against a resource path segment, and those are slugs.
+   * An operator writes "CinematicAgent"; a caller that had to remember to write
+   * "cinematicagent" would eventually not, and a freeze that silently matches
+   * nothing is worse than no freeze at all.
+   */
   constructor(options: { frozenVendors?: readonly string[]; probesPerMinute?: number } = {}) {
-    this.#frozenVendors = new Set(options.frozenVendors ?? []);
+    this.#frozenVendors = new Set((options.frozenVendors ?? []).map((vendor) => slug(vendor)));
     this.#probesPerMinute = options.probesPerMinute ?? 6;
   }
 
