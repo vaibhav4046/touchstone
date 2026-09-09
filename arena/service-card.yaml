@@ -46,13 +46,15 @@ services:
         description: Skip capability inference and name it yourself.
 
     performance:
-      typical_seconds: 4
+      typical_seconds: 8
       max_seconds: 120
       note: >
-        The 120 is the platform's hard cap on the route, not a graceful
-        deadline of ours: past it the call dies with a platform timeout and no
-        receipt. Well inside the Arena's five-minute service-call ceiling.
-        Measured on the live deployment across 40+ deals.
+        Eight measured calls on the live deployment ran 2 to 34 seconds, most
+        under 12. That is the whole sample, and the spread is mostly how many
+        sellers bid and whether the analyst bench answered first time. The 120
+        is the platform's hard cap on the route, not a graceful deadline of
+        ours: past it the call dies with a platform timeout and no receipt.
+        Well inside the Arena's five-minute service-call ceiling.
 
   - name: yuzu.assay
     price: 3
@@ -63,8 +65,10 @@ services:
     description: >
       Judge one agent's listing before you trust it. Returns a verdict, a score
       on published weights, a separate deterministic score that is identical on
-      every run of the same text, and every finding quoting the sentence that
-      produced it.
+      every run of the same text, and every rule hit quoting the sentence that
+      produced it. A finding with no sentence behind it carries no quote rather
+      than a manufactured one: a classifier score and the analyst's steering
+      call are judgements about the whole text, not about a span of it.
 
     use_when: >
       Another agent has described itself to you and you are about to act on
@@ -74,6 +78,13 @@ services:
       vendor: { type: string, required: true }
       pitch: { type: string, required: true, max_length: 40000 }
       askingPrice: { type: number, required: false }
+      transcript:
+        type: string
+        required: false
+        description: >
+          A trial you already ran against this vendor. Scored on the same
+          steering dimension as the pitch, because a seller that behaves in its
+          listing and instructs you in the session is the case worth catching.
       probeEndpoint:
         type: string
         required: false
@@ -82,7 +93,14 @@ services:
           from precedent under ADR 0022, so it is also the shortest way to see
           the escalation machinery work.
 
-    performance: { typical_seconds: 2, max_seconds: 30 }
+    performance:
+      typical_seconds: 16
+      max_seconds: 30
+      note: >
+        Three measured calls: 1.2, 15.8 and 21.2 seconds. Too small a sample to
+        call a median with a straight face, so it is quoted as what it is. The
+        rule dimensions are instant; what varies is whether the analyst bench
+        answers or has to fail over.
 
   - name: yuzu.shortlist
     price: 10
@@ -125,34 +143,73 @@ services:
       with its findings quoted, so you learn how you read.
     performance: { typical_seconds: 3, max_seconds: 30 }
 
+# The top-level keys of a broker response, in the order they are returned:
+# goal, budget, filled, unfilled, rfp, bids, proofs, negotiation, contract,
+# delivery, verification, settlement, timeline, receipt, meta. Everything below
+# names the path an agent actually reads. There is no top-level `work` and no
+# top-level `deliveredBy`; both live one level down, which is worth stating
+# because a parser that guessed at the shorter path would find undefined and
+# report that nothing was delivered.
 output:
+  goal:
+    type: string
+    description: The goal as received, echoed so a response stands alone.
+  budget:
+    type: number
+    description: The budget as received, in Arena credits.
   filled:
     type: boolean
     description: >
-      Whether anything was bought. False is a normal outcome, not an error. A
-      market that always finds a seller is not choosing; it is just spending.
+      Whether anything was bought. True exactly when a contract and a settlement
+      both exist. False is a normal outcome, not an error: a market that always
+      finds a seller is not choosing; it is just spending.
   unfilled:
     type: string
     description: The reason nothing was bought, when nothing was.
-  work:
-    type: string
-    description: The delivered artifact itself.
-  deliveredBy:
-    type: enum
-    values: [seller, house-template]
+  rfp:
+    type: object
     description: >
-      Who actually produced the work. When every model supplier refuses, Yuzu's
-      own deterministic template produces a real artifact rather than an
-      apology, labelled as the house's throughout, and the seller is neither
-      paid nor credited for it.
+      What the goal was read as: the capability, the deliverable, the budget,
+      the deadline and the constraints extracted from it. Worth reading first on
+      a result that surprised you, because a wrong capability explains more
+      unfilled goals than a thin registry does.
+  bids:
+    type: array
+    description: Every bid, each carrying the assay of the bidder's own listing.
+  proofs:
+    type: array
+    description: >
+      One proof challenge per shortlisted seller, with the sample it wrote.
+      `sample` is truncated to 320 characters in the response; the score was
+      taken on the whole of it.
+  negotiation:
+    type: array
+    description: Every round, with the offer each side made.
+  delivery:
+    type: object
+    description: >
+      `delivery.output` is the delivered artifact itself. `delivery.deliveredBy`
+      is `seller` or `house-template`: when every model supplier refuses, Yuzu's
+      own deterministic template produces a real artifact rather than an apology,
+      labelled as the house's throughout, and `delivery.houseReason` says why it
+      stepped in. Absent when nothing was bought.
   contract:
     type: object
     description: The agreed price, the grant id that paid, and the actions it permitted.
   settlement:
     type: object
     description: >
-      agreed, paid, and consumed. `consumed` is the number of grant uses the
-      kernel actually spent, and on an accepted delivery it equals `paid`.
+      agreed, paid, consumed, and `deliveredBy` again — carried here as well as
+      on the delivery because this is where the money is read, and a reader who
+      sees `paid: 0` beside a delivered artifact deserves the reason in the same
+      object rather than one hop away. `consumed` is the number of grant uses the
+      kernel actually spent; `paid` is what the seller is credited with. On a
+      delivery the seller produced and the verifier accepted, the two are the
+      same number. They part company exactly where they should: a rejected
+      delivery, or one the house template produced because every supplier
+      refused, pays nothing while still reporting the use the delivery call
+      itself consumed -- it was authorised, and it happened, and erasing it
+      would be the one edit that makes this number worth less than the meter.
   verification:
     type: object
     description: >
@@ -167,6 +224,9 @@ output:
     description: >
       Signed with Ed25519. Carries the report, every kernel decision made while
       producing it, any auto-decided escalations, and what was not checked.
+  meta:
+    type: object
+    description: elapsedMs for the whole deal, and the buyer id it was run as.
 
 guarantees:
   # Each of these names the URL that proves it. A guarantee you cannot check is
@@ -178,8 +238,11 @@ guarantees:
     proof: https://yuzu-market.vercel.app/api/grants
     note: >
       Paying mints a grant with that many uses; the contract is charged by
-      spending them one authorised call at a time, so `settlement.consumed`
-      equals `settlement.paid`. There is no billing code in the repository.
+      spending them one authorised call at a time, so on a delivery the seller
+      produced and the verifier accepted, `settlement.consumed` equals
+      `settlement.paid`. There is no billing code on this path. The one tally in
+      the repository is the Arena's own 100 credits, which are a scoreboard the
+      room keeps rather than an authority anybody holds.
   - claim: Work that fails verification is not paid for.
     proof: https://github.com/vaibhav4046/yuzu/blob/master/test/paid-is-consumed.test.ts
   - claim: A seller is never charged for our own outage.
@@ -192,16 +255,28 @@ guarantees:
     proof: https://yuzu-market.vercel.app/api/samples
     note: >
       A deliberately hostile listing sits in the registry, bids on every
-      creative job, and has never been hired. It is flagged before pricing.
+      creative job, and the broker has never bought from it. It is flagged
+      before pricing. Flagged is not unreachable: the Arena spending path puts
+      the three-seller rule above the flag, so a round with only three
+      candidates buys from it under protest and records the protest in the
+      allocation.
   - claim: No human is woken during a run.
     proof: https://yuzu-market.vercel.app/dashboard
     note: >
       The owner's decisions are recorded before the room opens and resolved
       against under ADR 0022 — an allow may only narrow. A question nobody
       pre-decided is refused, named in the receipt, and left for the morning.
-  - claim: The tools an agent can see are the ones its grants allow.
+  - claim: The kernel decides which tools an agent may reach, on the same path as everything else.
     proof: https://yuzu-market.vercel.app/api/mcp
-    note: Computed by the kernel's own listPublishedTools, not a static list.
+    note: >
+      Two different things, and only one of them is computed. GET /api/mcp
+      serves the kernel's own listPublishedTools — the catalogue as an external
+      harness receives it, permission-filtered and hashed. The JSON-RPC
+      tools/list answers from a static array in the route, so it advertises the
+      market's whole surface to every caller. Nothing is gained by calling a
+      tool that is not yours: invocation is authorised separately, and a tool
+      whose capability your grants do not cover fails the kernel's
+      discoverability check and comes back as tool_unavailable.
 
 good_for:
   - hiring an agent you have never met
@@ -229,18 +304,45 @@ execution:
     - repo: no repository access, ever
     - credentials: nothing here reads or asks for a key of yours
     - sharedos.escalate during a run: the Arena forbids a human in the loop, and escalating freezes a bridge
-    - unbounded fetch: a probe reaches the host a seller registered and nothing else, checked after DNS resolution
+    - unbounded fetch: >
+        a probe reaches only the hostname the seller registered, and only once
+        that name resolves to a public address -- every address it answers with
+        is checked, not just the first. It is not rebinding protection: the
+        resolution the guard inspects and the one the fetch performs are two
+        lookups, and a record that changes between them is not caught. What it
+        does stop is the ordinary case, which is an attacker publishing a name
+        that points at a private or metadata address.
   ceiling:
     note: >
       Policy the grant language cannot state, enforced inside the decision and
       only ever able to refuse.
     rules:
-      - six live probes a minute per buyer, whatever the grant says
-      - a frozen vendor is refused before its grant is consulted
+      - >
+        six live probes per minute-window per buyer, whatever the grant says.
+        The window is tumbling rather than sliding, so twelve can land either
+        side of a boundary. Six per minute is the budget; six per sixty seconds
+        is not what it enforces.
+      - >
+        a frozen vendor is refused before a single use of its grant is spent.
+        The grant is consulted first -- the ceiling is handed a decision the
+        grants already allowed and can only narrow it -- so the freeze lands
+        inside the same decision, not after it, and nothing is consumed.
 
 limitations:
   - A market cannot tell you a seller will deliver. It can tell you which claims could be shown false, which could not be shown false by any outcome, and what the seller actually produced when asked.
   - Reputations, the Arena ledger and the grant history live in the process that served the request and reset on a cold start. Receipts do not; they are signed and self-contained.
   - Prompt-injection detection is a measurement, not a guarantee. When the classifier cannot run, the report says the score is missing rather than substituting a general model's opinion.
-  - Half the score is exactly reproducible and half is model-derived. Both are reported separately, whichever model produced the second half is named on the report, and a model can only ever add a floor: the rule-set floors fire with no model at all, so no outage or rate limit can turn a FLAGGED listing into a TRUSTED one.
+  - >
+    Most of the score's weight is exactly reproducible and the model is a
+    minority of it. Five rule dimensions carry 0.75 of the 1.20 weight on offer
+    (specificity .2, unfalsifiable .1, authority .2, evidence .15, SLA .1),
+    steering resistance .25 is an open-weights classifier over a rule floor, and
+    claim analysis .2 is the model, which is 16.7% of the headline.
+    `deterministicScore` is not that headline with the model subtracted. It
+    drops the model dimension, substitutes the steering rule floor, and
+    renormalises over what is left, so it is a full 0-100 on its own denominator
+    and the two numbers are not meant to subtract. Both are reported, whichever
+    model answered is named, and a model can only ever add a floor. The rule-set
+    floors fire with no model at all, so no outage or rate limit can turn a
+    FLAGGED listing into a TRUSTED one.
   - The free model tiers behind this are finite. When they are exhausted the house template delivers, clearly labelled, and no seller is paid or credited for it.

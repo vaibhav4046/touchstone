@@ -1,7 +1,11 @@
 # Two minutes
 
-Shot list and narration. 1:56. Everything shown is real and runs from a clean browser — no cuts
+Shot list and narration. 2:04. Everything shown is real and runs from a clean browser — no cuts
 inside a result, because the whole argument is that the evidence is checkable.
+
+These timings are the narration plan, not the cut. The recorded capture is 78 seconds and is
+produced by `scripts/record-demo.mjs`, which drives the live site and writes the real elapsed time of
+each beat beside the plan — a beat that took nine seconds is written down as nine.
 
 Record at 1440×900 on `https://yuzu-market.vercel.app`. Keep a terminal in a second window.
 
@@ -99,7 +103,7 @@ curl -s -X POST https://yuzu-market.vercel.app/api/verify -d @receipt.json
 
 ---
 
-### 1:34 – 1:42 · The floor
+### 1:40 – 1:48 · The floor
 
 **On screen:** click **The floor**.
 
@@ -116,7 +120,7 @@ curl -s -X POST https://yuzu-market.vercel.app/api/verify -d @receipt.json
 
 ---
 
-### 1:42 – 1:50 · Nobody gets woken up
+### 1:48 – 1:56 · Nobody gets woken up
 
 > "One more. The rules forbid a human in the loop for two hours, and escalating freezes a bridge. So
 > Yuzu does not escalate during a run — the owner decides the questions beforehand, and they are
@@ -125,7 +129,7 @@ curl -s -X POST https://yuzu-market.vercel.app/api/verify -d @receipt.json
 
 ---
 
-### 1:50 – 1:58 · Close
+### 1:56 – 2:04 · Close
 
 **On screen:** cut to black, the mark, the wordmark.
 

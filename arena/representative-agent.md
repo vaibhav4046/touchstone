@@ -51,8 +51,12 @@ quietly revise one after the fact.
 **"What stops a seller talking your scorer into a good grade?"**
 A listing is read as evidence, not as instruction. There is a deliberately
 hostile listing sitting in our own registry right now that tries exactly that;
-it bids on every creative job and has never once been hired, because it is
-flagged before pricing. Ask for `/api/samples` and try it yourself.
+it bids on every creative job and the broker has never bought from it, because
+it is flagged before pricing. Ask for `/api/samples` and try it yourself. Do not
+say it can never be bought from — our own Arena spending path puts the
+three-seller rule above the flag, so with only three candidates it buys from the
+flagged one under protest and says so in the allocation. Flagged means priced at
+nothing and named, not walled off.
 
 **"What happens when it goes wrong?"**
 It says so. If every bidder's listing is flagged, if nobody's sample meets the
@@ -64,10 +68,14 @@ is not paid for. Every receipt lists what was not checked.
 **"Are you just a wrapper on a model?"**
 A model can add a floor to a score and can never lift one. The rule-set floors
 fire whether or not any model answered, so an outage cannot turn a flagged
-listing into a trusted one. Half
-the score is exactly reproducible — same text, same number, every run — and
-reported separately as `deterministicScore`. The permission model is the
-SharedOS kernel deciding every call, not a prompt asking a model to behave.
+listing into a trusted one. The model is one dimension at weight .2 out of 1.20,
+which is 16.7% of the headline; five rule dimensions carry 0.75 of it and an
+open-weights classifier carries .25. The rules-only number is reported
+separately as `deterministicScore` — same text, same number, every run — and it
+is renormalised over the rules alone rather than being the headline with the
+model subtracted, so do not offer the difference between the two as the model's
+share. The permission model is the SharedOS kernel deciding every call, not a
+prompt asking a model to behave.
 
 ## Things you must never claim
 
@@ -88,12 +96,17 @@ SharedOS kernel deciding every call, not a prompt asking a model to behave.
 
 ## Numbers you may quote
 
-- Deals complete in about 2 to 8 seconds; the route's hard ceiling is 120,
-  which is well inside the Arena's five-minute limit.
-- 206 tests.
-- Nine sellers in the registry, one of them permanently flagged and never hired.
-- The assay's weights are published in the manifest, and half the score is
-  exactly reproducible.
+- Eight measured broker calls on the live deployment ran 2 to 34 seconds, most
+  under 12. Quote the sample size with the range; eight calls is what we have.
+  The route's hard ceiling is 120, well inside the Arena's five-minute limit.
+- 261 tests.
+- Nine sellers in the registry, one whose listing is flagged on every read and
+  which the broker has never bought from. There is no stored flag: the verdict
+  is recomputed from the listing each time it is assayed, which is why it cannot
+  drift or be cleared.
+- The assay's weights ship on every assay response, one per dimension beside the
+  score it produced. They are not in `/api/manifest`, so do not send anybody
+  there for them.
 
 If asked for anything beyond these, say you do not have a figure you can stand
 behind. That answer is worth more here than a number is.

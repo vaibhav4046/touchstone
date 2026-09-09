@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { balanceOf, sellCredits } from "../lib/market/settlement";
-import { buildContext, callTool } from "../lib/sharedos/host";
+import { buildContext, callTool, traceFor } from "../lib/sharedos/host";
 import { PURPOSES } from "../lib/sharedos/identity";
 
 /**
@@ -34,9 +34,9 @@ describe("credits are grant uses", () => {
     const opening = await balanceOf(sale.purchase.grant);
     expect(opening).toMatchObject({ purchased: 3, spent: 0, remaining: 3 });
 
-    const deliver = () =>
+    const deliver = (context = buildContext({ buyerId: buyer, purpose: PURPOSES.deliver })) =>
       callTool(
-        buildContext({ buyerId: buyer, purpose: PURPOSES.deliver }),
+        context,
         "market.deliver",
         { contractId, capabilityFamily: "creative" },
         { path: ["market", "creative"], action: "deliver" },
@@ -51,9 +51,24 @@ describe("credits are grant uses", () => {
     expect(spent).toMatchObject({ purchased: 3, spent: 3, remaining: 0 });
 
     // The fourth is not a business-logic error. It is a refusal from the kernel.
-    const overdrawn = await deliver();
+    //
+    // Both literals, because they are different strings and the documentation
+    // quotes the second one. An exhausted grant fails the kernel's
+    // discoverability check first, so the tool is gone from the catalogue
+    // before it can be called and the caller is handed `tool_unavailable` --
+    // one coarse code the kernel deliberately spreads over several situations.
+    // Which situation it was lives on the authorization decision, and that is
+    // where `grant_exhausted` appears. Asserting only that a reason code was
+    // set would keep passing if the tool simply stopped being registered, and
+    // "running out of credits is a refusal from the authorizer" would be a
+    // sentence with nothing behind it.
+    const overdrawnContext = buildContext({ buyerId: buyer, purpose: PURPOSES.deliver });
+    const overdrawn = await deliver(overdrawnContext);
     expect(overdrawn.result?.status).toBe("denied");
-    expect(overdrawn.denied?.reasonCode).toBeDefined();
+    expect(overdrawn.denied?.reasonCode).toBe("tool_unavailable");
+    expect(traceFor(overdrawnContext.traceId).map((decision) => decision.reasonCode)).toContain(
+      "grant_exhausted",
+    );
   }, 30_000);
 
   it("refuses a purchase of nothing", () => {

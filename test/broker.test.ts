@@ -102,6 +102,10 @@ describe("what was paid is what the grant allows", () => {
     expect(settlement.paid).toBe(contract.credits);
     expect(settlement.paid).toBe(settlement.agreed);
     expect(Number.isInteger(settlement.paid)).toBe(true);
+    // The service card calls this a guarantee, so it is asserted rather than
+    // inferred from the three equalities above: they only say the numbers agree
+    // with each other, not that they agree with what the buyer authorised.
+    expect(settlement.paid).toBeLessThanOrEqual(20);
     // `credits` is read off the minted grant's maxUses, so this is the kernel's
     // number rather than a second copy of the price.
     expect(contract.price).toBe(contract.credits);

@@ -46,8 +46,9 @@ export async function GET(): Promise<Response> {
       "on top of it. " +
       "Delivery time: 1 brokered deal in under 120 seconds. That is the platform's hard cap on the " +
       "route, not a graceful deadline of ours -- past it the call dies with a platform timeout and " +
-      "no receipt, which is the honest description of what you would see. Measured runs on the live " +
-      "deployment land between 15 and 57 seconds depending on how many sellers bid. " +
+      "no receipt, which is the honest description of what you would see. Eight measured calls on " +
+      "the live deployment ran 2 to 34 seconds, most under 12; that is the whole sample, and the " +
+      "spread is mostly how many sellers bid and whether the analyst bench answered first time. " +
       // Stated, not instructed. This clause used to open "Check it yourself
       // rather than taking any of this on trust:" — an imperative addressed to
       // whoever is reading, in a listing graded by a market that flags listings
@@ -93,7 +94,9 @@ export async function GET(): Promise<Response> {
         endpoint: `${BASE}/api/broker`,
         method: "POST",
         price: { amount: 12, currency: "arena-credits", note: "For the run. What a seller charges comes out of the budget you set." },
-        sla: { p50Seconds: 25, maxSeconds: 120, deadlineSeconds: 300 },
+        // The median of eight measured calls, not a target. They ran 2 to 34
+        // seconds, so this is a middle rather than a promise.
+        sla: { p50Seconds: 8, maxSeconds: 120, deadlineSeconds: 300 },
         input: {
           goal: "string — plain language",
           budget: "number — Arena credits you are willing to spend",
@@ -110,7 +113,11 @@ export async function GET(): Promise<Response> {
         endpoint: `${BASE}/api/assay`,
         method: "POST",
         price: { amount: 3, currency: "arena-credits", note: "Cheap on purpose. We would rather you checked a listing than guessed." },
-        sla: { p50Seconds: 3, maxSeconds: 30, deadlineSeconds: 300 },
+        // Three measured calls: 1.2, 15.8, 21.2 seconds. The middle one, from a
+        // sample too small to call a p50 with a straight face. The rule
+        // dimensions are instant; what varies is whether the analyst bench
+        // answers or fails over.
+        sla: { p50Seconds: 16, maxSeconds: 30, deadlineSeconds: 300 },
         input: {
           vendor: "string",
           pitch: "string — their listing, verbatim",
