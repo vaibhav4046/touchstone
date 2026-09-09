@@ -147,10 +147,15 @@ export async function withTurn<T>(
         reasonCode,
         endedBy: status === "failed" ? "runtime" : undefined,
       });
-    } catch {
+    } catch (error) {
       // The work already happened. Losing its terminal is worth knowing about
       // and is not worth failing the caller's turn over, which is the same
-      // judgement `onAuditError` makes above.
+      // judgement `onAuditError` makes above -- but swallowing it in silence is
+      // how a terminal that never fires looks exactly like one that does.
+      process.stderr.write(
+        `[withTurn] recordTurnEnd failed: ${error instanceof Error ? error.message : String(error)}
+`,
+      );
     }
     scope.close();
   }
