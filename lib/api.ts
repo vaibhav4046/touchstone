@@ -21,6 +21,191 @@ export function resolveBuyer(request: Request): string {
   return `anon-${createHash("sha256").update(fingerprint).digest("hex").slice(0, 10)}`;
 }
 
+/**
+ * A ceiling on how much of the operator's money one caller can spend.
+ *
+ * Every unit below is roughly one vendor put through the assay, which is three
+ * or four billed model calls across Groq, OpenRouter and Gemini. Nothing used
+ * to limit the fan-out at all: one `POST /api/shortlist` carrying twelve
+ * vendors is on the order of a hundred billed calls, `OPENROUTER_API_KEY` is a
+ * funded key, and the route is unauthenticated — so a loop on somebody's laptop
+ * was a bill, not a nuisance. Three lanes, because each covers the other's gap:
+ *
+ *   caller — the id from `resolveBuyer`, which is a header and therefore a
+ *            claim. It stops honest repetition and an attacker rotates past it.
+ *   ip     — `x-forwarded-for`, which the platform in front of us overwrites,
+ *            so an attacker has to rotate addresses rather than strings. On a
+ *            deployment with no such proxy this header is spoofable too, which
+ *            is exactly why it is not the only lane.
+ *   global — the backstop that holds when both of the above are being rotated.
+ *
+ * In-process on purpose: there is no datastore in this service and adding one
+ * for a rate limiter is a bigger change than the limiter. The ceiling that
+ * implies is honest rather than nominal — the counters live in one serverless
+ * instance, so N concurrent instances admit up to N times the global figure,
+ * and a cold start begins with a full bucket. It bounds a single attacker's
+ * throughput and a runaway loop's cost; it is not a billing guarantee. A real
+ * one needs a shared counter (Redis, Upstash) or a spend cap set at the
+ * provider, and the provider cap is the one that cannot be outrun.
+ */
+const RATE_WINDOW_MS = 60_000;
+const PER_CALLER_UNITS = 24;
+const PER_IP_UNITS = 40;
+const GLOBAL_UNITS = 120;
+/** Beyond this many vendors or candidates in one body, the request is refused rather than trimmed. */
+export const MAX_FANOUT = 12;
+/** Buckets are one small object each; this is the point at which we stop remembering new ones. */
+const MAX_TRACKED_KEYS = 4_000;
+
+interface Bucket {
+  tokens: number;
+  at: number;
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __touchstoneRateBuckets: Map<string, Bucket> | undefined;
+}
+
+function buckets(): Map<string, Bucket> {
+  globalThis.__touchstoneRateBuckets ??= new Map<string, Bucket>();
+  return globalThis.__touchstoneRateBuckets;
+}
+
+export interface RateVerdict {
+  readonly ok: boolean;
+  readonly scope?: "caller" | "ip" | "global";
+  readonly retryAfterSeconds: number;
+  readonly message: string;
+}
+
+/**
+ * Which address the request came from, as far as we can tell.
+ *
+ * The first entry in `x-forwarded-for` is the client as the edge saw it; later
+ * entries are proxies. Read as data, never as identity: it scopes a limit and
+ * authorises nothing.
+ */
+function callerAddress(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const candidate = forwarded !== undefined && forwarded.length > 0 ? forwarded : request.headers.get("x-real-ip");
+  return (candidate ?? "unknown").slice(0, 64);
+}
+
+/** Tokens accrue at capacity per window, so a bucket is full again one window after it emptied. */
+function refill(key: string, capacity: number, now: number): Bucket {
+  const store = buckets();
+  const existing = store.get(key);
+  if (existing === undefined) {
+    const fresh: Bucket = { tokens: capacity, at: now };
+    store.set(key, fresh);
+    return fresh;
+  }
+  existing.tokens = Math.min(capacity, existing.tokens + ((now - existing.at) / RATE_WINDOW_MS) * capacity);
+  existing.at = now;
+  return existing;
+}
+
+/**
+ * Forget buckets that have nothing left to say.
+ *
+ * A bucket back at full capacity is indistinguishable from one that never
+ * existed, so dropping it loses no enforcement. If everything being tracked is
+ * still drained — many keys, all of them limited — the global lane is what is
+ * holding the line anyway, and the oldest entries go.
+ */
+function prune(now: number): void {
+  const store = buckets();
+  if (store.size <= MAX_TRACKED_KEYS) return;
+  for (const [key, bucket] of store) {
+    if (now - bucket.at >= RATE_WINDOW_MS) store.delete(key);
+  }
+  for (const key of store.keys()) {
+    if (store.size <= MAX_TRACKED_KEYS) break;
+    if (key !== "global") store.delete(key);
+  }
+}
+
+/**
+ * Spend `units` against every lane, or spend nothing and say which lane refused.
+ *
+ * Called before the body is read, because reading the body is itself billable:
+ * `parseOrder` hands free text to a model. A request that is going to be
+ * refused for its shape still costs its admission unit, which is the point —
+ * an attacker must not be able to buy unmetered work with malformed bodies.
+ */
+export function admit(request: Request, units = 1): RateVerdict {
+  const now = Date.now();
+  const cost = Math.max(0, Math.ceil(units));
+  // A caller asking for nothing is charged nothing, so a route can hand this
+  // the remainder of a fan-out without a branch for the one-vendor case.
+  if (cost === 0) return { ok: true, retryAfterSeconds: 0, message: "" };
+  prune(now);
+
+  const lanes = [
+    { scope: "caller" as const, capacity: PER_CALLER_UNITS, bucket: refill(`caller:${resolveBuyer(request)}`, PER_CALLER_UNITS, now) },
+    { scope: "ip" as const, capacity: PER_IP_UNITS, bucket: refill(`ip:${callerAddress(request)}`, PER_IP_UNITS, now) },
+    { scope: "global" as const, capacity: GLOBAL_UNITS, bucket: refill("global", GLOBAL_UNITS, now) },
+  ];
+
+  const short = lanes.find((lane) => lane.bucket.tokens < cost);
+  if (short !== undefined) {
+    const wait = Math.max(1, Math.ceil((((cost - short.bucket.tokens) / short.capacity) * RATE_WINDOW_MS) / 1_000));
+    return { ok: false, scope: short.scope, retryAfterSeconds: wait, message: exhausted(short.scope, short.capacity, wait) };
+  }
+
+  // All or nothing: a lane must not be charged for a request another lane refused.
+  for (const lane of lanes) lane.bucket.tokens -= cost;
+  return { ok: true, retryAfterSeconds: 0, message: "" };
+}
+
+function exhausted(scope: RateVerdict["scope"], capacity: number, wait: number): string {
+  const budget = `${capacity} vendor assays a minute`;
+  const tail = `Each assay is several billed model calls, and this key is funded. Try again in ${wait}s.`;
+  if (scope === "caller") return `This caller has spent its share: ${budget}. ${tail}`;
+  if (scope === "ip") return `This address has spent its share: ${budget}. ${tail}`;
+  return `Touchstone as a whole is at its ceiling of ${budget}. ${tail}`;
+}
+
+/** Drops every counter. Tests only — nothing in a route should be able to clear a limit. */
+export function resetRateLimits(): void {
+  globalThis.__touchstoneRateBuckets = new Map<string, Bucket>();
+}
+
+/** The refusal itself, with the header a well-behaved client actually reads. */
+export function rateLimited(verdict: RateVerdict): Response {
+  return json(
+    {
+      error: "rate_limited",
+      scope: verdict.scope,
+      message: verdict.message,
+      retryAfterSeconds: verdict.retryAfterSeconds,
+    },
+    429,
+    { "retry-after": String(verdict.retryAfterSeconds) },
+  );
+}
+
+/**
+ * Too much work in one request.
+ *
+ * Refused rather than trimmed to the cap: silently doing 12 of the 400 vendors
+ * a caller sent and returning a `truncated` count is an answer to a question
+ * nobody asked, and it hides the limit from the one caller who most needs to
+ * see it.
+ */
+export function fanOutTooLarge(field: string, count: number, cap = MAX_FANOUT): Response {
+  return json(
+    {
+      error: "fan_out_too_large",
+      message: `${count} ${field} in one request; the cap is ${cap}. Each one is several billed model calls, so the request is refused rather than quietly cut down to ${cap}. Split it.`,
+      cap,
+      received: count,
+    },
+    429,
+  );
+}
+
 export interface ParsedOrder {
   readonly vendors: readonly AssayInput[];
   readonly budget?: number;
@@ -186,9 +371,9 @@ function safeJson<T>(raw: string): T | undefined {
   }
 }
 
-export function json(body: unknown, status = 200): Response {
+export function json(body: unknown, status = 200, headers: Readonly<Record<string, string>> = {}): Response {
   return new Response(JSON.stringify(body, null, 2), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...headers },
   });
 }

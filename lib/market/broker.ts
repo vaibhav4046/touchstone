@@ -5,7 +5,7 @@ import { PURPOSES } from "../sharedos/identity";
 import { buildContext, callTool, traceFor } from "../sharedos/host";
 import { sign, type Receipt } from "../assay/receipt";
 import { getSeller, recordOutcome, reputationOf, sellersFor } from "./registry";
-import { balanceOf, closeContract, sellCredits } from "./settlement";
+import { balanceOf, chargeContract, closeContract, sellCredits } from "./settlement";
 import type {
   Bid,
   Contract,
@@ -338,6 +338,29 @@ export async function runBroker(input: {
   );
 
   // ── settle ─────────────────────────────────────────────────────────────
+  // Paying is spending, or the claim is a slogan.
+  //
+  // Taking the delivery above was an authorised call and cost one use, which
+  // left the meter reading 1 against a price of `agreed`. Charging the rest of
+  // the price means spending the rest of the grant through the same authorizer,
+  // and `paid` is then read off that meter — so there is no number here that
+  // could be wrong about what the kernel did, because there is no number here
+  // that was computed rather than counted.
+  //
+  // A rejection stops the charge where it stands. The buyer is not made to pay
+  // for work it refused; the use the attempt already consumed is reported as
+  // `consumed` rather than erased, because the attempt happened.
+  const charged = verification.accepted
+    ? await chargeContract({
+        grant: sale.purchase.grant,
+        contractId,
+        buyerId: input.buyerId,
+        capabilityFamily: family,
+        traceId,
+      })
+    : await balanceOf(sale.purchase.grant);
+  const paid = verification.accepted ? charged.spent : 0;
+
   const before = reputationOf(seller.id).score;
   const after = verification.judged
     ? recordOutcome(seller.id, verification.accepted, verification.score).score
@@ -345,16 +368,23 @@ export async function runBroker(input: {
   const settlement: Settlement = {
     contractId,
     agreed,
-    paid: verification.accepted ? agreed : 0,
+    consumed: charged.spent,
+    paid,
     reason: verification.accepted
-      ? "Delivery met the brief on every axis the verifier checked."
+      ? charged.spent === agreed
+        ? `Delivery met the brief on every axis the verifier checked, and the kernel spent all ${agreed} uses of the contract's grant to pay for it.`
+        : `Delivery was accepted, but the grant stopped authorising after ${charged.spent} of the ${agreed} uses, so ${charged.spent} is what was charged.`
       : verification.judged
-        ? "Delivery was rejected, so the credits stayed with the buyer."
-        : "Nothing was judged, so nothing was paid and the seller's standing was left where it was.",
+        ? `Delivery was rejected, so the rest of the price was never spent and ${agreed - charged.spent} of the ${agreed} uses stayed with the buyer. The ${charged.spent} the delivery itself consumed is not charged, but it was authorised and it happened.`
+        : `Nothing was judged, so nothing was paid and the seller's standing was left where it was. The ${charged.spent} use the attempt consumed still stands: it was authorised and made, and only the model upstream failed to answer.`,
     reputationBefore: before,
     reputationAfter: after,
   };
-  mark("settle", `${settlement.paid} of ${agreed} credits paid. ${seller.name}: ${before} to ${after}.`, { settlement });
+  mark(
+    "settle",
+    `${settlement.paid} of ${agreed} credits paid, against ${charged.spent} of ${agreed} uses consumed on the grant. ${seller.name}: ${before} to ${after}.`,
+    { settlement },
+  );
   closeContract(contract.grantId);
 
   return finish({

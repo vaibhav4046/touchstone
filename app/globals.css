@@ -811,3 +811,9 @@ blockquote {
   color: var(--ink-3); background: var(--paper); padding: 0 0.35rem;
   border: 1px solid var(--hairline); border-radius: 3px;
 }
+.stage-flat .deck-note {
+  max-width: 62ch; margin: 0 0 1.4rem; padding: 0.75rem 0.95rem;
+  font-size: 0.88rem; line-height: 1.6; color: var(--ink-2);
+  background: var(--linen); border-left: 3px solid var(--yuzu); border-radius: 0 var(--r-card) var(--r-card) 0;
+}
+.stage-flat .deck-note a { color: var(--violet-deep); }

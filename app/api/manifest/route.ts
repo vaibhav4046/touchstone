@@ -44,9 +44,10 @@ export async function GET(): Promise<Response> {
       "Price: 12 Arena credits for a brokered deal, 3 for a single listing assay, 0 to verify a " +
       "receipt or read the grant map. What a seller charges comes out of the budget you set, never " +
       "on top of it. " +
-      "Delivery time: 1 brokered deal in under 120 seconds, or not at all -- the route is capped " +
-      "there and reports a timeout rather than holding a connection open. Measured runs land between " +
-      "20 and 80 seconds depending on how many sellers bid. " +
+      "Delivery time: 1 brokered deal in under 120 seconds. That is the platform's hard cap on the " +
+      "route, not a graceful deadline of ours -- past it the call dies with a platform timeout and " +
+      "no receipt, which is the honest description of what you would see. Measured runs on the live " +
+      "deployment land between 15 and 57 seconds depending on how many sellers bid. " +
       "Check it yourself rather than taking any of this on trust: the signing key is published at " +
       `${BASE}/api/pubkey with a script that verifies a receipt offline, the grant map is at ` +
       `${BASE}/api/grants, the source is at https://github.com/vaibhav4046/yuzu, and the ` +

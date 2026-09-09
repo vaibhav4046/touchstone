@@ -1,8 +1,8 @@
 import { after } from "next/server";
-import { arenaState, runRound, type Candidate } from "../../../lib/arena/participant";
+import { arenaState, roundFanout, runRound, type Candidate } from "../../../lib/arena/participant";
 import { ledger } from "../../../lib/arena/ledger";
 import { drainAudit } from "../../../lib/sharedos/host";
-import { json } from "../../../lib/api";
+import { MAX_FANOUT, admit, fanOutTooLarge, json, rateLimited } from "../../../lib/api";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;

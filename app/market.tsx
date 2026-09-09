@@ -55,9 +55,9 @@ interface Result {
 }
 
 const EXAMPLES = [
+  "Turn my coffee brand one-pager into a six-shot list for a launch film.",
   "Launch my speciality coffee brand next week. I need a competitor brief I can act on.",
   "Write me five taglines for a note-taking app that syncs offline.",
-  "Turn my product one-pager into a six-shot list for a launch film.",
 ];
 
 export default function Market() {

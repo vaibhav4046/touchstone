@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { assay } from "../../../lib/assay/engine";
-import { json, parseOrder, resolveBuyer } from "../../../lib/api";
+import { MAX_FANOUT, admit, fanOutTooLarge, json, parseOrder, rateLimited, resolveBuyer } from "../../../lib/api";
 
 import { drainAudit } from "../../../lib/sharedos/host";
 
@@ -17,9 +17,20 @@ export const maxDuration = 60;
  */
 export async function POST(request: Request): Promise<Response> {
   after(async () => drainAudit());
+
+  // Before the body is read: `parseOrder` hands free text to a model, so a
+  // malformed body is billable too and has to be metered like any other call.
+  const admission = admit(request);
+  if (!admission.ok) return rateLimited(admission);
+
   const buyerId = resolveBuyer(request);
   const raw = await request.text();
   const order = await parseOrder(raw, buyerId);
+
+  // One vendor is what this route assays. A larger list is somebody pointing a
+  // shortlist-shaped body at it, and it is refused rather than quietly reduced
+  // to its first entry.
+  if (order.vendors.length > MAX_FANOUT) return fanOutTooLarge("vendors", order.vendors.length, MAX_FANOUT);
 
   const vendor = order.vendors[0];
   if (vendor === undefined) {

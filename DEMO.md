@@ -31,8 +31,9 @@ Record at 1440×900 on `https://yuzu-market.vercel.app`. Keep a terminal in a se
 
 ### 0:22 – 0:50 · One deal, start to finish
 
-**On screen:** the goal is already filled in. Click **Send it to the market**. Do not touch anything
-else.
+**On screen:** the goal is already filled in — the launch-film shot list, which is the one that draws
+the hostile listing, because it sells creative work. Click **Send it to the market**. Do not touch
+anything else.
 
 The timeline writes itself, stage by stage. Read it as it lands:
 

@@ -2,7 +2,7 @@ import { assay } from "../assay/engine";
 import type { AssayReport } from "../assay/types";
 import { listSellers } from "../market/registry";
 import { slug } from "../sharedos/identity";
-import { isBlockedHost } from "../sharedos/tools";
+import { blockedHostRefusal } from "../sharedos/tools";
 import { critique, type Critique } from "./critique";
 import {
   MIN_SELLERS,
@@ -52,6 +52,19 @@ const UNPROVEN_TRIAL = 25;
 
 const TRIAL_TASK =
   "Trial request from an autonomous buyer: in one response, produce your smallest real unit of work for a coffee brand called Ember, and state what it costs and how long it took.";
+
+/**
+ * How many products a round with this many candidates will actually work on.
+ *
+ * The route charges its rate limit against this rather than against the length
+ * of the array it was sent, because those differ in both directions: a list of
+ * forty is cut to `MAX_TRIED`, and a list of one is topped up to `MIN_TRIED`
+ * from the registry. Each of those is an assay plus a critique plus a live
+ * trial, which is what the limit is protecting.
+ */
+export function roundFanout(candidateCount: number): number {
+  return Math.min(Math.max(candidateCount, MIN_TRIED), MAX_TRIED);
+}
 
 export interface Candidate {
   readonly name: string;
@@ -287,6 +300,23 @@ function fromRegistry(): readonly Candidate[] {
 }
 
 /**
+ * Two ways a listing's endpoint stops a call, which are not the same finding.
+ *
+ * `tried` is false when we refused to make the call — no endpoint, not a URL,
+ * a scheme we do not speak, or a host we will not reach. Nothing left our
+ * server, and the selfdealing test asserts exactly that.
+ *
+ * `tried` is true when we did reach out and got nowhere: the name does not
+ * resolve. That is a broken promise rather than a policy refusal — the seller
+ * published an address that does not exist — so it ranks with the endpoints
+ * that answered badly rather than with the listings that never claimed one.
+ */
+interface Unreachable {
+  readonly note: string;
+  readonly tried: boolean;
+}
+
+/**
  * Is this a URL we are willing to call from our own server?
  *
  * The endpoint arrives in a request body — `app/api/arena/route.ts` reads it
@@ -295,26 +325,45 @@ function fromRegistry(): readonly Candidate[] {
  * could have listed `http://169.254.169.254/...` and had us fetch our own
  * cloud metadata and hand the body back in the trial excerpt.
  *
+ * The literal-host blocklist that replaced it was still only half the check,
+ * because a hostname is not an address. `arena-rival.example` with an A record
+ * of 169.254.169.254 is an ordinary public name that passes every string test
+ * and then connects to the metadata service, and a rival needs nothing but its
+ * own DNS zone to arrange it. So the name is resolved and every address it
+ * answers with is checked before anything is fetched.
+ *
  * Unlike the probe tool there is no seller registry to bind against, because a
  * rival in the Arena is legitimately any public host. So the check is the host
- * blocklist alone, plus refusing to follow redirects — a 302 is a second
- * request to a host nothing has looked at.
+ * blocklist over the resolved addresses, plus refusing to follow redirects — a
+ * 302 is a second request to a host nothing has looked at.
  */
-function unreachable(endpoint: string | undefined): string | undefined {
-  if (endpoint === undefined) return "published no endpoint";
+async function unreachable(endpoint: string | undefined): Promise<Unreachable | undefined> {
+  if (endpoint === undefined) return { note: "published no endpoint", tried: false };
   let url: URL;
   try {
     url = new URL(endpoint);
   } catch {
-    return "published something that is not a URL";
+    return { note: "published something that is not a URL", tried: false };
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return `published a ${url.protocol.replace(":", "")} endpoint, and we only call http and https`;
+    return {
+      note: `published a ${url.protocol.replace(":", "")} endpoint, and we only call http and https`,
+      tried: false,
+    };
   }
-  if (isBlockedHost(url.hostname)) {
-    return "published a private, loopback, link-local or metadata address, which we will not call from our own server";
+
+  const refusal = await blockedHostRefusal(url.hostname);
+  if (refusal === undefined) return undefined;
+  if (refusal.kind === "unresolvable") {
+    return { note: `${refusal.message}, so it did not answer`, tried: true };
   }
-  return undefined;
+  return {
+    note:
+      refusal.code === "endpoint_resolves_to_blocked"
+        ? `published ${url.hostname}, which resolves to a private, loopback, link-local or metadata address, which we will not call from our own server`
+        : "published a private, loopback, link-local or metadata address, which we will not call from our own server",
+    tried: false,
+  };
 }
 
 /**
@@ -324,18 +373,21 @@ function unreachable(endpoint: string | undefined): string | undefined {
  */
 async function runTrial(candidate: Candidate): Promise<TrialRecord> {
   const endpoint = candidate.endpoint;
-  const refusal = unreachable(endpoint);
+  const started = Date.now();
+  const refusal = await unreachable(endpoint);
   if (endpoint === undefined || refusal !== undefined) {
     return {
       answered: false,
-      attempted: false,
-      latencyMs: 0,
+      attempted: refusal?.tried ?? false,
+      latencyMs: refusal?.tried === true ? Date.now() - started : 0,
       excerpt: "",
-      note: `${refusal ?? "published no reachable endpoint"}, so nothing could be exercised and only its listing was examined`,
+      note:
+        refusal?.tried === true
+          ? refusal.note
+          : `${refusal?.note ?? "published no reachable endpoint"}, so nothing could be exercised and only its listing was examined`,
     };
   }
 
-  const started = Date.now();
   try {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -526,18 +578,21 @@ async function buy(
     };
   }
   const endpoint = candidate.endpoint;
-  const refusal = unreachable(endpoint);
+  const started = Date.now();
+  const refusal = await unreachable(endpoint);
   if (endpoint === undefined || refusal !== undefined) {
     return {
       answered: false,
-      attempted: false,
-      latencyMs: 0,
+      attempted: refusal?.tried ?? false,
+      latencyMs: refusal?.tried === true ? Date.now() - started : 0,
       excerpt: "",
-      note: `Bought against its listing; it ${refusal ?? "published no endpoint"} to deliver through.`,
+      note:
+        refusal?.tried === true
+          ? `Paid and got no delivery: ${refusal.note}.`
+          : `Bought against its listing; it ${refusal?.note ?? "published no endpoint"} to deliver through.`,
     };
   }
 
-  const started = Date.now();
   try {
     const response = await fetch(endpoint, {
       method: "POST",

@@ -1,3 +1,4 @@
+import { lookup } from "node:dns/promises";
 import type { AccessContext, JsonObject, ToolCall, ToolHandler, ToolResult } from "@aicoo/sharedos";
 import { z } from "zod";
 import type { AssayInput } from "../assay/types";
@@ -74,13 +75,11 @@ function dotted(high: number, low: number): string {
  * fall out of date.
  *
  * The endpoint is caller-supplied and the fetch runs on our server, so this is
- * the SSRF boundary and not a tidiness check. It reads the literal host rather
- * than a resolved address: a public name that resolves into a private range
- * still passes here, and what stops that being useful is the binding below —
- * the name has to be one a registered seller published.
- *
- * ponytail: literal-host check. If sellers are ever allowed to register names
- * outside hosts we control, this needs resolve-then-connect pinning as well.
+ * the SSRF boundary and not a tidiness check. This half of it reads the literal
+ * host, which is the cheap gate and not the whole check: a perfectly ordinary
+ * name whose A record points at 169.254.169.254 passes here untouched. That is
+ * what `blockedHostRefusal` below is for, and any path that fetches a
+ * caller-supplied URL must go through that rather than through this directly.
  */
 export function isBlockedHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
@@ -112,6 +111,112 @@ export function isBlockedHost(hostname: string): boolean {
     (a === 192 && b === 168) || // private
     (a === 169 && b === 254) // link-local, and 169.254.169.254 is the metadata address
   );
+}
+
+/** A name is not allowed to take longer than this to say where it points. */
+const RESOLVE_TIMEOUT_MS = 3_000;
+
+export interface HostRefusal {
+  /**
+   * `blocked` — the name lands somewhere no request of ours may go, so no call
+   * is made. `unresolvable` — it lands nowhere, which is a fact about the host
+   * rather than a policy decision, and callers report it as such.
+   */
+  readonly kind: "blocked" | "unresolvable";
+  readonly code: string;
+  readonly message: string;
+}
+
+/** Seam for tests: the real one is `getaddrinfo`, which no test should depend on. */
+export type HostResolver = (hostname: string) => Promise<ReadonlyArray<{ readonly address: string }>>;
+
+/**
+ * Where the name actually points, checked before we call it.
+ *
+ * `isBlockedHost` reads the literal host, and a literal host is not where a
+ * request goes — `arena-rival.example` with an A record of 10.0.0.5 is a
+ * perfectly ordinary domain that passes every string test above and then
+ * connects to the private network. No rebinding trick is needed for that, only
+ * an attacker who controls a DNS record, and on `POST /api/arena` the endpoint
+ * arrives in an unauthenticated request body and the first 300 characters of
+ * the response come back to the caller. So the name is resolved and *every*
+ * address it returns is checked: one public answer alongside one private one is
+ * still a refusal, because the connect may pick either.
+ *
+ * `lookup` is deliberate rather than `resolve4`: it is the same call
+ * `fetch`/`connect` makes, so it sees `/etc/hosts`, the search domains and the
+ * platform resolver the same way the connection will.
+ *
+ * Residual risk, stated rather than implied away: this is resolve-then-connect,
+ * not connect-to-a-pinned-address. Between the answer here and the socket
+ * `fetch` opens there is a window in which a hostile authoritative server with
+ * a one-second TTL can answer differently — real DNS rebinding. Node cannot
+ * close that without a custom `undici` agent that dials the address this
+ * function approved, which is a larger change than this file. What is closed
+ * here is the far cheaper attack, which needs no timing at all: a static record
+ * pointing at a private address.
+ */
+export async function blockedHostRefusal(
+  hostname: string,
+  resolver: HostResolver = resolveAddresses,
+): Promise<HostRefusal | undefined> {
+  const host = hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (isBlockedHost(host)) {
+    return {
+      kind: "blocked",
+      code: "endpoint_host_blocked",
+      message: `${hostname} is a private, loopback, link-local or metadata address. A request of ours reaches other people's services, not this host's network.`,
+    };
+  }
+
+  let addresses: ReadonlyArray<{ readonly address: string }>;
+  try {
+    addresses = await resolver(host);
+  } catch (error) {
+    // A name that will not resolve is refused rather than handed to `fetch` to
+    // fail later, so that "we never made the call" stays true of every path out
+    // of here that is not an outright allow.
+    return {
+      kind: "unresolvable",
+      code: "endpoint_unresolvable",
+      message: `${hostname} did not resolve (${error instanceof Error ? (error as NodeJS.ErrnoException).code ?? error.name : "unknown"})`,
+    };
+  }
+
+  if (addresses.length === 0) {
+    return { kind: "unresolvable", code: "endpoint_unresolvable", message: `${hostname} resolved to no addresses` };
+  }
+
+  const blocked = addresses.map((entry) => entry.address).filter((address) => isBlockedHost(address));
+  if (blocked.length > 0) {
+    return {
+      kind: "blocked",
+      code: "endpoint_resolves_to_blocked",
+      message: `${hostname} resolves to ${blocked.join(", ")}, which is a private, loopback, link-local or metadata address`,
+    };
+  }
+  return undefined;
+}
+
+/**
+ * `getaddrinfo`, on a leash.
+ *
+ * `dns.lookup` has no timeout and holds a libuv threadpool slot while it waits,
+ * so a name served by a deliberately slow authority is a way to occupy four of
+ * those and stall everything else that resolves. Losing the race is treated as
+ * not resolving, which refuses.
+ */
+async function resolveAddresses(hostname: string): Promise<ReadonlyArray<{ readonly address: string }>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expiry = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error("dns lookup timed out"), { code: "ETIMEDOUT" })), RESOLVE_TIMEOUT_MS);
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([lookup(hostname, { all: true, verbatim: true }), expiry]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 /**
@@ -236,20 +341,29 @@ function tool(options: {
 export function createAssayTools(): readonly ToolHandler[] {
   return [
     /**
-     * One delivery under a contract, and one credit.
+     * One credit of a contract, spent.
      *
      * The handler does almost nothing, which is the point: everything
      * interesting happened before it was reached. Invoking it consumes a use of
-     * the contract's derived grant, so a buyer who paid three credits gets three
-     * deliveries and the fourth is refused as `grant_exhausted` — by the same
+     * the contract's derived grant, and a use is a credit, so this call is the
+     * only way money moves in Yuzu. The first one under a contract is what
+     * authorises the seller to start work; the rest are the agreed price being
+     * paid, spent one at a time at settlement once the delivery is accepted. A
+     * contract bought for three credits therefore admits exactly three of these
+     * calls and the fourth is refused as `grant_exhausted` — by the same
      * authorizer that refuses everything else, not by a balance check in this
      * file that somebody could forget to write.
+     *
+     * That the price cannot be charged in one call is deliberate on SharedOS's
+     * part and load-bearing here: `tryConsume` moves the meter by one, so the
+     * only way for a contract to read as fully paid is for the kernel to have
+     * allowed it that many times.
      */
     {
       definition: {
         name: "market.deliver",
         description:
-          "Take one delivery under a contract. Spends exactly one credit, and a credit is one use of the contract's grant.",
+          "Spend one credit of a contract. The first spends buys the delivery, the rest pay the agreed price; a credit is one use of the contract's grant.",
         namespace: ASSAY_NAMESPACE,
         source: "yuzu",
         readWrite: "write",

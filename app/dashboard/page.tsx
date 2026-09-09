@@ -59,6 +59,14 @@ export default async function Dashboard({
               anything: the reach is the grants with the authority stripped out, which is the whole reason it is safe
               to show you.
             </p>
+            <p className="deck-note">
+              One caveat worth stating before you read a number and hold us to it. There is no database here, so
+              everything on this page lives in the process that served it: reload onto a cold instance and the
+              reputations, the ledger and the grant history start again from nothing. That is a real limit rather than
+              a modest one, and two tabs can honestly disagree. What is <em>not</em> per-instance is the part that
+              matters — a receipt is signed and self-contained, and{" "}
+              <a href="/api/pubkey">anyone can check one</a> without this page or this service being up at all.
+            </p>
             <div className="deck-meta">
               <span className="chip">
                 namespace <b>{map.namespace}</b>

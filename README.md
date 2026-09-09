@@ -149,8 +149,8 @@ and never consult a model.
 | Analyst | `gpt-oss-120b` via Groq, then the same model via OpenRouter, then Gemini 3.6 Flash |
 | Injection classifier | `llama-prompt-guard-2-86m` — no fallback, because it is a measurement rather than an opinion |
 | Signatures | Ed25519 for receipts, public key at `/api/pubkey`; HMAC for escalation tickets, because a ticket is authority |
-| Storage | none — receipts and escalation tickets are self-contained and signed |
-| Tests | Vitest, 68 |
+| Storage | none — receipts and escalation tickets are self-contained and signed. Reputations, the Arena ledger and the grant history live in the process that served them and reset on a cold start, which is a real limit and is said so on the dashboard rather than hidden behind a number that looks durable |
+| Tests | Vitest, 124 |
 
 **It degrades rather than fails.** With no model key the deterministic dimensions still run and the
 receipt names what did not. A rate-limited upstream is reported as *our* failure, never charged to a
@@ -168,7 +168,7 @@ contract line and the receipt both say the deal was signed without proof.
 npm install
 cp .env.example .env.local     # GROQ_API_KEY, GEMINI_API_KEY, TOUCHSTONE_SIGNING_KEY
 npm run dev                    # http://localhost:3021
-npm test                       # 68 tests
+npm test                       # 124 tests
 ```
 
 | Variable | Required | Purpose |

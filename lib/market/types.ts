@@ -149,7 +149,22 @@ export interface Verification {
 export interface Settlement {
   readonly contractId: string;
   readonly agreed: number;
-  /** What actually moved. A rejected delivery settles at zero. */
+  /**
+   * Uses the kernel has spent on this contract's grant, read from the usage
+   * store. Not our count of anything — the authorizer's.
+   *
+   * It is here so the one place the charge and the meter can differ says so out
+   * loud. Taking the delivery is itself an authorised call and costs a use, so
+   * a delivery that is then rejected leaves this at one against a `paid` of
+   * zero: the buyer is not charged for work it refused, and the use the attempt
+   * really did consume is still on the record rather than quietly missing.
+   */
+  readonly consumed: number;
+  /**
+   * What actually moved, read off `consumed` rather than restated from
+   * `agreed`. An accepted delivery is charged its whole price by spending the
+   * grant down; a rejected one settles at zero.
+   */
   readonly paid: number;
   readonly reason: string;
   readonly reputationBefore: number;

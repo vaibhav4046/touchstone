@@ -1,7 +1,7 @@
 import { deriveGrant, type CapabilityGrant } from "@aicoo/sharedos";
-import { ASSAY_NAMESPACE, NAMESPACE, TOUCHSTONE, buyerAddress } from "../sharedos/identity";
+import { ASSAY_NAMESPACE, NAMESPACE, PURPOSES, TOUCHSTONE, buyerAddress } from "../sharedos/identity";
 import { depositGrant, withdrawGrant } from "../sharedos/authority";
-import { usageStore } from "../sharedos/host";
+import { buildContext, callTool, usageStore } from "../sharedos/host";
 
 /**
  * Credits are grant uses. That is the whole billing system.
@@ -18,6 +18,13 @@ import { usageStore } from "../sharedos/host";
  * seller's capability *is* deriving a five-use grant over it. Spending a credit
  * is the kernel consuming a use. Running out of credits is `grant_exhausted`,
  * refused by the same code path that refuses everything else.
+ *
+ * Which means paying the price has to be spending the price. Minting five uses
+ * and then charging five while the kernel's meter reads one would be the
+ * database number this file exists to avoid, wearing a grant as a costume. So
+ * `chargeContract` below spends the agreed price down to zero through the
+ * authorizer, one authorised call per credit, and what was paid is then read
+ * off the meter rather than restated from the agreement.
  *
  * Nothing here can drift from the permission model, because there is nothing
  * here: the balance is a question asked of the usage store, not a number this
@@ -129,6 +136,58 @@ export async function balanceOf(grant: CapabilityGrant): Promise<Balance> {
   const purchased = grant.constraints.maxUses ?? 0;
   const spent = await usageStore().getUsage(grant.namespaceId, grant.id);
   return { grantId: grant.id, purchased, spent, remaining: Math.max(0, purchased - spent) };
+}
+
+/**
+ * Charge a contract its price, by spending it.
+ *
+ * The kernel consumes exactly one use per authorised invocation and offers no
+ * way to consume several at once — `GrantUsageStore.tryConsume` is a
+ * compare-and-set of `current + 1` against `maxUses`, and the authorizer calls
+ * it once per allowed call. So a price of five credits is five authorised
+ * calls. That is the cost of the claim rather than an accident of it: the only
+ * route to a meter reading five is the authorizer having said yes five times,
+ * which is precisely what makes the total unfakeable from here.
+ *
+ * It is affordable because none of it leaves the process. `market.deliver`
+ * resolves a grant already in memory, consumes a use, and writes an audit event
+ * to a ring buffer; the cloud sink queues and never blocks. The prices this
+ * market settles at are single-digit credits, so the whole charge is a handful
+ * of in-memory authorizations against a route budget measured in tens of
+ * seconds.
+ *
+ * Returns the meter, not a receipt. A charge that stopped early — an expired
+ * deadline, a withdrawn grant — returns the smaller number rather than
+ * pretending, and the caller reports what was actually spent.
+ */
+export async function chargeContract(input: {
+  readonly grant: CapabilityGrant;
+  readonly contractId: string;
+  readonly buyerId: string;
+  readonly capabilityFamily: string;
+  readonly traceId?: string;
+}): Promise<Balance> {
+  const context = buildContext({ buyerId: input.buyerId, purpose: PURPOSES.deliver, traceId: input.traceId });
+  let balance = await balanceOf(input.grant);
+
+  while (balance.remaining > 0) {
+    const outcome = await callTool(
+      context,
+      "market.deliver",
+      { contractId: input.contractId, capabilityFamily: input.capabilityFamily },
+      { path: ["market", input.capabilityFamily], action: "deliver" },
+    );
+    if (outcome.result?.status !== "succeeded") break;
+
+    const next = await balanceOf(input.grant);
+    // Allowed but not metered. It should not happen, and a loop that spins on
+    // it inside a 120-second route is a worse answer than an honest short
+    // charge, so stop and let the caller report the number the meter has.
+    if (next.spent === balance.spent) break;
+    balance = next;
+  }
+
+  return balance;
 }
 
 /** Close a contract by taking its grant off the shelf. Nothing lingers. */
