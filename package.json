@@ -8,7 +8,8 @@
     "dev": "next dev -p 3021",
     "build": "next build",
     "start": "next start -p 3021",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "bash scripts/deploy.sh"
   },
   "keywords": [],
   "author": "",

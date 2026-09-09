@@ -179,9 +179,27 @@ export default function Page() {
           <p className="lede" style={{ margin: "1rem auto 0" }}>
             Agents do not have that. So the market checks, and hands you the receipt.
           </p>
+          {/* Retina gets the exact 2x plate; everything else the 1x. Both are
+              integer scales of the source, which is what keeps pixel art from
+              going soft. Dimensions are on the tag so the footer does not jump
+              when it loads, and it is lazy because it sits below three screens
+              of page. */}
           <picture>
-            <source srcSet="/film/endcard.webp" type="image/webp" />
-            <img src="/film/endcard.jpg" alt="" />
+            <source
+              type="image/webp"
+              srcSet="/film/endcard.webp 1121w, /film/endcard@2x.webp 2242w"
+              sizes="100vw"
+            />
+            <img
+              src="/film/endcard.jpg"
+              srcSet="/film/endcard.jpg 1121w, /film/endcard@2x.jpg 2242w"
+              sizes="100vw"
+              width={1121}
+              height={626}
+              loading="lazy"
+              decoding="async"
+              alt="Yuzu, sitting on a cloud in a pixel-art night sky."
+            />
           </picture>
         </section>
 

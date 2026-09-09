@@ -486,6 +486,15 @@ blockquote {
   /* escape the band gutter so the plate reaches both edges */
   width: calc(100% + var(--gutter) * 2);
   max-width: none;
+  /* A band, not a wall.
+     Without a height the plate scales with the viewport, and at 1920 wide a
+     16:9 image is over a thousand pixels tall -- a mascot that fills a laptop
+     screen by itself and pushes the footer out of sight. Capped and cropped
+     from the centre instead, so the sky widens on a big screen and the mascot
+     stays the size it was drawn to be. */
+  height: clamp(15rem, 34vw, 30rem);
+  object-fit: cover;
+  object-position: center 42%;
   margin: clamp(1rem, 0.5rem + 2vw, 2.5rem) calc(var(--gutter) * -1) 0;
   border-radius: 0;
   image-rendering: pixelated;

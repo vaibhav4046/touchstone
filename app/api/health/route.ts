@@ -50,6 +50,19 @@ export async function GET(): Promise<Response> {
     status,
     service: "touchstone",
     version: "1.0.0",
+    // Which commit is actually serving this request.
+    //
+    // Added after a deploy failed silently -- the alias step was handed an
+    // empty argument, production stayed forty minutes stale, and a round of
+    // measurements against the old build was very nearly reported as evidence
+    // that a fix worked. A deployment that cannot state its own commit cannot
+    // be measured, and "is the thing I am testing the thing I just wrote" is
+    // too important a question to answer by looking at a dashboard.
+    build: {
+      commit: process.env.VERCEL_GIT_COMMIT_SHA ?? "local",
+      ref: process.env.VERCEL_GIT_COMMIT_REF ?? "local",
+      environment: process.env.VERCEL_ENV ?? "development",
+    },
     kernel: "@aicoo/sharedos 0.1.0-alpha.5",
     analysis: llmAvailable() && !down ? "deterministic+classifier+model" : "deterministic",
     suppliers,
