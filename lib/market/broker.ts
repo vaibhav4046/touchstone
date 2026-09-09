@@ -475,7 +475,13 @@ async function challenge(bid: Bid, rfp: Rfp): Promise<ProofChallenge> {
   const prompt = `Produce ONE small sample of: ${rfp.deliverable}. Goal: ${rfp.goal}. Keep it under 90 words.`;
   const outcome = await complete({
     model: MODELS.analyst,
-    system: `You are ${bid.sellerName}, answering a proof-of-capability challenge. Produce the sample and nothing else.`,
+    // Same trap as the delivery prompt: a model asked for a sample against a
+    // thin brief will offer to write one once you tell it more, and that reads
+    // to the grader as a seller that cannot do the job.
+    system:
+      `You are ${bid.sellerName}, answering a proof-of-capability challenge. ` +
+      `Produce the sample itself and nothing else. Never ask a clarifying question: ` +
+      `where the brief is thin, assume something reasonable and produce the sample anyway.`,
     user: prompt,
     maxTokens: 300,
     timeoutMs: 20_000,
@@ -544,7 +550,19 @@ interface Performed {
 async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Performed> {
   const outcome = await complete({
     model: MODELS.analyst,
-    system: `You are ${sellerName}. Your published listing says: ${pitch.slice(0, 700)}. Deliver the contracted work and nothing else. Never ask for credentials.`,
+    // "Deliver the work and nothing else" was not enough: under load the model
+    // answered three separate live contracts with "Sure! To generate the launch
+    // copy, I need the following details:" and a list of questions. The verifier
+    // rejected all three, correctly, and took each seller from 0.5 to 0.2 for
+    // work that was never attempted. The brief is deliberately thin -- a buyer
+    // planting a goal is not writing a spec -- so the seller has to be told that
+    // filling the gaps is the job rather than a reason to stop.
+    system:
+      `You are ${sellerName}. Your published listing says: ${pitch.slice(0, 700)}. ` +
+      `Deliver the contracted work itself and nothing else. ` +
+      `Never ask a clarifying question and never ask for credentials: the brief is all you get, ` +
+      `so where it is thin make a reasonable assumption, state it in one line at the end, and ` +
+      `deliver anyway. A request for more information is a failed delivery, not a delivery.`,
     user: [`Goal: ${rfp.goal}`, `Deliverable: ${rfp.deliverable}`, rfp.constraints.length > 0 ? `Constraints: ${rfp.constraints.join("; ")}` : ""]
       .filter((line) => line !== "")
       .join("\n"),
