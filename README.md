@@ -175,6 +175,7 @@ npm test                       # 124 tests
 |---|---|---|
 | `GROQ_API_KEY` | no | Analyst and injection classifier. Comma-separated: a second key is a second bench, but only if it belongs to a different Groq organisation — the daily budget is per organisation and per model, and two keys from one account share a pot. Absent, the deterministic checks still run. |
 | `OPENROUTER_API_KEY` | no | Second analyst supplier. Same model as Groq, so failing over does not move the scores. |
+| `BAZAARLINK_API_KEY` | no | A free routing tier asked after Groq's bench is spent. Free literally — responses carry `cost: 0` — but shared: the free pool is 10 slots with `x-ratelimit-scope: global`, across every user of the platform, so it supplements capacity and cannot be the backbone. Only `auto:free` routes; named models answer 402. |
 | `GEMINI_API_KEY` | no | Analyst of last resort. A different model, so it is third by design. |
 | `TOUCHSTONE_SIGNING_SECRET` | yes in production | Ed25519 seed, base64 of 32 bytes. Signs receipts. The public half is served at `/api/pubkey`, so verification needs nothing from us. |
 | `TOUCHSTONE_SIGNING_KEY` | yes in production | HMAC key, escalation tickets only. A ticket is authority — it mints a grant — and for a symmetric key verifying and forging are the same operation, which is exactly why it must not be public. |

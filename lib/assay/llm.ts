@@ -8,6 +8,7 @@
 
 const ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const BAZAAR_ENDPOINT = "https://api.bazaarlink.ai/v1/chat/completions";
 
 export const MODELS = {
   /** General analyst. Large context, strong instruction-following. */
@@ -79,7 +80,12 @@ export function llmAvailable(): boolean {
   // Any supplier on the bench counts. Gating on Groq alone meant a deployment
   // with only the fallbacks configured reported itself as having no model at
   // all and skipped every dimension it could in fact have run.
-  return [process.env.GROQ_API_KEY, process.env.OPENROUTER_API_KEY, process.env.GEMINI_API_KEY].some(
+  return [
+    process.env.GROQ_API_KEY,
+    process.env.BAZAARLINK_API_KEY,
+    process.env.OPENROUTER_API_KEY,
+    process.env.GEMINI_API_KEY,
+  ].some(
     (key) => typeof key === "string" && key.length > 0,
   );
 }
@@ -155,7 +161,7 @@ export async function complete(options: {
    * opinion for a measurement.
    */
   const codes = [last.error ?? "unknown"];
-  for (const supplier of [viaOpenRouter, viaGemini]) {
+  for (const supplier of [viaBazaar, viaOpenRouter, viaGemini]) {
     const next = await supplier(options);
     if (next.ok) return next;
     codes.push(next.error ?? "unknown");
@@ -195,6 +201,50 @@ async function viaOpenRouter(options: {
       "x-title": "Yuzu",
     },
   });
+}
+
+/**
+ * BazaarLink's free routing tier.
+ *
+ * Free in the literal sense — the response carries `cost: 0` — and genuinely
+ * useful, but it is emphatically not unlimited and it is worth writing down why
+ * before somebody builds on the assumption. The refusal says it plainly: "The
+ * site-wide free-model capacity is currently full. This is not your personal
+ * quota." The headers agree: `x-ratelimit-limit: 10` with
+ * `x-ratelimit-scope: global`. Ten slots shared across every user on the
+ * platform, not ten for us. Eight rapid calls got one answer and seven 429s.
+ *
+ * So it sits behind the Groq bench rather than in front of it: free capacity is
+ * worth having and worth asking for, and a supplier whose availability depends
+ * on strangers cannot be the backbone.
+ *
+ * `auto:free` is the only model the free tier will route — every named model,
+ * including the strong ones the catalogue advertises, answers 402 without
+ * credit. It resolves to a reasoning model that spends its whole budget
+ * thinking unless told not to, which is the same trap gpt-oss set on Groq: a
+ * 400-token call came back with 400 reasoning tokens and an empty `content`.
+ * `reasoning: { enabled: false }` turns that off outright and takes the call
+ * from 6.6 seconds to 1.2.
+ */
+async function viaBazaar(options: {
+  readonly model: string;
+  readonly system?: string;
+  readonly user: string;
+  readonly maxTokens?: number;
+  readonly temperature?: number;
+  readonly timeoutMs?: number;
+}): Promise<LlmOutcome> {
+  const key = process.env.BAZAARLINK_API_KEY;
+  if (key === undefined || key.length === 0) return { ok: false, text: "", ms: 0, error: "no_bazaarlink_key" };
+  return attempt(
+    { ...options, model: "auto:free" },
+    {
+      endpoint: BAZAAR_ENDPOINT,
+      key,
+      prefix: "bazaarlink",
+      extra: { reasoning: { enabled: false } },
+    },
+  );
 }
 
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -281,6 +331,8 @@ interface Supplier {
   /** Prefixes the status code, so a receipt says which bench refused. */
   readonly prefix?: string;
   readonly headers?: Record<string, string>;
+  /** Fields this supplier needs that the others do not. */
+  readonly extra?: Record<string, unknown>;
 }
 
 async function attempt(
@@ -297,7 +349,8 @@ async function attempt(
   const key = supplier?.key ?? groqKeys()[0];
   const endpoint = supplier?.endpoint ?? ENDPOINT;
   const tag = supplier?.prefix === undefined ? "http" : `${supplier.prefix}_http`;
-  const name: SupplierName = supplier?.prefix === "openrouter" ? "openrouter" : "groq";
+  const name: SupplierName =
+    supplier?.prefix === "openrouter" ? "openrouter" : supplier?.prefix === "bazaarlink" ? "bazaarlink" : "groq";
   const started = Date.now();
   if (key === undefined || key.length === 0) {
     // Unconfigured, not refusing. Counting a missing key as a refusal would
@@ -324,6 +377,10 @@ async function attempt(
         model: options.model,
         messages,
         max_completion_tokens: options.maxTokens ?? 1400,
+        // OpenAI's newer name for the same thing. BazaarLink reads this one and
+        // ignores the other; Groq and OpenRouter accept both.
+        max_tokens: options.maxTokens ?? 1400,
+        ...(supplier?.extra ?? {}),
         // gpt-oss reasons before it answers, and on Groq the reasoning comes
         // out of the same completion budget. A five-token probe came back with
         // 249 characters of reasoning and an empty `content`, which this code
@@ -379,7 +436,7 @@ async function attempt(
  * The ceiling is honest and worth stating: a cold serverless instance has seen
  * nothing, so it reports `untested` rather than inventing a green light.
  */
-export type SupplierName = "groq" | "openrouter" | "gemini";
+export type SupplierName = "groq" | "openrouter" | "bazaarlink" | "gemini";
 
 export interface SupplierStatus {
   readonly supplier: SupplierName;

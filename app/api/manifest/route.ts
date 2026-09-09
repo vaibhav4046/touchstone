@@ -71,7 +71,7 @@ export async function GET(): Promise<Response> {
     analystBench: {
       primary: "groq/openai/gpt-oss-120b",
       substitutes: ["groq/openai/gpt-oss-20b", "groq/qwen/qwen3.8-27b", "groq/compound-mini"],
-      thenSuppliers: ["openrouter/openai/gpt-oss-120b", "gemini-3.6-flash"],
+      thenSuppliers: ["bazaarlink/auto:free", "openrouter/openai/gpt-oss-120b", "gemini-3.6-flash"],
       why:
         "The free tier meters tokens per day per model, not per key, so a second model is a second " +
         "budget rather than the same empty one. Whichever model answered is reported on the outcome; " +

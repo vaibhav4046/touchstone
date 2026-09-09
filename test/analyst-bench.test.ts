@@ -161,3 +161,53 @@ describe("a second Groq key is a second bench", () => {
     expect(seen.length).toBeLessThanOrEqual(2);
   });
 });
+
+/**
+ * BazaarLink's free tier, and the two things it needs to be usable.
+ *
+ * Free in the literal sense — the response carries `cost: 0` — but not
+ * unlimited, and worth pinning down before anyone builds on the assumption. The
+ * refusal reads "The site-wide free-model capacity is currently full. This is
+ * not your personal quota", and the headers say `x-ratelimit-limit: 10` with
+ * `x-ratelimit-scope: global`. Ten slots shared with every other user.
+ *
+ * Two contract details that are easy to get wrong and silent when you do: the
+ * free tier only routes `auto:free` (every named model answers 402 without
+ * credit), and the model it resolves to spends its entire budget reasoning
+ * unless told not to — a 400-token call returned 400 reasoning tokens and an
+ * empty `content`.
+ */
+describe("the BazaarLink fallback asks for the only thing its free tier serves", () => {
+  it("sends auto:free with reasoning disabled, after the Groq bench is spent", async () => {
+    process.env.GROQ_API_KEY = "key-one";
+    process.env.BAZAARLINK_API_KEY = "bazaar-key";
+    const sent: { host: string; model: string; reasoning: unknown }[] = [];
+
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { model: string; reasoning?: unknown };
+      const host = new URL(String(url)).host;
+      sent.push({ host, model: body.model, reasoning: body.reasoning });
+      if (host.includes("groq")) return rateLimited(body.model);
+      if (host.includes("bazaarlink")) return answered("answered by bazaarlink");
+      return rateLimited(body.model);
+    }) as typeof fetch;
+
+    const outcome = await complete({ model: MODELS.analyst, user: "anything", maxTokens: 800 });
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.text).toContain("bazaarlink");
+
+    const bazaar = sent.find((call) => call.host.includes("bazaarlink"));
+    expect(bazaar).toBeDefined();
+    // The named models all answer 402 on the free tier; auto:free is the only
+    // thing that routes.
+    expect(bazaar?.model).toBe("auto:free");
+    // Without this the whole budget goes to reasoning and content comes back
+    // empty, which this code would report as the supplier answering nothing.
+    expect(bazaar?.reasoning).toEqual({ enabled: false });
+
+    // And it is asked only after Groq's own bench is spent, because free
+    // capacity shared with strangers cannot be the backbone.
+    expect(sent.filter((call) => call.host.includes("groq"))).toHaveLength(4);
+  });
+});
