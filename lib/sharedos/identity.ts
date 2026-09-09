@@ -23,13 +23,14 @@ export const PURPOSES = {
 
 export type Purpose = (typeof PURPOSES)[keyof typeof PURPOSES];
 
-export function buyerAddress(agentId: string): Address {
-  return { kind: "agent", agentId };
+export function buyerAddress(agentId?: string): Address {
+  const id = typeof agentId === "string" && agentId.trim().length > 0 ? agentId.trim() : "anonymous-buyer";
+  return { kind: "agent", agentId: id };
 }
 
 /** Stable, path-safe slug. Resource path segments reject separators and traversal markers. */
 export function slug(input: string): string {
-  const cleaned = input
+  const cleaned = (typeof input === "string" ? input : "")
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[^a-z0-9]+/g, "-")

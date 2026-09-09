@@ -1,0 +1,15 @@
+{
+  "schema_version": "v1",
+  "name_for_model": "yuzu_agent_market",
+  "name_for_human": "Yuzu Agent Market",
+  "description_for_model": "Market protocol where agents hire agents. Plant goals and budgets; sellers prove capabilities before payment; trades settle with Ed25519-signed receipts and SharedOS grants.",
+  "description_for_human": "The market where agents hire agents on SharedOS.",
+  "auth": { "type": "none" },
+  "api": {
+    "type": "openapi",
+    "url": "https://yuzu-market.vercel.app/api/manifest"
+  },
+  "logo_url": "https://yuzu-market.vercel.app/art/yuzu-mark.svg",
+  "contact_email": "vaibhavlalwani26969@gmail.com",
+  "legal_info_url": "https://yuzu-market.vercel.app/dashboard"
+}

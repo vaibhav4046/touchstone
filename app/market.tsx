@@ -225,8 +225,30 @@ function Outcome({ result }: { result: Result }) {
                     {bid.listingVerdict}
                   </span>
                 </div>
-                <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.8rem" }}>
-                  asks {bid.price} · listing {bid.listingScore.toFixed(1)} · reputation {bid.reputation}
+                <div style={{ display: "flex", alignItems: "center", gap: "0.8rem", margin: "0.4rem 0 0.2rem", flexWrap: "wrap" }}>
+                  <div className="rep-meter" title={`Listing score: ${bid.listingScore.toFixed(1)} / 100`}>
+                    <span className="muted small" style={{ fontSize: "0.72rem" }}>score {bid.listingScore.toFixed(0)}</span>
+                    <span className="rep-track" style={{ width: "38px" }}>
+                      <span
+                        className="rep-fill"
+                        data-level={bid.listingScore >= 70 ? "high" : bid.listingScore >= 40 ? "mid" : "low"}
+                        style={{ width: `${Math.max(6, Math.min(100, bid.listingScore))}%` }}
+                      />
+                    </span>
+                  </div>
+                  <div className="rep-meter" title={`Reputation: ${bid.reputation.toFixed(2)}`}>
+                    <span className="muted small" style={{ fontSize: "0.72rem" }}>rep {bid.reputation.toFixed(2)}</span>
+                    <span className="rep-track" style={{ width: "38px" }}>
+                      <span
+                        className="rep-fill"
+                        data-level={bid.reputation >= 0.7 ? "high" : bid.reputation >= 0.4 ? "mid" : "low"}
+                        style={{ width: `${Math.max(6, Math.min(100, bid.reputation * 100))}%` }}
+                      />
+                    </span>
+                  </div>
+                </div>
+                <p className="muted" style={{ margin: "0.2rem 0 0", fontSize: "0.8rem" }}>
+                  asks <b>{bid.price}</b> credits
                 </p>
                 <p style={{ margin: "0.4rem 0 0", fontSize: "0.82rem" }}>{bid.note}</p>
               </div>
@@ -282,16 +304,31 @@ function Outcome({ result }: { result: Result }) {
       )}
 
       {result.verification !== undefined && result.settlement !== undefined && (
-        <div className="verdict-row" style={{ marginBottom: "1.2rem" }}>
-          <span className="stamp" data-v={result.verification.accepted ? "TRUSTED" : "FLAGGED"}>
-            {result.verification.accepted ? "ACCEPTED" : "REJECTED"}
-          </span>
-          <div className="score-big">
-            {result.settlement.paid}
-            <small> / {result.settlement.agreed} paid</small>
+        <div style={{ marginBottom: "1.4rem" }}>
+          <div className="verdict-row">
+            <span className="stamp" data-v={result.verification.accepted ? "TRUSTED" : "FLAGGED"}>
+              {result.verification.accepted ? "ACCEPTED" : "REJECTED"}
+            </span>
+            <div className="score-big">
+              {result.settlement.paid}
+              <small> / {result.settlement.agreed} paid</small>
+            </div>
+            <div className="muted">
+              reputation {result.settlement.reputationBefore.toFixed(2)} → {result.settlement.reputationAfter.toFixed(2)}
+            </div>
           </div>
-          <div className="muted">
-            reputation {result.settlement.reputationBefore} → {result.settlement.reputationAfter}
+          <div style={{ marginTop: "0.6rem", maxWidth: "20rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.25rem" }}>
+              <span className="muted">verification score</span>
+              <span className="score">{(result.verification.score * 100).toFixed(0)} / 100</span>
+            </div>
+            <div className="meter-track" style={{ height: "7px" }}>
+              <div
+                className="meter-fill"
+                data-score={result.verification.accepted ? "high" : "low"}
+                style={{ width: `${Math.max(6, Math.min(100, result.verification.score * 100))}%` }}
+              />
+            </div>
           </div>
         </div>
       )}

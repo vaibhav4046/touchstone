@@ -66,16 +66,20 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
   const orderId = `ord_${randomUUID().slice(0, 8)}`;
   const traceId = options.traceId ?? randomUUID();
   const vendorSlug = slug(input.vendor);
+  const buyerId =
+    typeof input.buyerId === "string" && input.buyerId.trim().length > 0
+      ? input.buyerId.trim()
+      : "anonymous-buyer";
 
   // The owner's answers go on the record before the run can consult them. It
   // is a fixed table, and a no-op after the first assay a given buyer runs.
-  await seedPrecedents(input.buyerId);
+  await seedPrecedents(buyerId);
 
-  openOrder({ orderId, buyerId: input.buyerId, purpose: PURPOSES.assay, vendors: [input] });
+  openOrder({ orderId, buyerId, purpose: PURPOSES.assay, vendors: [input] });
 
   const grant = mintOrderGrant({
     orderId,
-    buyerId: input.buyerId,
+    buyerId,
     purpose: PURPOSES.assay,
     vendorSlugs: [vendorSlug],
     maxUses: 12,
@@ -84,7 +88,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
   });
 
   depositGrant(grant);
-  const context = buildContext({ buyerId: input.buyerId, purpose: PURPOSES.assay, traceId });
+  const context = buildContext({ buyerId, purpose: PURPOSES.assay, traceId });
   // Computed here, with the order grant live: the hash then names the surface
   // the assay could actually reach, and the signature covers it.
   const catalogue = await toolCatalogue(context);

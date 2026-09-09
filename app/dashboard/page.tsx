@@ -392,7 +392,22 @@ export default async function Dashboard({
                       <td className="muted">{seller.capabilities.map((family) => family.id).join(", ")}</td>
                       <td>{seller.floorPrice}</td>
                       <td>
-                        <span className="score">{(reputation?.score ?? 0.5).toFixed(2)}</span>
+                        <div className="rep-meter">
+                          <span className="score">{(reputation?.score ?? 0.5).toFixed(2)}</span>
+                          <span className="rep-track" title={`Reputation: ${(reputation?.score ?? 0.5).toFixed(2)}`}>
+                            <span
+                              className="rep-fill"
+                              data-level={
+                                (reputation?.score ?? 0.5) >= 0.7
+                                  ? "high"
+                                  : (reputation?.score ?? 0.5) >= 0.4
+                                    ? "mid"
+                                    : "low"
+                              }
+                              style={{ width: `${Math.max(6, (reputation?.score ?? 0.5) * 100)}%` }}
+                            />
+                          </span>
+                        </div>
                       </td>
                       <td className="muted">{(reputation?.delivered ?? 0) + (reputation?.failed ?? 0)}</td>
                     </tr>
@@ -424,6 +439,38 @@ export default async function Dashboard({
               <span className="chip">
                 distinct sellers <b>{new Set(book.purchases.map((purchase) => purchase.seller)).size}</b>
               </span>
+            </div>
+            <div className="arena-budget-bar">
+              <div className="arena-budget-header">
+                <span>
+                  Arena Spend: <b>{ARENA_BUDGET - book.remaining}</b> of {ARENA_BUDGET} credits
+                </span>
+                <span className="muted">
+                  {(ARENA_BUDGET - book.remaining) >= 80 ? "✓ Round 2 spend rule satisfied" : "Target: ≥80 credits across ≥3 products"}
+                </span>
+              </div>
+              <div className="arena-budget-track">
+                <div
+                  className="arena-budget-fill"
+                  style={{
+                    width: `${Math.min(100, Math.max(0, ARENA_BUDGET - book.remaining))}%`,
+                    background:
+                      (ARENA_BUDGET - book.remaining) >= 80
+                        ? "linear-gradient(90deg, #2f8f63, #6fbf98)"
+                        : "linear-gradient(90deg, var(--yuzu), var(--peach))",
+                  }}
+                />
+                <div
+                  className="arena-budget-threshold"
+                  style={{ left: "80%" }}
+                  title="Arena Round 2 requirement: min 80 credits"
+                />
+              </div>
+              <div className="arena-budget-legend">
+                <span>0</span>
+                <span>80 credits (rule floor)</span>
+                <span>100</span>
+              </div>
             </div>
             {book.purchases.length === 0 && (
               <p className="empty">Nothing bought yet on this instance.</p>

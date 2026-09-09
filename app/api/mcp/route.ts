@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { runBroker } from "../../../lib/market/broker";
 import { assay } from "../../../lib/assay/engine";
+import { shortlist } from "../../../lib/assay/shortlist";
 import { verify } from "../../../lib/assay/receipt";
 import { grantMap } from "../../../lib/sharedos/map";
 import { listSellers, allReputations } from "../../../lib/market/registry";
@@ -110,6 +111,34 @@ const TOOLS = [
       "The registry: every seller, what it sells, its floor price, and a reputation that starts neutral and " +
       "moves only on a verified delivery — never on what a listing claimed about itself.",
     inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: "yuzu_shortlist",
+    description:
+      "Rank candidate vendor listings and generate an optimal credit allocation plan inside your budget. " +
+      "Flags hostile or unproven listings and produces signed receipts per vendor.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        budget: { type: "number", description: "Your total credit budget to allocate." },
+        goal: { type: "string", description: "Optional goal context to align vendors against." },
+        vendors: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              vendor: { type: "string" },
+              pitch: { type: "string" },
+              askingPrice: { type: "number" },
+            },
+            required: ["vendor", "pitch"],
+          },
+          description: "Listings to assay and rank.",
+        },
+      },
+      required: ["budget", "vendors"],
+    },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
 ] as const;
@@ -251,6 +280,33 @@ async function callTool(name: string, args: Record<string, unknown>, buyerId: st
           reputation: reputations.find((entry) => entry.sellerId === seller.id)?.score ?? 0.5,
         })),
         note: "Reputation starts at 0.5 because a seller nobody has hired is unknown rather than bad.",
+      });
+    }
+
+    case "yuzu_shortlist": {
+      const budget = parseAmount(args.budget, "budget");
+      if (!budget.ok) return content(budget.problem, true);
+      const vendors = Array.isArray(args.vendors)
+        ? (args.vendors as { vendor?: string; pitch?: string; askingPrice?: number }[])
+            .filter((v) => typeof v.vendor === "string" && typeof v.pitch === "string")
+            .map((v) => ({
+              vendor: v.vendor!.trim(),
+              pitch: v.pitch!.trim(),
+              askingPrice: typeof v.askingPrice === "number" ? v.askingPrice : undefined,
+              buyerId,
+            }))
+        : [];
+      if (vendors.length === 0) {
+        return content({ error: "no_vendors", message: "Send an array of {vendor, pitch, askingPrice?} objects." }, true);
+      }
+      const goal = typeof args.goal === "string" ? args.goal.trim() : undefined;
+      const res = await shortlist(vendors, { budget: budget.value ?? 25, goal });
+      return content({
+        budget: res.budget,
+        spent: res.spent,
+        held: res.held,
+        plan: res.entries,
+        receipts: res.receipts,
       });
     }
 

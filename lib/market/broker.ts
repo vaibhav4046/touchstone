@@ -538,12 +538,15 @@ function negotiate(bid: Bid, floor: number, budget: number): readonly Negotiatio
     offer = Math.min(budget, Math.round(((offer + ask) / 2) * 100) / 100);
   }
 
-  const settled = Math.max(1, Math.round(Math.min(budget, Math.max(floor, rounds.at(-1)?.price ?? bid.price))));
+  const settled = Math.max(floor, Math.round(rounds.at(-1)?.price ?? bid.price));
   rounds.push({
     round: rounds.length + 1,
     by: "buyer",
     price: settled,
-    rationale: "Agreed, at a whole credit: the price becomes uses on a grant and a use cannot be divided.",
+    rationale:
+      settled > budget
+        ? `The lowest ask is ${settled} credits, which exceeds the budget of ${budget}.`
+        : "Agreed, at a whole credit: the price becomes uses on a grant and a use cannot be divided.",
   });
   return rounds;
 }

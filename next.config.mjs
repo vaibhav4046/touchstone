@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 export default {
   reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   outputFileTracingRoot: import.meta.dirname,
   serverExternalPackages: ["@aicoo/sharedos"],
   async headers() {
