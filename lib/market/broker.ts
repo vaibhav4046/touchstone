@@ -592,9 +592,26 @@ async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Per
       `Every constraint is exact rather than a floor: asked for three of something, produce ` +
       `three, not five, and add nothing that was not requested. Generosity reads as not ` +
       `following the brief and is graded as such.`,
-    user: [`Goal: ${rfp.goal}`, `Deliverable: ${rfp.deliverable}`, rfp.constraints.length > 0 ? `Constraints: ${rfp.constraints.join("; ")}` : ""]
-      .filter((line) => line !== "")
-      .join("\n"),
+    // The constraints go last, one per line, restated as the thing to check
+    // before answering. Buried mid-message as a semicolon list they lost to the
+    // goal sentence: asked for exactly three taglines the seller kept returning
+    // five and a launch paragraph nobody wanted, which the verifier rejected for
+    // adherence in one live deal out of four. Last position is the one a model
+    // actually weights.
+    user: [
+      `Goal: ${rfp.goal}`,
+      `Deliverable: ${rfp.deliverable}`,
+      ...(rfp.constraints.length > 0
+        ? [
+            "",
+            "Hard requirements. Check the finished work against each before answering, and produce",
+            "exactly what is asked rather than more:",
+            ...rfp.constraints.map((line) => `- ${line}`),
+          ]
+        : []),
+      "",
+      "Output the deliverable itself. No preamble, no commentary, nothing that was not requested.",
+    ].join("\n"),
     maxTokens: 3200,
     timeoutMs: 50_000,
   });
