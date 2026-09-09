@@ -21,6 +21,8 @@ const upstream = vi.hoisted(() => ({
   weakSampleFrom: undefined as string | undefined,
   /** Report the code `complete` produces when both suppliers have refused. */
   combinedError: false,
+  /** The delivery comes back cut off by our own token budget, not by the seller. */
+  truncateDelivery: false,
 }));
 
 const SAMPLE =
@@ -72,7 +74,10 @@ vi.mock("../lib/assay/llm", async (importOriginal) => {
       if (system.includes("verify delivered work")) {
         return { ok: true, ms: 1, text: '{"adherence":0.9,"quality":0.9,"accepted":true,"findings":["Answers the brief."]}' };
       }
-      return { ok: true, ms: 1, text: DELIVERY };
+      // The delivery call is the fallthrough. `truncated` is our own budget
+      // running out mid-sentence, which is a fact about our provisioning and
+      // never about the seller.
+      return { ok: true, ms: 1, text: DELIVERY, truncated: upstream.truncateDelivery };
     },
   };
 });
@@ -219,4 +224,33 @@ describe("a contract signed on nothing says so", () => {
     expect(outcome.contract).toBeDefined();
   }, 30_000);
 
+  // The service card guarantees "a seller is never charged for our own
+  // outage" and names three cases. Two were tested. This is the third, and it
+  // is the least obvious of them: nothing failed, an upstream answered, and a
+  // whole artifact came back -- it just stops mid-sentence because the token
+  // budget we chose ran out. Judging that as incomplete work would let a
+  // provisioning decision of ours move the one number in this market that is
+  // only supposed to move on evidence.
+  it("leaves a delivery our own token budget cut short unjudged, and the seller where it was", async () => {
+    upstream.mode = "answering";
+    upstream.truncateDelivery = true;
+    try {
+      const outcome = await runBroker({
+        goal: "I am launching a coffee brand and need a competitor brief.",
+        budget: 20,
+        buyerId: `buyer-truncated-${Date.now()}`,
+        capability: "research.brief",
+      });
+
+      expect(outcome.verification?.judged).toBe(false);
+      expect(outcome.verification?.accepted).toBe(false);
+      expect(outcome.verification?.findings.join(" ")).toMatch(/our own output budget/i);
+      expect(outcome.verification?.notChecked.join(" ")).toMatch(/reputation is untouched/i);
+
+      // The whole point: the seller ends the deal exactly where it started.
+      expect(outcome.settlement?.reputationAfter).toBe(outcome.settlement?.reputationBefore);
+    } finally {
+      upstream.truncateDelivery = false;
+    }
+  }, 30_000);
 });

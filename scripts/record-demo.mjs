@@ -171,11 +171,20 @@ async function main() {
 
     // One field, edited on camera. This is the whole argument, so it is done
     // in the open rather than with a second receipt prepared earlier.
-    beat("tampered", "One field of that same receipt, changed. The same check refuses it.");
+    beat("tampered", "One authorisation in that same receipt, flipped from allowed to denied.");
     const paste = page.locator("textarea").first();
     const shown = await paste.inputValue();
-    const broken = shown.replace(/"verdict"\s*:\s*"[A-Z_]+"/, '"verdict":"TRUSTED"');
-    await paste.fill(broken === shown ? shown.replace(/[0-9]/, "9") : broken);
+
+    // Flip one kernel decision from allowed to denied. Deliberately not the
+    // first digit in the file: a take that edited `receipt.v1` into `v9` got
+    // "Not a Yuzu receipt, expected touchstone.receipt.v1" -- a version check,
+    // which proves nothing about a signature. This edit is the one a forger
+    // would actually want to make, it leaves the receipt perfectly well-formed,
+    // and the only thing that can catch it is the signature.
+    const broken = shown.replace('"outcome":"allowed"', '"outcome":"denied"');
+    if (broken === shown) throw new Error("no allowed decision to flip; the tamper shot would prove nothing");
+
+    await paste.fill(broken);
     await settle(1400);
     await page.getByRole("button", { name: /^check it$/i }).first().click().catch(() => {});
     await settle(2000);

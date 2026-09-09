@@ -887,25 +887,14 @@ async function verify(rfp: Rfp, delivery: Delivery, performed: Performed): Promi
   const findings: string[] = [];
   const notChecked: string[] = ["Originality: not checked. Yuzu compares the delivery to the brief, not to the web."];
 
-  // The call never reached the seller, so there is nothing of the seller's to
-  // judge. This is the same rule as the unrunnable proof challenge one stage
-  // earlier: a rate-limited upstream is ours, and charging it to a seller is a
-  // false negative that moves the one number here that is only supposed to move
-  // on evidence. It was doing exactly that on a live run: an http_429 on the
-  // delivery call took a seller from 0.5 to 0.2 for a call it never received.
-  if (performed.upstream !== undefined) {
-    return {
-      contractId: delivery.contractId,
-      score: 0,
-      adherence: 0,
-      judged: false,
-      accepted: false,
-      findings: [`No work was taken: our own model upstream refused the call (${performed.upstream}).`],
-      notChecked: [
-        "Quality and adherence: not assessed. The seller was never actually asked, so its reputation is untouched.",
-      ],
-    };
-  }
+  // There used to be an `if (performed.upstream !== undefined)` branch here,
+  // and it had not run since the house template was introduced: `execute` sets
+  // `upstream` only on the line that also sets `house`, and the `house` check
+  // above returns before this point. Which mattered more than dead code
+  // usually does, because a reader looking for the proof of "a seller is never
+  // charged for our own outage" would have found this branch and stopped.
+  // The live proof is `verifyHouse`, which leaves `judged` false and the
+  // seller's standing untouched; the truncation branch below is the other half.
 
   // A delivery cut off by our own token budget is our fault, not the sellers.
   // Judging it as incomplete work would let a provisioning mistake move a
