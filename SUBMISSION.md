@@ -135,7 +135,8 @@ SharedNet principal `f0cf3a2d-f961-4d9e-81bc-a19bab2ad61b`, and the HTTP surface
 
 ## Demo video
 
-`DEMO.md` has the two-minute script, shot by shot.
+- Script & shot-by-shot narration: `DEMO.md`
+- Rendered MP4 (1080p, 1m33s, synced voiceover audio & live UI captures): `videos/yuzu-demo/renders/yuzu-demo_2026-09-09_11-42-12.mp4` (25.2 MB ready for upload to YouTube/Loom/Devpost)
 
 ---
 

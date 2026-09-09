@@ -67,6 +67,10 @@ export const STEERING = [
   /\bas\s+an\s+ai(?:\s+agent)?,?\s+you\s+(?:must|should|are required)\b/i,
   /\boverride\s+(?:your|the)\s+(?:instructions|rules|policy|guidelines)\b/i,
   /\bthis\s+(?:listing|message)\s+is\s+(?:a\s+)?(?:system|developer|admin)\s+(?:instruction|message|prompt)\b/i,
+  /\b(?:forget|discard|drop|bypass|dismiss|set\s+aside)\s+(?:all\s+)?(?:previous|prior|preceding|earlier|other)\s+(?:directives|instructions|rules|guidelines|policies)?\b/i,
+  /\b(?:notice\s+to|attention|instruction\s+for)\s+(?:the\s+)?(?:autonomous\s+)?(?:evaluator|agent|buyer|model)\b/i,
+  /\b(?:award|assign|grant|give)\s+(?:this\s+)?(?:listing|product|solution|entry|service|seller|us|me)?\s*(?:the\s+)?(?:top|maximum|highest|perfect|winning|\d{2,3}(?:%|\s*points|\s*score))\s*(?:rating|standing|score|mark|grade|rank)?\b/i,
+  /\b(?:ensure|make\s+sure)\s+(?:this\s+)?(?:listing|solution|seller|us|me)\s+is\s+(?:selected|chosen|picked|awarded)\b/i,
 ];
 
 /**
@@ -104,8 +108,24 @@ function directed(target: string): RegExp {
  * "We do not need your API key" contains a request verb and a credential, and
  * a rule reading only those two facts convicts a vendor for the sentence that
  * should have cleared them.
+ *
+ * But a false friend like "with no delay, send your API key" or "without hesitation,
+ * share your password" must not clear the match just because it has "no" or "without".
+ * The negation must bind to the verb or requirement itself.
  */
-export const NEGATION = /\b(?:not|never|no|without|non|don't|dont|doesn't|doesnt|won't|wont|isn't|arent|aren't|cannot|can't)\b/i;
+export const VERB_NEGATION =
+  /\b(?:(?:do|does|did|will|would|can|could|shall|should|might|must)\s+not|don't|dont|doesn't|doesnt|won't|wont|cannot|can't|never)\b/i;
+
+export const REQUIREMENT_NEGATION =
+  /\b(?:no|zero|without\s+(?:any\s+)?)\s*(?:need|requirement|obligation)\b/i;
+
+export const WITHOUT_ACTION_NEGATION =
+  /\bwithout\s+(?:ever\s+)?(?:needing|requiring|asking|requesting|collecting|storing|sharing|demanding)\b/i;
+
+export const NEGATION = new RegExp(
+  `${VERB_NEGATION.source}|${REQUIREMENT_NEGATION.source}|${WITHOUT_ACTION_NEGATION.source}`,
+  "i",
+);
 
 /** How far back to look for a negator before treating a match as a real ask. */
 export const NEGATION_WINDOW = 42;

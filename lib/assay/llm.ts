@@ -117,7 +117,7 @@ export async function complete(options: {
       if (!TRANSIENT.test(last.error ?? "")) break;
     }
   }
-  if (last.ok || !RETRYABLE.test(last.error ?? "") || options.model !== MODELS.analyst) return last;
+  if (last.ok || options.model !== MODELS.analyst) return last;
 
   // The rest of the bench, before paying the latency of another supplier. A
   // per-model daily limit means the next model is untouched budget; a key from
@@ -125,20 +125,22 @@ export async function complete(options: {
   // outermost, so the common single-key case never pays for the loop.
   const benchCodes: string[] = [last.error ?? "unknown"];
   const keys = groqKeys();
-  outer: for (const [index, key] of keys.entries()) {
-    for (const model of ANALYST_BENCH.slice(index === 0 ? 1 : 0)) {
-      const supplier = index === 0 ? undefined : { endpoint: ENDPOINT, key, prefix: undefined };
-      const sideways = await attempt({ ...options, model }, supplier);
-      if (sideways.ok) return { ...sideways, model };
-      const label = `${model.split("/").pop() ?? model}${keys.length > 1 ? `#${index + 1}` : ""}`;
-      benchCodes.push(`${label}:${sideways.error ?? "unknown"}`);
-      // A refusal that is not about capacity will not become one on the next
-      // model or the next key, and eight round trips to prove it would eat the
-      // route's whole budget.
-      if (!RETRYABLE.test(sideways.error ?? "")) break outer;
+  if (RETRYABLE.test(last.error ?? "")) {
+    outer: for (const [index, key] of keys.entries()) {
+      for (const model of ANALYST_BENCH.slice(index === 0 ? 1 : 0)) {
+        const supplier = index === 0 ? undefined : { endpoint: ENDPOINT, key, prefix: undefined };
+        const sideways = await attempt({ ...options, model }, supplier);
+        if (sideways.ok) return { ...sideways, model };
+        const label = `${model.split("/").pop() ?? model}${keys.length > 1 ? `#${index + 1}` : ""}`;
+        benchCodes.push(`${label}:${sideways.error ?? "unknown"}`);
+        // A refusal that is not about capacity will not become one on the next
+        // model or the next key, and eight round trips to prove it would eat the
+        // route's whole budget.
+        if (!RETRYABLE.test(sideways.error ?? "")) break outer;
+      }
     }
+    last = { ...last, error: benchCodes.join("+") };
   }
-  last = { ...last, error: benchCodes.join("+") };
 
   /**
    * The rest of the bench, in the order that changes the answer least.
@@ -190,7 +192,7 @@ async function viaOpenRouter(options: {
 }): Promise<LlmOutcome> {
   const key = process.env.OPENROUTER_API_KEY;
   if (key === undefined || key.length === 0) return { ok: false, text: "", ms: 0, error: "no_openrouter_key" };
-  return attempt(options, {
+  const outcome = await attempt(options, {
     endpoint: OPENROUTER_ENDPOINT,
     key,
     prefix: "openrouter",
@@ -201,6 +203,7 @@ async function viaOpenRouter(options: {
       "x-title": "Yuzu",
     },
   });
+  return outcome.ok ? { ...outcome, model: `openrouter/${options.model}` } : outcome;
 }
 
 /**
@@ -236,7 +239,7 @@ async function viaBazaar(options: {
 }): Promise<LlmOutcome> {
   const key = process.env.BAZAARLINK_API_KEY;
   if (key === undefined || key.length === 0) return { ok: false, text: "", ms: 0, error: "no_bazaarlink_key" };
-  return attempt(
+  const outcome = await attempt(
     { ...options, model: "auto:free" },
     {
       endpoint: BAZAAR_ENDPOINT,
@@ -245,6 +248,7 @@ async function viaBazaar(options: {
       extra: { reasoning: { enabled: false } },
     },
   );
+  return outcome.ok ? { ...outcome, model: "bazaarlink/auto:free" } : outcome;
 }
 
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -289,6 +293,7 @@ async function viaGemini(options: {
     record("gemini", text.length > 0, "gemini_empty");
     return {
       ok: text.length > 0,
+      model: `gemini/${GEMINI_MODEL}`,
       text,
       ms: Date.now() - started,
       error: text.length > 0 ? undefined : "gemini_empty",

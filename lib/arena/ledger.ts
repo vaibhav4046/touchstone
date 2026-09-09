@@ -19,7 +19,7 @@ import { signPayload, verifyPayload, type Signed } from "../assay/receipt";
 
 export const ARENA_BUDGET = 100;
 /** Names the kind inside the signature, so one record cannot pose as another. */
-const SPEND_RECORD = "yuzu.arena.spend.v1";
+export const SPEND_RECORD = "yuzu.arena.spend.v1";
 export const MIN_SPEND = 80;
 export const MIN_SELLERS = 3;
 
@@ -118,6 +118,7 @@ export function ledger(): LedgerState {
  */
 export function restore(records: readonly unknown[]): { readonly restored: number; readonly rejected: number } {
   const seen = new Set(entries().map((purchase) => `${purchase.seller}@${purchase.at}`));
+  let currentSpent = entries().reduce((sum, p) => sum + p.credits, 0);
   let restored = 0;
   let rejected = 0;
 
@@ -127,10 +128,19 @@ export function restore(records: readonly unknown[]): { readonly restored: numbe
       continue;
     }
     const purchase = (candidate as Signed<Purchase>).payload;
+    if (!Number.isInteger(purchase.credits) || purchase.credits <= 0) {
+      rejected += 1;
+      continue;
+    }
     const key = `${purchase.seller}@${purchase.at}`;
     if (seen.has(key)) continue;
+    if (currentSpent + purchase.credits > ARENA_BUDGET) {
+      rejected += 1;
+      continue;
+    }
     seen.add(key);
     entries().push(purchase);
+    currentSpent += purchase.credits;
     restored += 1;
   }
   return { restored, rejected };

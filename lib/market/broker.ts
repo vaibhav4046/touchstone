@@ -936,15 +936,27 @@ async function verify(rfp: Rfp, delivery: Delivery, performed: Performed): Promi
     ? parseJson<{ adherence?: number; quality?: number; accepted?: boolean; findings?: string[] }>(outcome.text)
     : undefined;
 
-  if (parsed === undefined) {
-    notChecked.push("Model verification: unavailable on this run, so acceptance rests on the deterministic checks alone.");
-    const accepted = !empty && delivery.onTime;
+  if (!outcome.ok) {
+    notChecked.push("Model verification: upstream model unavailable, so delivery could not be verified.");
     return {
       contractId: delivery.contractId,
-      score: accepted ? 0.6 : 0,
-      adherence: accepted ? 0.6 : 0,
+      score: 0,
+      adherence: 0,
+      judged: false,
+      accepted: false,
+      findings: [...findings, "Verification model was unavailable."],
+      notChecked,
+    };
+  }
+
+  if (parsed === undefined) {
+    findings.push("Model verification returned unparseable output; delivery rejected under fail-closed verification.");
+    return {
+      contractId: delivery.contractId,
+      score: 0,
+      adherence: 0,
       judged: true,
-      accepted,
+      accepted: false,
       findings,
       notChecked,
     };

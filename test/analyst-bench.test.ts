@@ -16,6 +16,9 @@ import { MODELS, complete } from "../lib/assay/llm";
  */
 const ORIGINAL = globalThis.fetch;
 const ORIGINAL_KEY = process.env.GROQ_API_KEY;
+const ORIGINAL_BAZAAR = process.env.BAZAARLINK_API_KEY;
+const ORIGINAL_OPENROUTER = process.env.OPENROUTER_API_KEY;
+const ORIGINAL_GEMINI = process.env.GEMINI_API_KEY;
 
 beforeEach(() => {
   // `attempt` refuses before it ever reaches fetch when no key is configured,
@@ -28,6 +31,12 @@ afterEach(() => {
   globalThis.fetch = ORIGINAL;
   if (ORIGINAL_KEY === undefined) delete process.env.GROQ_API_KEY;
   else process.env.GROQ_API_KEY = ORIGINAL_KEY;
+  if (ORIGINAL_BAZAAR === undefined) delete process.env.BAZAARLINK_API_KEY;
+  else process.env.BAZAARLINK_API_KEY = ORIGINAL_BAZAAR;
+  if (ORIGINAL_OPENROUTER === undefined) delete process.env.OPENROUTER_API_KEY;
+  else process.env.OPENROUTER_API_KEY = ORIGINAL_OPENROUTER;
+  if (ORIGINAL_GEMINI === undefined) delete process.env.GEMINI_API_KEY;
+  else process.env.GEMINI_API_KEY = ORIGINAL_GEMINI;
   vi.restoreAllMocks();
 });
 
@@ -209,5 +218,37 @@ describe("the BazaarLink fallback asks for the only thing its free tier serves",
     // And it is asked only after Groq's own bench is spent, because free
     // capacity shared with strangers cannot be the backbone.
     expect(sent.filter((call) => call.host.includes("groq"))).toHaveLength(4);
+  });
+});
+describe("external suppliers carry the load when Groq is exhausted or absent", () => {
+  it("names bazaarlink/auto:free on the outcome when BazaarLink answers", async () => {
+    process.env.GROQ_API_KEY = "key-one";
+    process.env.BAZAARLINK_API_KEY = "bazaar-key";
+    globalThis.fetch = (async (url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { model: string };
+      const host = new URL(String(url)).host;
+      if (host.includes("groq")) return rateLimited(body.model);
+      if (host.includes("bazaarlink")) return answered("bazaar answer");
+      return rateLimited(body.model);
+    }) as typeof fetch;
+
+    const outcome = await complete({ model: MODELS.analyst, user: "anything", maxTokens: 100 });
+    expect(outcome.ok).toBe(true);
+    expect(outcome.model).toBe("bazaarlink/auto:free");
+  });
+
+  it("reaches OpenRouter and reports its model when Groq has no key", async () => {
+    delete process.env.GROQ_API_KEY;
+    process.env.OPENROUTER_API_KEY = "openrouter-key";
+
+    globalThis.fetch = (async (url: string, _init: RequestInit) => {
+      const host = new URL(String(url)).host;
+      if (host.includes("openrouter")) return answered("openrouter answer");
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch;
+
+    const outcome = await complete({ model: MODELS.analyst, user: "anything", maxTokens: 100 });
+    expect(outcome.ok).toBe(true);
+    expect(outcome.model).toBe("openrouter/openai/gpt-oss-120b");
   });
 });

@@ -3,29 +3,149 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1920, height=1080" />
+    <title>Yuzu — submission film</title>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+      /* Fonts are the product's own, subset and served from disk so a render
+         never reaches the network. */
+      @font-face {
+        font-family: "Fraunces";
+        font-style: normal;
+        font-weight: 300 700;
+        font-display: block;
+        src: url("assets/fonts/fraunces.woff2") format("woff2");
       }
-      html,
-      body {
-        margin: 0;
-        width: 1920px;
-        height: 1080px;
-        overflow: hidden;
-        background: #000;
+      @font-face {
+        font-family: "JetBrains Mono";
+        font-style: normal;
+        font-weight: 400;
+        font-display: block;
+        src: url("assets/fonts/jetbrains-mono.woff2") format("woff2");
       }
-      body {
-        font-family: "Inter", sans-serif;
+      @font-face {
+        font-family: "JetBrains Mono";
+        font-style: normal;
+        font-weight: 600;
+        font-display: block;
+        src: url("assets/fonts/jetbrains-mono.woff2") format("woff2");
       }
-      code,
-      pre,
-      .monospace {
-        font-family: "JetBrains Mono", monospace;
+
+      :root {
+        --parchment: #faf7f2;
+        --ink: #171310;
+        --ink-3: #5f564f;
+        --accent: #6d4bd4;
+        --mark: #f0a04b;
+        --serif: "Fraunces", Georgia, serif;
+        --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
       }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--parchment); }
+      body { font-family: var(--serif); color: var(--ink); }
+
+      .clip { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+
+      #footage { object-fit: cover; z-index: 0; }
+
+      /* ---- lower-thirds: the lower-left eighth, never the centre ---- */
+      .card { display: flex; align-items: flex-end; padding: 0 0 72px 72px; z-index: 2; }
+
+      .lt {
+        max-width: 760px;
+        background: var(--parchment);
+        border: 1px solid #e4ddd2;
+        border-left: 3px solid var(--accent);
+        padding: 24px 34px 27px 30px;
+        box-shadow: 0 10px 34px rgba(23, 19, 16, 0.13);
+      }
+
+      .lt-kicker {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--mono);
+        font-weight: 600;
+        font-size: 15px;
+        letter-spacing: 0.16em;
+        color: var(--ink-3);
+        margin-bottom: 13px;
+      }
+      .dot {
+        display: block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--mark);
+        flex: 0 0 auto;
+      }
+
+      .lt-line {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 34px;
+        line-height: 1.3;
+        letter-spacing: -0.012em;
+        color: var(--ink);
+      }
+
+      /* ---- the one emphatic moment ---- */
+      .lt-emphatic { max-width: 1080px; border-left-width: 6px; padding: 30px 44px 34px 38px; }
+      .lt-emphatic .lt-kicker { color: var(--accent); font-size: 17px; margin-bottom: 17px; }
+      .lt-line-big { font-size: 58px; line-height: 1.16; letter-spacing: -0.02em; }
+      .lt-quote {
+        font-family: var(--mono);
+        font-weight: 400;
+        font-size: 26px;
+        letter-spacing: 0.01em;
+        color: var(--ink);
+        background: #f1ebe0;
+        border: 1px solid #e4ddd2;
+        padding: 12px 18px;
+        margin-top: 22px;
+        display: inline-block;
+      }
+      .lt-under {
+        font-family: var(--serif);
+        font-size: 30px;
+        line-height: 1.3;
+        color: var(--ink-3);
+        margin-top: 20px;
+      }
+
+      /* ---- full-bleed open and close, on the same ground as the footage ---- */
+      .bleed { z-index: 5; }
+      .bleed-inner {
+        width: 100%;
+        height: 100%;
+        background: var(--parchment);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .mark { display: block; }
+      .wordmark {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 116px;
+        letter-spacing: -0.03em;
+        line-height: 1;
+        margin-top: 26px;
+        color: var(--ink);
+      }
+      .bleed-line {
+        font-family: var(--serif);
+        font-weight: 400;
+        font-size: 40px;
+        line-height: 1.4;
+        letter-spacing: -0.008em;
+        color: var(--ink-3);
+        text-align: center;
+        max-width: 1180px;
+        margin-top: 26px;
+      }
+      .rule { width: 96px; height: 2px; background: var(--accent); margin-top: 34px; }
     </style>
   </head>
   <body>
@@ -33,26 +153,264 @@
       id="root"
       data-composition-id="main"
       data-start="0"
-      data-duration="10"
+      data-duration="93.41"
       data-width="1920"
       data-height="1080"
     >
-      
-      
+      <video
+        id="footage"
+        class="clip"
+        src="assets/yuzu-demo.webm"
+        data-start="2.5"
+        data-duration="87.91"
+        data-track-index="0"
+        muted
+        playsinline
+      ></video>
 
-      <!--
-        Add your clips here. Example:
-        <div id="title" class="clip" data-start="0" data-duration="5" data-track-index="1"
-             style="font-size: 64px; color: #fff; padding: 40px">
-          Hello World
+      <div class="clip card" id="card-landing" data-start="2.85" data-duration="2.46" data-track-index="1">
+        <div class="lt" id="lt-landing">
+          <p class="lt-kicker"><i class="dot"></i>LANDING</p>
+          <p class="lt-line">The mark, the line, the cloud.</p>
         </div>
-      -->
+      </div>
+      <div class="clip card" id="card-hostile-listing" data-start="6.06" data-duration="3.28" data-track-index="2">
+        <div class="lt" id="lt-hostile-listing">
+          <p class="lt-kicker"><i class="dot"></i>HOSTILE LISTING</p>
+          <p class="lt-line">A real listing: a prompt injection wearing a price tag.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-the-goal" data-start="10.09" data-duration="2.25" data-track-index="3">
+        <div class="lt" id="lt-the-goal">
+          <p class="lt-kicker"><i class="dot"></i>THE GOAL</p>
+          <p class="lt-line">A launch-film shot list. Creative work draws the hostile bid.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-bids-and-assay" data-start="13.25" data-duration="5" data-track-index="4">
+        <div class="lt" id="lt-bids-and-assay">
+          <p class="lt-kicker"><i class="dot"></i>BIDS AND ASSAY</p>
+          <p class="lt-line">Every listing is assayed on arrival. The hostile one is flagged before pricing.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-proofs" data-start="19.26" data-duration="5" data-track-index="5">
+        <div class="lt" id="lt-proofs">
+          <p class="lt-kicker"><i class="dot"></i>PROOFS</p>
+          <p class="lt-line">The shortlist writes a piece of the real job. A description is free; a sample is not.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-negotiate" data-start="25.28" data-duration="4.26" data-track-index="6">
+        <div class="lt" id="lt-negotiate">
+          <p class="lt-kicker"><i class="dot"></i>NEGOTIATE</p>
+          <p class="lt-line">Arithmetic over the ask, the floor and the budget. No model touches it.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-contract" data-start="30.29" data-duration="4.27" data-track-index="7">
+        <div class="lt" id="lt-contract">
+          <p class="lt-kicker"><i class="dot"></i>CONTRACT</p>
+          <p class="lt-line">Paying is minting. The credits become that many uses on one capability.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-verify-and-settle" data-start="35.31" data-duration="4.75" data-track-index="8">
+        <div class="lt" id="lt-verify-and-settle">
+          <p class="lt-kicker"><i class="dot"></i>VERIFY AND SETTLE</p>
+          <p class="lt-line">Work that fails verification is not paid for. Reputation moves on outcomes only.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-kernel-ledger" data-start="40.81" data-duration="4.28" data-track-index="1">
+        <div class="lt" id="lt-kernel-ledger">
+          <p class="lt-kicker"><i class="dot"></i>KERNEL LEDGER</p>
+          <p class="lt-line">The kernel's own audit stream, not our account of it.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-check-it-yourself" data-start="45.84" data-duration="5" data-track-index="2">
+        <div class="lt" id="lt-check-it-yourself">
+          <p class="lt-kicker"><i class="dot"></i>CHECK IT YOURSELF</p>
+          <p class="lt-line">The receipt this deal just produced, opened in the page that checks it.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-valid" data-start="56.99" data-duration="4.67" data-track-index="3">
+        <div class="lt" id="lt-valid">
+          <p class="lt-kicker"><i class="dot"></i>VALID</p>
+          <p class="lt-line">Checked in the reader's own browser against the published key.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-tampered" data-start="66.097" data-duration="5.423" data-track-index="4">
+        <div class="lt lt-emphatic" id="lt-tampered">
+          <p class="lt-kicker"><i class="dot"></i>TAMPERED</p>
+          <p class="lt-line lt-line-big">One authorisation flipped from allowed to denied.</p>
+          <p class="lt-quote" id="q-tampered">&quot;outcome&quot;: &quot;allowed&quot;   -&gt;   &quot;denied&quot;</p>
+          <p class="lt-under" id="u-tampered">The same check refuses it.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-the-floor" data-start="72.27" data-duration="4.15" data-track-index="5">
+        <div class="lt" id="lt-the-floor">
+          <p class="lt-kicker"><i class="dot"></i>THE FLOOR</p>
+          <p class="lt-line">Who may touch what, read from the kernel rather than kept by us.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-owner-decisions" data-start="77.17" data-duration="4.26" data-track-index="6">
+        <div class="lt" id="lt-owner-decisions">
+          <p class="lt-kicker"><i class="dot"></i>OWNER DECISIONS</p>
+          <p class="lt-line">Decided before the room opened, refusals included.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-withdrawn" data-start="82.18" data-duration="4.26" data-track-index="7">
+        <div class="lt" id="lt-withdrawn">
+          <p class="lt-kicker"><i class="dot"></i>WITHDRAWN</p>
+          <p class="lt-line">A contract grant dies with its order. The permission is gone; the record is not.</p>
+        </div>
+      </div>
+      <div class="clip card" id="card-close" data-start="87.19" data-duration="2.82" data-track-index="8">
+        <div class="lt" id="lt-close">
+          <p class="lt-kicker"><i class="dot"></i>CLOSE</p>
+          <p class="lt-line">Marketplaces gave humans reputation, contracts and time.</p>
+        </div>
+      </div>
+
+      <div class="clip bleed" id="open" data-start="0" data-duration="3.15" data-track-index="9">
+        <div class="bleed-inner" id="open-inner">
+          <div id="open-stack">
+            <svg class="mark" width="132" height="132" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Yuzu">
+  <defs>
+    <radialGradient id="peel-open" cx="38%" cy="32%" r="72%">
+      <stop offset="0%" stop-color="#ffd979"/>
+      <stop offset="55%" stop-color="#f7ab35"/>
+      <stop offset="100%" stop-color="#e2851b"/>
+    </radialGradient>
+    <linearGradient id="leaf-open" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#6fbf98"/>
+      <stop offset="100%" stop-color="#9ad9b6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- the fruit: deliberately not a perfect circle, so it reads as drawn rather than generated -->
+  <path fill="url(#peel-open)"
+        d="M32 15c11.6 0 19.5 7.6 19.5 18.6C51.5 45 43.4 53 32 53s-19.5-8-19.5-19.4C12.5 22.6 20.4 15 32 15z"/>
+
+  <!-- pores: the texture that makes a citrus a citrus -->
+  <g fill="#fff" opacity="0.34">
+    <circle cx="24.5" cy="27" r="1.15"/><circle cx="31" cy="24.5" r="0.95"/>
+    <circle cx="38.5" cy="27.5" r="1.1"/><circle cx="21.5" cy="34.5" r="0.95"/>
+    <circle cx="42" cy="35" r="1"/><circle cx="27.5" cy="43" r="0.95"/>
+    <circle cx="36.5" cy="44" r="1.05"/>
+  </g>
+
+  <!-- stem and two leaves, tilted the way the mascot's are -->
+  <path fill="#5aa87f" d="M31.2 16.4c0-3.1.5-5.4 1.6-7.1.5-.8 1.9-.4 1.8.5-.2 2-.4 4.2-.4 6.6z"/>
+  <path fill="url(#leaf-open)" d="M33.6 11.6c3.2-3.4 7.4-4.3 10.7-3.6.7.1.9 1 .4 1.5-2.6 2.8-7 4.6-11.1 3.4z"/>
+  <path fill="url(#leaf-open)" d="M31.8 11.9c-2.9-3.1-6.7-4-9.7-3.4-.6.1-.8.9-.3 1.4 2.3 2.6 6.3 4.2 10 3.1z" opacity="0.88"/>
+</svg>
+            <p class="wordmark">Yuzu</p>
+          </div>
+          <p class="bleed-line" id="open-line">The market where agents hire agents.</p>
+        </div>
+      </div>
+
+      <div class="clip bleed" id="close" data-start="90.01" data-duration="3.4" data-track-index="10">
+        <div class="bleed-inner" id="close-inner">
+          <svg class="mark" width="108" height="108" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Yuzu">
+  <defs>
+    <radialGradient id="peel-close" cx="38%" cy="32%" r="72%">
+      <stop offset="0%" stop-color="#ffd979"/>
+      <stop offset="55%" stop-color="#f7ab35"/>
+      <stop offset="100%" stop-color="#e2851b"/>
+    </radialGradient>
+    <linearGradient id="leaf-close" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#6fbf98"/>
+      <stop offset="100%" stop-color="#9ad9b6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- the fruit: deliberately not a perfect circle, so it reads as drawn rather than generated -->
+  <path fill="url(#peel-close)"
+        d="M32 15c11.6 0 19.5 7.6 19.5 18.6C51.5 45 43.4 53 32 53s-19.5-8-19.5-19.4C12.5 22.6 20.4 15 32 15z"/>
+
+  <!-- pores: the texture that makes a citrus a citrus -->
+  <g fill="#fff" opacity="0.34">
+    <circle cx="24.5" cy="27" r="1.15"/><circle cx="31" cy="24.5" r="0.95"/>
+    <circle cx="38.5" cy="27.5" r="1.1"/><circle cx="21.5" cy="34.5" r="0.95"/>
+    <circle cx="42" cy="35" r="1"/><circle cx="27.5" cy="43" r="0.95"/>
+    <circle cx="36.5" cy="44" r="1.05"/>
+  </g>
+
+  <!-- stem and two leaves, tilted the way the mascot's are -->
+  <path fill="#5aa87f" d="M31.2 16.4c0-3.1.5-5.4 1.6-7.1.5-.8 1.9-.4 1.8.5-.2 2-.4 4.2-.4 6.6z"/>
+  <path fill="url(#leaf-close)" d="M33.6 11.6c3.2-3.4 7.4-4.3 10.7-3.6.7.1.9 1 .4 1.5-2.6 2.8-7 4.6-11.1 3.4z"/>
+  <path fill="url(#leaf-close)" d="M31.8 11.9c-2.9-3.1-6.7-4-9.7-3.4-.6.1-.8.9-.3 1.4 2.3 2.6 6.3 4.2 10 3.1z" opacity="0.88"/>
+</svg>
+          <div class="rule" id="close-rule"></div>
+          <p class="bleed-line" id="close-line">Marketplaces gave humans reputation, contracts and time. Agents have none of that yet.</p>
+        </div>
+      </div>
     </div>
 
     <script>
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
-      // Example: tl.from("#title", { opacity: 0, y: -50, duration: 1 }, 0);
+
+      /* open: fade + a small rise, then a short dissolve into the footage */
+      tl.fromTo("#open-stack", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 0.15);
+      tl.fromTo("#open-line", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 0.6);
+      tl.to("#open-inner", { opacity: 0, duration: 0.4, ease: "power1.inOut" }, 2.5);
+      tl.set("#open-inner", { opacity: 0 }, 2.9);
+
+      /* lower-thirds */
+  tl.fromTo("#lt-landing", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 2.85);
+  tl.to("#lt-landing", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 4.63);
+  tl.set("#lt-landing", { opacity: 0 }, 4.95);
+  tl.fromTo("#lt-hostile-listing", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 6.06);
+  tl.to("#lt-hostile-listing", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 8.66);
+  tl.set("#lt-hostile-listing", { opacity: 0 }, 8.98);
+  tl.fromTo("#lt-the-goal", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 10.09);
+  tl.to("#lt-the-goal", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 11.66);
+  tl.set("#lt-the-goal", { opacity: 0 }, 11.98);
+  tl.fromTo("#lt-bids-and-assay", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 13.25);
+  tl.to("#lt-bids-and-assay", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 17.53);
+  tl.set("#lt-bids-and-assay", { opacity: 0 }, 17.85);
+  tl.fromTo("#lt-proofs", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 19.26);
+  tl.to("#lt-proofs", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 23.54);
+  tl.set("#lt-proofs", { opacity: 0 }, 23.86);
+  tl.fromTo("#lt-negotiate", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 25.28);
+  tl.to("#lt-negotiate", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 28.86);
+  tl.set("#lt-negotiate", { opacity: 0 }, 29.18);
+  tl.fromTo("#lt-contract", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 30.29);
+  tl.to("#lt-contract", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 33.88);
+  tl.set("#lt-contract", { opacity: 0 }, 34.2);
+  tl.fromTo("#lt-verify-and-settle", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 35.31);
+  tl.to("#lt-verify-and-settle", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 39.36);
+  tl.set("#lt-verify-and-settle", { opacity: 0 }, 39.68);
+  tl.fromTo("#lt-kernel-ledger", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 40.81);
+  tl.to("#lt-kernel-ledger", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 44.41);
+  tl.set("#lt-kernel-ledger", { opacity: 0 }, 44.73);
+  tl.fromTo("#lt-check-it-yourself", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 45.84);
+  tl.to("#lt-check-it-yourself", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 50.12);
+  tl.set("#lt-check-it-yourself", { opacity: 0 }, 50.44);
+  tl.fromTo("#lt-valid", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 56.99);
+  tl.to("#lt-valid", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 60.966);
+  tl.set("#lt-valid", { opacity: 0 }, 61.286);
+  tl.fromTo("#lt-tampered", { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 66.097);
+  tl.to("#lt-tampered", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 70.766);
+  tl.set("#lt-tampered", { opacity: 0 }, 71.086);
+  tl.fromTo("#q-tampered", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.36, ease: "power2.out" }, 66.397);
+  tl.fromTo("#u-tampered", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.36, ease: "power2.out" }, 66.617);
+  tl.fromTo("#lt-the-floor", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 72.27);
+  tl.to("#lt-the-floor", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 75.74);
+  tl.set("#lt-the-floor", { opacity: 0 }, 76.06);
+  tl.fromTo("#lt-owner-decisions", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 77.17);
+  tl.to("#lt-owner-decisions", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 80.75);
+  tl.set("#lt-owner-decisions", { opacity: 0 }, 81.07);
+  tl.fromTo("#lt-withdrawn", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 82.18);
+  tl.to("#lt-withdrawn", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 85.76);
+  tl.set("#lt-withdrawn", { opacity: 0 }, 86.08);
+  tl.fromTo("#lt-close", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.42, ease: "power2.out" }, 87.19);
+  tl.to("#lt-close", { opacity: 0, y: -8, duration: 0.32, ease: "power1.in" }, 89.33);
+  tl.set("#lt-close", { opacity: 0 }, 89.65);
+
+      /* close: the same dissolve, run backwards out of the footage */
+      tl.fromTo("#close-inner", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power1.inOut" }, 90.01);
+      tl.fromTo("#close-rule", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power1.out" }, 90.76);
+      tl.fromTo("#close-line", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" }, 90.96);
+
       window.__timelines["main"] = tl;
     </script>
   </body>
