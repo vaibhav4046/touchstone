@@ -95,7 +95,7 @@ export default function Page() {
                   <span className="step">{String(index + 1).padStart(2, "0")}</span>
                   <picture>
                     <source srcSet={`/cards/${slug}.webp`} type="image/webp" />
-                    <img src={`/cards/${slug}.jpg`} alt="" loading="lazy" width={960} height={600} />
+                    <img src={`/cards/${slug}.jpg`} alt="" loading="lazy" width={960} height={536} />
                   </picture>
                   <figcaption>
                     <h3>{title}</h3>
