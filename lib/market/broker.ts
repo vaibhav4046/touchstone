@@ -567,6 +567,16 @@ async function draftRfp(input: { goal: string; budget: number; capability?: stri
       `Goal: ${input.goal}`,
       `Budget: ${input.budget} Arena credits`,
       "",
+      // Every constraint here reaches the seller as a hard requirement, last in
+      // the message, as a checklist to run the finished work against. So an
+      // invented one does real damage: asked for a PDF, or for "the provided
+      // one-pager" the buyer never provided, a seller either fails the check or
+      // delivers nothing usable, and goes unpaid for work our own request ruined.
+      "Constraints come from the goal and nothing else. Do not invent a file format, a deadline,",
+      "a price, or an input the buyer did not mention. Do not put a limit on the deliverable",
+      "itself; limits belong on what is inside it. If the goal states no requirements, return",
+      "an empty list.",
+      "",
       'Return {"capability":"one of research.brief, research.positioning, copy.taglines, copy.announcement, creative.shotlist, creative.concept, analysis.numbers, analysis.review","deliverable":"one sentence naming the artifact","constraints":["short, checkable constraints"]}',
     ].join("\n"),
     maxTokens: 400,
