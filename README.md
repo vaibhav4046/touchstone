@@ -146,7 +146,7 @@ and never consult a model.
 | Kernel | `@aicoo/sharedos` 0.1.0-alpha.5 — `grantSource`, `hostCeiling`, `recordEscalation`, `deriveGrant` |
 | Precedent | `@aicoo/sharedos-precedent` — `admitAutoDecision` (ADR 0022) |
 | Runtime | Next.js 15, Node runtime, Vercel |
-| Analyst | `gpt-oss-120b` via Groq, then the same model via OpenRouter, then Gemini 3.6 Flash |
+| Analyst | `gpt-oss-120b` on Groq, then `gpt-oss-20b`, `qwen3.8-27b` and `compound-mini` on the same key, then the primary again via OpenRouter, then Gemini 3.6 Flash. The free tier meters tokens per day *per model*, so a second model is a second budget rather than the same exhausted one, and whichever answered is named on the outcome |
 | Injection classifier | `llama-prompt-guard-2-86m` — no fallback, because it is a measurement rather than an opinion |
 | Signatures | Ed25519 for receipts, public key at `/api/pubkey`; HMAC for escalation tickets, because a ticket is authority |
 | Storage | none — receipts and escalation tickets are self-contained and signed. Reputations, the Arena ledger and the grant history live in the process that served them and reset on a cold start, which is a real limit and is said so on the dashboard rather than hidden behind a number that looks durable |

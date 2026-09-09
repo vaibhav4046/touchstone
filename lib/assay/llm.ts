@@ -16,7 +16,39 @@ export const MODELS = {
   guard: "meta-llama/llama-prompt-guard-2-86m",
 } as const;
 
+/**
+ * The analyst bench, because Groq meters each model separately.
+ *
+ * The free tier's limit is tokens per day *per model*: the refusal reads
+ * "Rate limit reached for model `openai/gpt-oss-120b` ... on tokens per day
+ * (TPD): Limit 200000, Used 199611". So a second model on the same key is a
+ * second 200,000 rather than the same exhausted pot, and four of them is the
+ * difference between roughly thirty deals a day and enough to survive an Arena
+ * night. This is the cheapest capacity available to a free account and it costs
+ * one array.
+ *
+ * Ordered by how little they change the answer. `gpt-oss-20b` is the same
+ * family as the primary; qwen and compound-mini are different opinions and sit
+ * behind it. Each was checked to return clean JSON to a JSON instruction --
+ * `qwen3.6-27b` is deliberately absent because it emits a `<think>` block that
+ * the parser would have to strip, and `groq/compound` because it routes back to
+ * `gpt-oss-120b` and shares the quota we just exhausted.
+ *
+ * Which model actually answered is reported, never hidden: a score produced by
+ * a different model is not comparable to one produced by the primary, and a
+ * report that quietly swapped them would be making exactly the kind of
+ * unfalsifiable claim this service exists to catch.
+ */
+const ANALYST_BENCH: readonly string[] = [
+  MODELS.analyst,
+  "openai/gpt-oss-20b",
+  "qwen/qwen3.8-27b",
+  "groq/compound-mini",
+];
+
 export interface LlmOutcome {
+  /** Which model actually answered, when it was not the primary analyst. */
+  readonly model?: string;
   readonly ok: boolean;
   readonly text: string;
   readonly ms: number;
@@ -62,6 +94,17 @@ export async function complete(options: {
     }
   }
   if (last.ok || !RETRYABLE.test(last.error ?? "") || options.model !== MODELS.analyst) return last;
+
+  // The rest of the bench on this key, before paying the latency of another
+  // supplier. A per-model daily limit means the next model is untouched budget.
+  const benchCodes: string[] = [last.error ?? "unknown"];
+  for (const model of ANALYST_BENCH.slice(1)) {
+    const sideways = await attempt({ ...options, model });
+    if (sideways.ok) return { ...sideways, model };
+    benchCodes.push(`${model.split("/").pop() ?? model}:${sideways.error ?? "unknown"}`);
+    if (!RETRYABLE.test(sideways.error ?? "")) break;
+  }
+  last = { ...last, error: benchCodes.join("+") };
 
   /**
    * The rest of the bench, in the order that changes the answer least.

@@ -65,6 +65,19 @@ export async function GET(): Promise<Response> {
       "spends nothing. If our own model suppliers refuse the call, that is reported as ours, the " +
       "seller's reputation is left untouched, and nothing is paid. A rejected delivery is not paid " +
       "for. Every receipt lists what was not checked.",
+    // Named, because a score from a substitute is not comparable to one from
+    // the primary and a report that hid the swap would be making exactly the
+    // unfalsifiable claim this service exists to catch.
+    analystBench: {
+      primary: "groq/openai/gpt-oss-120b",
+      substitutes: ["groq/openai/gpt-oss-20b", "groq/qwen/qwen3.8-27b", "groq/compound-mini"],
+      thenSuppliers: ["openrouter/openai/gpt-oss-120b", "gemini-3.6-flash"],
+      why:
+        "The free tier meters tokens per day per model, not per key, so a second model is a second " +
+        "budget rather than the same empty one. Whichever model answered is reported on the outcome; " +
+        "the injection classifier has no substitute at all and is simply reported missing when it " +
+        "cannot run, because it is a measurement rather than an opinion.",
+    },
     protocolVersion: "yuzu.manifest.v1",
     baseUrl: BASE,
 
