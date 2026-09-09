@@ -52,8 +52,31 @@ beforeAll(() => {
   registerSeller(BOUND);
 });
 
+/**
+ * A resolver the test controls.
+ *
+ * The probe now resolves a hostname and checks every address it answers with,
+ * because a registered seller's endpoint is an attacker-controlled string. The
+ * fixtures here use reserved `.example` names, which correctly resolve to
+ * nothing at all — so the test supplies the answer instead of asking the
+ * internet, and the security property is exercised rather than skipped.
+ */
+const RESOLVES: Record<string, string> = {
+  "bindtest.example": "93.184.216.34",
+  "scout.example": "93.184.216.34",
+  "attacker.example": "93.184.216.34",
+};
+
+function testResolver(hostname: string): Promise<ReadonlyArray<{ readonly address: string }>> {
+  const address = RESOLVES[hostname.toLowerCase()];
+  if (address === undefined) return Promise.reject(Object.assign(new Error("ENOTFOUND"), { code: "ENOTFOUND" }));
+  return Promise.resolve([{ address }]);
+}
+
 function probeHandler(): ToolHandler {
-  const handler = createAssayTools().find((entry) => entry.definition.name === "assay.probe_vendor");
+  const handler = createAssayTools({ resolver: testResolver }).find(
+    (entry) => entry.definition.name === "assay.probe_vendor",
+  );
   if (handler === undefined) throw new Error("assay.probe_vendor is not registered");
   return handler;
 }
@@ -289,5 +312,54 @@ describe("the actor a probe budget is counted against", () => {
     expect(overBudget.allowed).toBe(false);
     expect(overBudget.metadata?.rule).toBe("probe_rate_limited");
     expect(buyerAddress("budget-a")).toEqual({ kind: "agent", agentId: "budget-a" });
+  });
+});
+
+/**
+ * The gap `POST /api/sellers` opened.
+ *
+ * Before sellers could register, no seeded seller published an endpoint at all,
+ * so the probe path never fetched anything and a literal-host check was
+ * survivable. Registration made a seller's hostname an attacker-controlled
+ * string that reaches `fetch` on our server, and a name is not judged by how it
+ * is spelled: `rival.example` with an A record of `10.0.0.5` passed a check
+ * that never asked DNS.
+ */
+describe("a registered seller's endpoint is judged by what it resolves to", () => {
+  it("refuses a published hostname whose record points inward", async () => {
+    const inward = {
+      ...BOUND,
+      id: "inward",
+      name: "Inward",
+      endpoint: "https://inward.example/health",
+    };
+    registerSeller(inward);
+
+    const handler = createAssayTools({
+      // A perfectly ordinary name, answering with a private address.
+      resolver: (hostname) =>
+        hostname.toLowerCase() === "inward.example"
+          ? Promise.resolve([{ address: "10.0.0.5" }])
+          : Promise.reject(new Error("ENOTFOUND")),
+    }).find((entry) => entry.definition.name === "assay.probe_vendor");
+    if (handler === undefined) throw new Error("assay.probe_vendor is not registered");
+
+    const context = buildContext({ buyerId: "probe-inward", purpose: PURPOSES.probe });
+    const result = await handler.invoke(
+      context,
+      {
+        id: "call_inward",
+        tool: "assay.probe_vendor",
+        arguments: { orderId: "ord_inward", vendor: "inward", endpoint: "https://inward.example/health" } as never,
+        traceId: context.traceId,
+        requestedAt: new Date().toISOString(),
+      },
+      AbortSignal.timeout(20_000),
+    );
+
+    expect(result.status).toBe("failed");
+    // Refused for the address it resolves to, not merely for its spelling.
+    expect(result.error?.code).toBe("endpoint_resolves_to_blocked");
+    expect(result.error?.message).toContain("10.0.0.5");
   });
 });

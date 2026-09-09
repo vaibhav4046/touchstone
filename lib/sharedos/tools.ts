@@ -246,7 +246,11 @@ function sellerFor(vendorSlug: string): { readonly name: string; readonly endpoi
  * it lands in audit as `tool.invoked` with that code the way every other
  * refusal does, and the receipt can say what happened.
  */
-function endpointRefusal(vendorSlug: string, endpoint: string): { code: string; message: string } | undefined {
+async function endpointRefusal(
+  vendorSlug: string,
+  endpoint: string,
+  resolver?: HostResolver,
+): Promise<{ code: string; message: string } | undefined> {
   let url: URL;
   try {
     url = new URL(endpoint);
@@ -287,6 +291,24 @@ function endpointRefusal(vendorSlug: string, endpoint: string): { code: string; 
     return {
       code: "endpoint_not_bound",
       message: `Authority covers ${vendorSlug}, which published ${registered.hostname}. ${url.hostname} is somebody else.`,
+    };
+  }
+
+  // Resolve-then-check, last, because it is the only check that costs a network
+  // round trip and there is no sense paying for one to refuse a request the
+  // local checks above already refused.
+  //
+  // The literal check earlier judges a name by how it is spelled, which was
+  // survivable only while no seller could publish an endpoint at all.
+  // `POST /api/sellers` changed that: a registered hostname is now an
+  // attacker-controlled string that reaches `fetch` here, so a domain whose A
+  // record points at 10.0.0.5 would sail past a check that never asked DNS.
+  // Same resolver and same blocklist as the Arena path, which already did this.
+  const unreachable = await blockedHostRefusal(url.hostname, resolver);
+  if (unreachable !== undefined) {
+    return {
+      code: unreachable.code,
+      message: `${unreachable.message} A probe reaches vendors, not this host's network.`,
     };
   }
   return undefined;
@@ -338,7 +360,7 @@ function tool(options: {
   };
 }
 
-export function createAssayTools(): readonly ToolHandler[] {
+export function createAssayTools(options: { readonly resolver?: HostResolver } = {}): readonly ToolHandler[] {
   return [
     /**
      * One credit of a contract, spent.
@@ -497,7 +519,7 @@ export function createAssayTools(): readonly ToolHandler[] {
         const args = ProbeArgs.parse(call.arguments);
 
         // The path said which vendor. This is where that stops being decorative.
-        const refusal = endpointRefusal(args.vendor, args.endpoint);
+        const refusal = await endpointRefusal(args.vendor, args.endpoint, options.resolver);
         if (refusal !== undefined) return failed(call, refusal.code, refusal.message);
 
         const started = Date.now();
