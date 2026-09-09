@@ -789,7 +789,11 @@ async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Per
     // itself came back 429. A tagline set or a six-shot list does not need
     // three thousand tokens, and a delivery that truncates is reported as
     // truncated rather than charged to the seller.
-    maxTokens: 1400,
+    // 3200 was the one call in a deal big enough to trip a per-minute limit on
+    // its own; 1400 then cut a six-shot list in half, which is honest but still
+    // a lost deal. 2200 fits the largest deliverable the registry sells with
+    // reasoning_effort low, and stays well under what tripped the meter.
+    maxTokens: 2200,
     timeoutMs: 50_000,
   });
   if (outcome.ok) {
