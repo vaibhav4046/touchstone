@@ -97,8 +97,6 @@ export async function complete(options: {
   readonly maxTokens?: number;
   readonly temperature?: number;
   readonly timeoutMs?: number;
-  /** `"default"` lets the model think properly. See `attempt`. */
-  readonly reasoning?: "low" | "default";
 }): Promise<LlmOutcome> {
   // Retry the upstream being briefly unwell; fail over when it is out.
   //
@@ -345,17 +343,6 @@ async function attempt(
     readonly maxTokens?: number;
     readonly temperature?: number;
     readonly timeoutMs?: number;
-    /**
-     * How hard the model should think before answering.
-     *
-     * Low by default because reasoning is drawn from the same completion budget
-     * and most calls here are short and structured. The delivery is the
-     * exception: asked to think less, a research brief came back as a
-     * forty-character title and nothing else, which the verifier correctly
-     * rejected and the seller correctly was not paid for. Quality is the whole
-     * point of that one call, so it gets to think.
-     */
-    readonly reasoning?: "low" | "default";
   },
   supplier?: Supplier,
 ): Promise<LlmOutcome> {
@@ -402,9 +389,7 @@ async function attempt(
         //
         // Sent to every OpenAI-compatible supplier: Groq and OpenRouter both
         // accept it, and one that does not simply ignores an unknown field.
-        ...(options.model === MODELS.analyst && (options.reasoning ?? "low") === "low"
-          ? { reasoning_effort: "low" }
-          : {}),
+        ...(options.model === MODELS.analyst ? { reasoning_effort: "low" } : {}),
         // Zero, because this number ends up in a score someone is asked to
         // trust. It does not make the model deterministic — sampling is only
         // one source of drift — but it removes the one this code controls.
