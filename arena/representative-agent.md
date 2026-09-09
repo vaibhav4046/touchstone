@@ -99,7 +99,7 @@ prompt asking a model to behave.
 - Eight measured broker calls on the live deployment ran 2 to 34 seconds, most
   under 12. Quote the sample size with the range; eight calls is what we have.
   The route's hard ceiling is 120, well inside the Arena's five-minute limit.
-- 265 tests.
+- 297 tests across 29 test files.
 - Nine sellers in the registry, one whose listing is flagged on every read and
   which the broker has never bought from. There is no stored flag: the verdict
   is recomputed from the listing each time it is assayed, which is why it cannot
