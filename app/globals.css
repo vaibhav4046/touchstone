@@ -509,3 +509,87 @@ blockquote {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ─────────────────────────  stage cards  ───────────────────────── */
+
+/* The illustration is the card. A tint block with a heading on it says the
+   same thing in a duller voice, and these were drawn for exactly these six
+   moments — so the art carries the meaning and the text just names it. */
+.stagecard {
+  position: relative;
+  border-radius: var(--r-large);
+  overflow: hidden;
+  background: var(--twilight);
+  box-shadow: var(--lift);
+  isolation: isolate;
+}
+.stagecard img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  /* nearest-neighbour so the pixels stay pixels at any scale */
+  image-rendering: pixelated;
+  transition: transform 900ms var(--ease);
+}
+.stagecard:hover img { transform: scale(1.045); }
+.stagecard figcaption {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 2.6rem 1.1rem 1.05rem;
+  background: linear-gradient(180deg, transparent, rgba(15, 9, 30, 0.55) 38%, rgba(15, 9, 30, 0.93));
+}
+.stagecard h3 {
+  font-family: var(--font-pixel), var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: var(--yuzu-bright);
+  text-transform: uppercase;
+  margin: 0 0 0.5rem;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+}
+.stagecard p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.82);
+}
+.stagecard .step {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.85rem;
+  font-family: var(--font-pixel), var(--mono);
+  font-size: 0.55rem;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(15, 9, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.28rem 0.42rem;
+  border-radius: 4px;
+  backdrop-filter: blur(6px);
+}
+
+/* ─────────────────────────  reveal  ───────────────────────── */
+
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 720ms var(--ease), transform 720ms var(--ease);
+  transition-delay: var(--delay, 0ms);
+}
+[data-reveal][data-revealed="true"] { opacity: 1; transform: none; }
+
+/* Headlines arrive a line at a time rather than as a block. */
+.rise > span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.5em);
+  transition: opacity 620ms var(--ease), transform 620ms var(--ease);
+}
+.rise[data-revealed="true"] > span { opacity: 1; transform: none; }
+.rise[data-revealed="true"] > span:nth-child(2) { transition-delay: 90ms; }
+.rise[data-revealed="true"] > span:nth-child(3) { transition-delay: 180ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal], .rise > span { opacity: 1 !important; transform: none !important; }
+}

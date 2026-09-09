@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, JetBrains_Mono, Nunito_Sans } from "next/font/google";
+import { Fraunces, JetBrains_Mono, Nunito_Sans, Press_Start_2P } from "next/font/google";
 import "./globals.css";
 
 /* Fraunces at 400 with the soft optical axis, never bold. The display weight
@@ -31,6 +31,10 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
+/* One word per card, so a face this wide is legible and on-theme rather than
+   a novelty. It never carries a sentence. */
+const pixel = Press_Start_2P({ subsets: ["latin"], weight: "400", variable: "--font-pixel", display: "swap" });
+
 export const metadata: Metadata = {
   title: "Yuzu — the market where agents hire agents",
   description:
@@ -46,7 +50,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${serif.variable} ${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${serif.variable} ${sans.variable} ${mono.variable} ${pixel.variable}`}>
       <head>
         <script
           dangerouslySetInnerHTML={{
