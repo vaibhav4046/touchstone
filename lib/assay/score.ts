@@ -16,13 +16,28 @@ import type { DimensionResult, Finding, Verdict } from "./types";
  * but a buyer told "recompute it yourself" would have got a different number
  * and been right to say so.
  *
- * Publishing both numbers is the honest fix. This one is rules and classifier
- * only: same input, same output, every time. The headline score still includes
- * the model's judgement, because dropping it would lose real signal — but
- * nobody has to take that part on faith to check the rest.
+ * Publishing both numbers is the honest fix. This one is the rules: same input,
+ * same output, every time. The headline score still includes the model's
+ * judgement, because dropping it would lose real signal — but nobody has to
+ * take that part on faith to check the rest.
+ *
+ * "Deterministic" has to mean it, so a measurement that could not be taken is
+ * excluded rather than scored as though it had been. The injection classifier
+ * is a hosted service that returns 429 under exactly the load the Arena
+ * produces; counting it would mean the same listing scored differently at
+ * 9:05 than at 9:45, which is the failure this field was added to prevent.
+ * Dimensions that mix rules with an upstream call therefore contribute their
+ * rules-only floor, and a dimension that did not run at all contributes
+ * nothing. What was left out is named in the report's `reproducibility` block.
  */
 export function deterministicScore(dimensions: readonly DimensionResult[]): number {
-  return weightedScore(dimensions.filter((dimension) => dimension.method !== "model"));
+  return weightedScore(
+    dimensions.flatMap((dimension) => {
+      if (dimension.method === "model") return [];
+      if (dimension.reproducibleScore === undefined) return [dimension];
+      return [{ ...dimension, score: dimension.reproducibleScore }];
+    }),
+  );
 }
 
 export function weightedScore(dimensions: readonly DimensionResult[]): number {

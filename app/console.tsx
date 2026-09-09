@@ -92,6 +92,9 @@ export default function Console() {
   const [live, setLive] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const reportRef = useRef<HTMLDivElement>(null);
+  // Held for this page load only, never stored. Approving an escalation mints a
+  // grant, so the operator proves who they are rather than the page doing it.
+  const operatorKey = useRef("");
 
   useEffect(() => {
     const stored = (localStorage.getItem("touchstone-theme") as "dark" | "light" | null) ?? "dark";
@@ -186,11 +189,25 @@ export default function Console() {
   }, [vendor, pitch, price, probe]);
 
   const decide = useCallback(async (id: string, approve: boolean) => {
+    if (operatorKey.current === "") {
+      operatorKey.current = window.prompt("Operator key — deciding an escalation mints a grant:")?.trim() ?? "";
+      if (operatorKey.current === "") return;
+    }
+
     const response = await fetch("/api/escalations", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-operator-key": operatorKey.current },
       body: JSON.stringify({ id, approve }),
     });
+
+    if (response.status === 403) {
+      // Wrong key, or none configured on this deployment. Either way, say so
+      // rather than leaving a button that looks like it worked.
+      operatorKey.current = "";
+      window.alert("Refused. The operator key was wrong, or TOUCHSTONE_OPERATOR_KEY is not set on this deployment.");
+      return;
+    }
+
     const body = (await response.json()) as { state?: string; mintedGrant?: Escalation["minted"] };
     setEscalations((current) =>
       current.map((item) =>

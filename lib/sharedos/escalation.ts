@@ -5,6 +5,8 @@ import { ASSAY_NAMESPACE, PURPOSES, TOUCHSTONE, type Purpose } from "./identity"
 import { mintEscalationGrant } from "./grants";
 import { host } from "./host";
 import { depositGrant } from "./authority";
+// One key, one guard. A second copy of the fallback is a second way to ship it.
+import { signingKey } from "../assay/receipt";
 
 /**
  * What a denial turns into.
@@ -74,13 +76,9 @@ interface Ticket {
   readonly t: number;
 }
 
-function key(): string {
-  return process.env.TOUCHSTONE_SIGNING_KEY ?? "touchstone-development-key-not-for-production";
-}
-
 function seal(ticket: Ticket): string {
   const body = Buffer.from(JSON.stringify(ticket)).toString("base64url");
-  const mac = createHmac("sha256", key()).update(body).digest("base64url").slice(0, 22);
+  const mac = createHmac("sha256", signingKey()).update(body).digest("base64url").slice(0, 22);
   return `esc_${body}.${mac}`;
 }
 
@@ -88,7 +86,7 @@ function unseal(id: string): Ticket | undefined {
   if (!id.startsWith("esc_")) return undefined;
   const [body, mac] = id.slice(4).split(".");
   if (body === undefined || mac === undefined) return undefined;
-  const expected = createHmac("sha256", key()).update(body).digest("base64url").slice(0, 22);
+  const expected = createHmac("sha256", signingKey()).update(body).digest("base64url").slice(0, 22);
   if (expected.length !== mac.length || !timingSafeEqual(Buffer.from(expected), Buffer.from(mac))) {
     return undefined;
   }

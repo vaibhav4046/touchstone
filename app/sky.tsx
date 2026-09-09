@@ -34,7 +34,7 @@ export default function Sky() {
     if (element === null || still) return;
     // Slower than rendered: at native speed the scroll reads as a loop rather
     // than as sky.
-    element.playbackRate = 0.55;
+    element.playbackRate = 0.42;
   }, [still, cut]);
 
   useEffect(() => {

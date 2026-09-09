@@ -16,9 +16,26 @@ export interface DimensionResult {
   readonly label: string;
   /** 0..1, where 1 is the best a vendor can do on this dimension. */
   readonly score: number;
+  /**
+   * The part of `score` that needs no upstream service, when the two differ.
+   *
+   * A dimension that mixes a rule set with a hosted classifier scores lower
+   * when the classifier answers and higher when it is rate-limited — which
+   * would make `deterministicScore` a number that moves under load, the one
+   * thing it exists not to be. Naming the rules-only floor here lets the
+   * reproducible score be computed from what was actually always measurable.
+   * Absent when `score` is already fully reproducible.
+   */
+  readonly reproducibleScore?: number;
   readonly weight: number;
-  /** How this number was produced, so a critic can attack the method, not the vibe. */
-  readonly method: "deterministic" | "classifier" | "model" | "not-run";
+  /**
+   * How this number was produced, so a critic can attack the method, not the vibe.
+   *
+   * `measured` is the odd one out: it is an observation of the world at a
+   * moment — a live probe — so it is neither reproducible nor a judgement.
+   * Dimensions carrying it are evidence at weight 0 and never move a score.
+   */
+  readonly method: "deterministic" | "classifier" | "model" | "measured" | "not-run";
   readonly summary: string;
   readonly findings: readonly Finding[];
 }
@@ -54,8 +71,15 @@ export interface AssayReport {
   readonly deterministicScore: number;
   /** Which dimensions are exactly reproducible and which are not, named. */
   readonly reproducibility: {
+    /** Counted in `deterministicScore`. */
     readonly exact: readonly string[];
+    /** In `score` only: a model produced them and a model is not a function. */
     readonly modelDerived: readonly string[];
+    /**
+     * Measurements this run wanted and could not take, named rather than
+     * quietly folded into a lower number.
+     */
+    readonly unavailable: readonly string[];
     readonly note: string;
   };
   readonly headline: string;

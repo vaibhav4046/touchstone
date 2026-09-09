@@ -8,6 +8,7 @@ import {
   type AuditEvent,
   type ToolCall,
   type ToolResult,
+  type TurnEndRecord,
 } from "@aicoo/sharedos";
 import { ASSAY_NAMESPACE, NAMESPACE, TOUCHSTONE, buyerAddress, type Purpose } from "./identity";
 import { CloudAuditSink, MemoryAuditSink } from "./audit";
@@ -94,6 +95,65 @@ export function buildContext(input: {
     enabledToolNamespaces: [ASSAY_NAMESPACE],
     now: new Date().toISOString(),
   };
+}
+
+/**
+ * One turn, bounded at both ends.
+ *
+ * Two things were missing without this. Authority was re-resolved on every
+ * single call, so a store that went down between the third stage and the fourth
+ * could change its mind mid-deal; a turn lease freezes it once and keeps a turn
+ * that could not establish authority fail-closed for its whole length. And the
+ * audit stream had no terminal at all — a reader could see eight `tool.invoked`
+ * rows and had nothing but a shared `traceId` to tell them where the turn
+ * stopped or whether it stopped well. `turn.ended` is that terminal.
+ *
+ * `close` runs on every exit path including the throwing one, because an
+ * unclosed lease leaves a stale authority answering for whatever presents the
+ * same turn identity next.
+ */
+export async function withTurn<T>(
+  context: AccessContext,
+  executionId: string,
+  body: () => Promise<T>,
+): Promise<T> {
+  const scope = await host().kernel.openTurnAuthority(context);
+  let status: TurnEndRecord["status"] = "succeeded";
+  let reasonCode: string | undefined = scope.status === "unavailable" ? scope.code : undefined;
+
+  // A turn that could not load authority is not run. Every call inside it would
+  // be refused one at a time anyway; refusing once at the boundary is the same
+  // answer with a record of why.
+  if (scope.status === "unavailable") {
+    try {
+      await host().kernel.recordTurnEnd(context, { executionId, status: "denied", reasonCode, endedBy: "envelope" });
+    } finally {
+      scope.close();
+    }
+    throw new Error(`authority_unavailable:${reasonCode ?? "unknown"}`);
+  }
+
+  try {
+    return await body();
+  } catch (error) {
+    status = "failed";
+    reasonCode = error instanceof Error ? error.message.slice(0, 120) : "unknown";
+    throw error;
+  } finally {
+    try {
+      await host().kernel.recordTurnEnd(context, {
+        executionId,
+        status,
+        reasonCode,
+        endedBy: status === "failed" ? "runtime" : undefined,
+      });
+    } catch {
+      // The work already happened. Losing its terminal is worth knowing about
+      // and is not worth failing the caller's turn over, which is the same
+      // judgement `onAuditError` makes above.
+    }
+    scope.close();
+  }
 }
 
 export interface CallOutcome {

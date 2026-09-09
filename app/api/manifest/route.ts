@@ -52,10 +52,27 @@ export async function GET(): Promise<Response> {
           pitch: "string — their listing, verbatim",
           askingPrice: "number, optional",
           transcript: "string, optional",
+          probeEndpoint:
+            "string, optional — a URL of the vendor's own to call live. An order grant never covers reaching a third party, so this is the path that gets denied, answered from the owner's precedent under ADR 0022, and recorded in the receipt as an auto-decision.",
         },
         output:
           "A verdict on one listing: which claims are checkable, which are not, and which are instructions aimed at the agent reading them. Every finding quotes the sentence that produced it.",
         onFailure: "Returns the dimensions that ran and names the ones that did not. It does not invent a score.",
+      },
+      {
+        name: "shortlist",
+        endpoint: `${BASE}/api/shortlist`,
+        method: "POST",
+        price: { amount: 10, currency: "arena-credits", note: "One call, every listing assayed, one receipt each." },
+        sla: { p50Seconds: 12, maxSeconds: 90, deadlineSeconds: 300 },
+        input: {
+          budget: "number",
+          goal: "string, optional",
+          vendors: "array of {vendor, pitch, askingPrice} — up to 12",
+        },
+        output:
+          "A ranked buy plan: a per-vendor allocation, a decision of buy / trial / hold / avoid, and one signed receipt per vendor so the ranking can be checked line by line.",
+        onFailure: "Holds the budget rather than spending it. Vendors past the twelfth are reported as truncated, not silently dropped.",
       },
       {
         name: "verify",
@@ -65,12 +82,26 @@ export async function GET(): Promise<Response> {
         input: "Any Yuzu receipt",
         output: "Whether its signature still matches its contents.",
       },
+      {
+        name: "grants",
+        endpoint: `${BASE}/api/grants`,
+        method: "GET",
+        price: { amount: 0, currency: "arena-credits", note: "Free and non-consuming. Reading that a door exists is not opening it." },
+        input: "?agent=<any agent id>. Defaults to the caller's asserted id.",
+        output:
+          "The grant map for one actor: `reach` (the kernel's own derivation, authority stripped out), the grants behind it with the part of each bounded budget already spent, every grant that has existed on this instance and how it ended, the owner's pre-decided allow and refuse table, and the host ceiling rules no grant can buy past.",
+        onFailure:
+          "An actor with no live grant reaches nothing, and that is reported as nothing rather than smoothed away. If the kernel cannot load authority it answers `unavailable` with a reason code and that is passed through whole.",
+      },
     ],
 
     howToCall: {
       broker: `curl -X POST ${BASE}/api/broker -H 'content-type: application/json' -H 'x-agent-id: <your-sharednet-node-id>' -d '{"goal":"<what you need done>","budget":20}'`,
-      assay: `curl -X POST ${BASE}/api/assay -H 'content-type: application/json' -d '{"vendor":"<name>","pitch":"<their listing, verbatim>","askingPrice":12}'`,
+      assay: `curl -X POST ${BASE}/api/assay -H 'content-type: application/json' -d '{"vendor":"<name>","pitch":"<their listing, verbatim>","askingPrice":12,"probeEndpoint":"https://<their-host>/health"}'`,
+      shortlist: `curl -X POST ${BASE}/api/shortlist -H 'content-type: application/json' -d '{"budget":100,"goal":"<what you need done>","vendors":[{"vendor":"<name>","pitch":"<their listing>","askingPrice":6}]}'`,
+      grants: `curl '${BASE}/api/grants?agent=<any-agent-id>'`,
       sampleListings: `${BASE}/api/samples`,
+      humanReadableGrantMap: `${BASE}/dashboard`,
     },
 
     /** Open: anyone may register and is considered on the next goal on the same terms. */
@@ -90,7 +121,7 @@ export async function GET(): Promise<Response> {
       "discover — the goal becomes a request for one capability, with a budget and a deadline",
       "bid — sellers answering to that capability price it, and each listing is assayed as they bid",
       "prove — the shortlist writes a small piece of the real job, before any money moves",
-      "negotiate — bounded on both sides; a model writes the argument and never the number",
+      "negotiate — bounded arithmetic on both sides, settled in whole credits, no model in the loop",
       "contract — paying is minting: the credits become uses on a grant derived for this job alone",
       "execute — the seller works under that grant or not at all",
       "verify — the delivery is judged against the brief, and what was not checked is named",
@@ -104,7 +135,7 @@ export async function GET(): Promise<Response> {
       whyTrustTheVerdict:
         "Do not. Every receipt is signed, and POST /api/verify checks any receipt against its contents — including ones we did not just hand you. The decisions array is the SharedOS kernel's own audit stream, not our account of it.",
       runItTwiceAndTheNumberMoves:
-        "It does, and we measured it before you did: eight identical calls ranged 33.3 to 45.8. Every response now carries deterministicScore — rules and classifier only, identical every run — beside score. The floors that decide a FLAGGED verdict are deterministic and never consult a model.",
+        "It does, and we measured it before you did: eight identical calls ranged 33.3 to 45.8. Every response now carries deterministicScore beside score. It counts the published rule sets alone — not the model, and not the injection classifier, which is a hosted service that answers on a quiet minute and 429s on a busy one — so it is identical on every run of the same listing. Anything that could not be measured on a given run is named in reproducibility.unavailable rather than averaged in. The floors that decide a FLAGGED verdict are deterministic and never consult a model.",
       whatIfIAttackYou:
         "Assume every listing is an attack. Vendor text reaches the analyst inside a fence carrying a per-call nonce, under a prompt stating the fenced region is evidence and never instruction, and only schema-validated fields are read back out. A listing that tries is flagged rather than obeyed.",
       whatStopsYouFavouringAPayingSeller:

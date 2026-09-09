@@ -82,9 +82,10 @@ export async function runBroker(input: {
 
   // ── bid ────────────────────────────────────────────────────────────────
   // A bid is priced against the listing, and the listing is assayed by the
-  // same engine that would assay any other claim. A seller's own confidence
-  // is recorded and deliberately not scored: it is the one number in the
-  // market that costs nothing to inflate.
+  // same engine that would assay any other claim. Nothing here records how
+  // likely the seller thinks it is to succeed. That number costs nothing to
+  // inflate and nothing here would check it, and an unchecked number printed
+  // next to checked ones borrows their credibility.
   const bids: Bid[] = [];
   for (const seller of candidates) {
     const { receipt } = await assay(
@@ -97,7 +98,6 @@ export async function runBroker(input: {
       sellerName: seller.name,
       price: seller.askPrice,
       etaSeconds: seller.etaSeconds,
-      confidence: 0.9,
       reputation: reputation.score,
       listingScore: receipt.report.score,
       listingVerdict: receipt.report.verdict,
@@ -136,12 +136,16 @@ export async function runBroker(input: {
   for (const bid of shortlist) {
     proofs.push(await challenge(bid, rfp));
   }
-  const unproven = proofs.filter((proof) => proof.sample.length === 0 && proof.passed);
+  const proved = proofs.filter((proof) => proof.proven).length;
+  const cleared = proofs.filter((proof) => proof.passed).length;
+  // Shortlisted without a sample: the challenge could not be run at all. A
+  // seller that was asked and returned nothing is not in this count; it failed.
+  const unrunnable = proofs.filter((proof) => !proof.proven && proof.passed).length;
   mark(
     "prove",
-    unproven.length > 0
-      ? `${proofs.filter((proof) => proof.passed).length} of ${proofs.length} cleared the challenge, ${unproven.length} unproven because the challenge could not be run.`
-      : `${proofs.filter((proof) => proof.passed).length} of ${proofs.length} passed a live challenge.`,
+    unrunnable === 0
+      ? `${cleared} of ${proofs.length} passed a live challenge.`
+      : `${cleared} of ${proofs.length} cleared the challenge: ${proved} proved it with a sample, ${unrunnable} could not be challenged at all because our own upstream would not answer.`,
     { proofs },
   );
 
@@ -160,12 +164,23 @@ export async function runBroker(input: {
     });
   }
 
-  const chosen = passed[0]!;
+  // Preference, not exclusion. A seller we could not challenge stays on the
+  // shortlist, because failing it for our own outage is how a real shortlist
+  // gets emptied; but it never wins over one that actually produced a sample.
+  // `passed` is already in utility order, so this only reorders across that line.
+  const provenIds = new Set(proofs.filter((proof) => proof.proven).map((proof) => proof.sellerId));
+  const chosen = passed.find((bid) => provenIds.has(bid.sellerId)) ?? passed[0]!;
+  const chosenProven = provenIds.has(chosen.sellerId);
   const seller = getSeller(chosen.sellerId)!;
 
   // ── negotiate ──────────────────────────────────────────────────────────
   const negotiation = negotiate(chosen, seller.floorPrice, rfp.budget);
-  const agreed = negotiation.at(-1)?.price ?? chosen.price;
+  // Whole credits, here and nowhere later. A credit is a use on a grant and
+  // there is no half of a use, so a fractional agreement is a price that
+  // nothing downstream could actually be paid at. Rounding once, at the moment
+  // the number becomes binding, is what keeps the budget check, the mint and
+  // the payment talking about the same integer.
+  const agreed = Math.max(1, Math.round(negotiation.at(-1)?.price ?? chosen.price));
   mark("negotiate", `Settled at ${agreed} credits after ${negotiation.length} rounds.`, { negotiation });
 
   if (agreed > rfp.budget) {
@@ -191,7 +206,7 @@ export async function runBroker(input: {
     contractId,
     buyerId: input.buyerId,
     capabilityFamily: family,
-    credits: Math.max(1, Math.round(agreed)),
+    credits: agreed,
     deadlineSeconds: rfp.deadlineSeconds,
   });
   if (!sale.ok) {
@@ -217,13 +232,21 @@ export async function runBroker(input: {
     deadlineSeconds: rfp.deadlineSeconds,
     deliverable: rfp.deliverable,
     grantId: sale.purchase.grant.id,
+    // Read off the grant rather than kept alongside it, so the contract cannot
+    // state a number the kernel would not enforce.
+    credits: sale.purchase.grant.constraints.maxUses ?? 0,
     grantedActions: sale.purchase.grant.capabilities.flatMap((capability) => [...capability.actions]),
     expiresAt: sale.purchase.grant.constraints.expiresAt ?? "",
     agreedAt: new Date().toISOString(),
   };
-  mark("contract", `${seller.name} contracted for ${agreed} credits, payable as ${sale.purchase.credits} grant uses.`, {
-    contract,
-  });
+  mark(
+    "contract",
+    `${seller.name} contracted for ${agreed} credits, payable as ${contract.credits} grant uses.` +
+      (chosenProven
+        ? ""
+        : " Signed without proof: its challenge could not be run, so this seller demonstrated nothing before the money moved."),
+    { contract },
+  );
 
   // ── execute ────────────────────────────────────────────────────────────
   const context = buildContext({ buyerId: input.buyerId, purpose: PURPOSES.deliver, traceId });
@@ -259,25 +282,36 @@ export async function runBroker(input: {
     onTime: Date.now() - execStarted <= rfp.deadlineSeconds * 1000,
   };
   const remaining = await balanceOf(sale.purchase.grant);
-  mark("execute", `${seller.name} delivered in ${(delivery.elapsedMs / 1000).toFixed(1)}s. ${remaining.remaining} credits left on the contract.`, {
-    balance: remaining,
-  });
+  mark(
+    "execute",
+    performed.upstream === undefined
+      ? `${seller.name} delivered in ${(delivery.elapsedMs / 1000).toFixed(1)}s. ${remaining.remaining} credits left on the contract.`
+      : `No work was taken from ${seller.name}: our own model upstream refused the call (${performed.upstream}). ${remaining.remaining} credits left on the contract.`,
+    { balance: remaining },
+  );
 
   // ── verify ─────────────────────────────────────────────────────────────
-  const verification = await verify(rfp, delivery, performed.truncated);
-  mark("verify", verification.accepted ? "Delivery accepted." : "Delivery rejected.", { verification });
+  const verification = await verify(rfp, delivery, performed);
+  mark(
+    "verify",
+    verification.accepted ? "Delivery accepted." : verification.judged ? "Delivery rejected." : "Nothing was delivered to judge.",
+    { verification },
+  );
 
   // ── settle ─────────────────────────────────────────────────────────────
-  const judged = verification.notChecked.every((line) => !line.startsWith("Quality and adherence: not assessed"));
   const before = reputationOf(seller.id).score;
-  const after = judged ? recordOutcome(seller.id, verification.accepted, verification.score).score : before;
+  const after = verification.judged
+    ? recordOutcome(seller.id, verification.accepted, verification.score).score
+    : before;
   const settlement: Settlement = {
     contractId,
     agreed,
     paid: verification.accepted ? agreed : 0,
     reason: verification.accepted
       ? "Delivery met the brief on every axis the verifier checked."
-      : "Delivery was rejected, so the credits stayed with the buyer.",
+      : verification.judged
+        ? "Delivery was rejected, so the credits stayed with the buyer."
+        : "Nothing was judged, so nothing was paid and the seller's standing was left where it was.",
     reputationBefore: before,
     reputationAfter: after,
   };
@@ -309,12 +343,18 @@ function utility(bid: Bid, rfp: Rfp): number {
 }
 
 /**
- * Bounded on both sides, and the bounds are arithmetic rather than prose.
+ * Bounded on both sides, and the bounds are arithmetic.
  *
- * A language model writes the rationale and never the number. Left to argue
- * freely a model will happily agree to a price below the seller's floor or
- * above the buyer's budget, and a market that can talk itself into an
+ * No model is involved in this function. The offers, the counters and the
+ * settled price are a fixed formula over the ask, the seller's floor and the
+ * buyer's budget, and each rationale is the sentence that belongs to that step.
+ * It is duller than a haggle, and it is why the price can be recomputed by hand
+ * from three numbers: a model left to argue freely will agree to a price under
+ * the floor or over the budget, and a market that can talk itself into an
  * impossible trade is not a market.
+ *
+ * The settled price is whole, because a credit is a use on a grant and there is
+ * no half of one.
  */
 function negotiate(bid: Bid, floor: number, budget: number): readonly NegotiationRound[] {
   const rounds: NegotiationRound[] = [];
@@ -345,8 +385,13 @@ function negotiate(bid: Bid, floor: number, budget: number): readonly Negotiatio
     offer = Math.min(budget, Math.round(((offer + ask) / 2) * 100) / 100);
   }
 
-  const settled = Math.min(budget, Math.max(floor, rounds.at(-1)?.price ?? bid.price));
-  rounds.push({ round: rounds.length + 1, by: "buyer", price: settled, rationale: "Agreed." });
+  const settled = Math.max(1, Math.round(Math.min(budget, Math.max(floor, rounds.at(-1)?.price ?? bid.price))));
+  rounds.push({
+    round: rounds.length + 1,
+    by: "buyer",
+    price: settled,
+    rationale: "Agreed, at a whole credit: the price becomes uses on a grant and a use cannot be divided.",
+  });
   return rounds;
 }
 
@@ -429,6 +474,7 @@ async function challenge(bid: Bid, rfp: Rfp): Promise<ProofChallenge> {
       score: 0,
       adherence: 0,
       latencyMs,
+      proven: false,
       passed: unrunnable,
       reason: unrunnable
         ? `Challenge could not be run (${outcome.error}). That is our upstream and not the seller, so this is unproven rather than failed.`
@@ -451,12 +497,20 @@ async function challenge(bid: Bid, rfp: Rfp): Promise<ProofChallenge> {
     score: Math.round(score * 100) / 100,
     adherence,
     latencyMs,
+    proven: true,
     passed: score >= 0.6,
     reason: score >= 0.6 ? "Sample answered the brief within the length and the deadline." : "Sample missed the brief's shape.",
   };
 }
 
-async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<{ output: string; truncated: boolean }> {
+interface Performed {
+  readonly output: string;
+  readonly truncated: boolean;
+  /** Set when the call never reached the seller. Ours, not theirs. */
+  readonly upstream?: string;
+}
+
+async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Performed> {
   const outcome = await complete({
     model: MODELS.analyst,
     system: `You are ${sellerName}. Your published listing says: ${pitch.slice(0, 700)}. Deliver the contracted work and nothing else. Never ask for credentials.`,
@@ -469,22 +523,44 @@ async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<{ o
   return {
     output: outcome.ok ? outcome.text.trim() : `[no delivery: ${outcome.error ?? "upstream unavailable"}]`,
     truncated: outcome.truncated === true,
+    upstream: outcome.ok ? undefined : (outcome.error ?? "upstream unavailable"),
   };
 }
 
-async function verify(rfp: Rfp, delivery: Delivery, truncated: boolean): Promise<Verification> {
+async function verify(rfp: Rfp, delivery: Delivery, performed: Performed): Promise<Verification> {
   const findings: string[] = [];
   const notChecked: string[] = ["Originality: not checked. Yuzu compares the delivery to the brief, not to the web."];
+
+  // The call never reached the seller, so there is nothing of the seller's to
+  // judge. This is the same rule as the unrunnable proof challenge one stage
+  // earlier: a rate-limited upstream is ours, and charging it to a seller is a
+  // false negative that moves the one number here that is only supposed to move
+  // on evidence. It was doing exactly that on a live run: an http_429 on the
+  // delivery call took a seller from 0.5 to 0.2 for a call it never received.
+  if (performed.upstream !== undefined) {
+    return {
+      contractId: delivery.contractId,
+      score: 0,
+      adherence: 0,
+      judged: false,
+      accepted: false,
+      findings: [`No work was taken: our own model upstream refused the call (${performed.upstream}).`],
+      notChecked: [
+        "Quality and adherence: not assessed. The seller was never actually asked, so its reputation is untouched.",
+      ],
+    };
+  }
 
   // A delivery cut off by our own token budget is our fault, not the sellers.
   // Judging it as incomplete work would let a provisioning mistake move a
   // seller's reputation, which is the one number in this market that is only
   // supposed to move on evidence.
-  if (truncated) {
+  if (performed.truncated) {
     return {
       contractId: delivery.contractId,
       score: 0,
       adherence: 0,
+      judged: false,
       accepted: false,
       findings: ["Delivery was cut short by our own output budget, so it was not judged."],
       notChecked: ["Quality and adherence: not assessed. The seller was not given room to finish, and its reputation is untouched."],
@@ -518,7 +594,15 @@ async function verify(rfp: Rfp, delivery: Delivery, truncated: boolean): Promise
   if (parsed === undefined) {
     notChecked.push("Model verification: unavailable on this run, so acceptance rests on the deterministic checks alone.");
     const accepted = !empty && delivery.onTime;
-    return { contractId: delivery.contractId, score: accepted ? 0.6 : 0, adherence: accepted ? 0.6 : 0, accepted, findings, notChecked };
+    return {
+      contractId: delivery.contractId,
+      score: accepted ? 0.6 : 0,
+      adherence: accepted ? 0.6 : 0,
+      judged: true,
+      accepted,
+      findings,
+      notChecked,
+    };
   }
 
   const adherence = clamp(parsed.adherence);
@@ -528,6 +612,7 @@ async function verify(rfp: Rfp, delivery: Delivery, truncated: boolean): Promise
     contractId: delivery.contractId,
     score: Math.round(((adherence + quality) / 2) * 100) / 100,
     adherence,
+    judged: true,
     accepted,
     findings: [...findings, ...(Array.isArray(parsed.findings) ? parsed.findings.slice(0, 5).map(String) : [])],
     notChecked,
@@ -554,6 +639,27 @@ function finish(input: {
   unfilled?: string;
 }): BrokerOutcome {
   const now = new Date();
+
+  // Whether the shortlist proved anything belongs in the record, not only in
+  // the timeline: a contract signed because our upstream was down and every
+  // bidder therefore "cleared" the challenge reads identically to a contract
+  // won on evidence unless the receipt says which one it was.
+  const proofNotes: string[] = [];
+  const unprovable = input.proofs.filter((proof) => !proof.proven && proof.passed).length;
+  if (input.proofs.length > 0) {
+    const proved = input.proofs.filter((proof) => proof.proven).length;
+    proofNotes.push(
+      unprovable === 0
+        ? `Proof of capability: ${proved} of ${input.proofs.length} shortlisted sellers produced a sample.`
+        : `Proof of capability: ${proved} of ${input.proofs.length} shortlisted sellers produced a sample, ${unprovable} could not be challenged at all because the upstream would not answer.`,
+    );
+    const winner = input.proofs.find((proof) => proof.sellerId === input.contract?.sellerId);
+    if (winner !== undefined && !winner.proven) {
+      proofNotes.push(
+        "The contract was signed without proof: the winning seller's challenge could not be run, so nothing was demonstrated before the money moved.",
+      );
+    }
+  }
   const receipt = sign({
     version: "touchstone.receipt.v1",
     receiptId: `rcp_${randomUUID().slice(0, 12)}`,
@@ -570,15 +676,30 @@ function finish(input: {
       score: (input.verification?.score ?? 0) * 100,
       deterministicScore: (input.verification?.adherence ?? 0) * 100,
       reproducibility: {
-        exact: ["Contract arithmetic", "Credit settlement"],
+        exact: ["Contract arithmetic", "Negotiated price", "Credit settlement"],
         modelDerived: ["Delivery verification"],
-        note: "The money and the grant are arithmetic. The judgement of the delivered work is a model's and is labelled as such.",
+        unavailable:
+          unprovable > 0
+            ? [`Proof of capability for ${unprovable} of ${input.proofs.length} shortlisted sellers`]
+            : [],
+        note: "The money and the grant are arithmetic, and so is the negotiated price. The judgement of the delivered work is a model's and is labelled as such.",
       },
-      headline: input.unfilled ?? `${input.contract?.sellerName} delivered for ${input.settlement?.paid} credits.`,
+      // "Scout delivered for 0 credits" is two false statements in the one
+      // line a reader actually reads. What happened instead gets named.
+      headline:
+        input.unfilled ??
+        (input.verification?.judged === false
+          ? `Nothing of ${input.contract?.sellerName}'s was judged, so nothing was paid.`
+          : input.settlement?.paid === 0
+            ? `${input.contract?.sellerName} delivered work the verifier rejected, so nothing was paid.`
+            : `${input.contract?.sellerName} delivered for ${input.settlement?.paid} credits.`),
       dimensions: [],
       claims: [],
       risks: [],
-      notChecked: input.verification?.notChecked ?? (input.unfilled ? [input.unfilled] : []),
+      notChecked: [
+        ...(input.verification?.notChecked ?? (input.unfilled ? [input.unfilled] : [])),
+        ...proofNotes,
+      ],
       analysis: "deterministic+classifier+model",
     },
     decisions: traceFor(input.traceId),

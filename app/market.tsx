@@ -285,6 +285,12 @@ function Outcome({ result }: { result: Result }) {
       <p className="muted" style={{ marginTop: "1rem", fontFamily: "var(--mono)", fontSize: "0.68rem" }}>
         {result.meta?.elapsedMs}ms · receipt {result.receipt?.receiptId} · {result.receipt?.signature.value.slice(0, 18)}…
       </p>
+
+      {/* The deal is over and its grant has already been withdrawn, which is
+          the correct lifetime. The floor is where the record of it lives. */}
+      <p style={{ marginTop: "0.5rem", fontSize: "0.82rem" }}>
+        <a href="/dashboard">See the grant this minted on the floor →</a>
+      </p>
     </div>
   );
 }

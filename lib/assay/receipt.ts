@@ -66,7 +66,31 @@ export interface Receipt {
   readonly signature: { alg: "HMAC-SHA256"; value: string };
 }
 
-const KEY = () => process.env.TOUCHSTONE_SIGNING_KEY ?? "touchstone-development-key-not-for-production";
+/**
+ * A default signing key is a forged receipt waiting to happen.
+ *
+ * This repository is public, so a committed fallback is not a fallback — it is
+ * the key, published, for anyone who deploys without setting the real one. The
+ * same key seals escalation tickets, and an approved ticket mints a grant from
+ * the path and action the ticket names, so one missing environment variable
+ * would turn a forgeable string into arbitrary authority.
+ *
+ * In production a missing key is therefore fatal at the point of use rather
+ * than silently substituted. Locally it falls back to a key whose own name says
+ * it is worthless, so tests and `npm run dev` still run.
+ */
+const DEV_KEY = "INSECURE-DEV-ONLY-touchstone-key-do-not-deploy";
+
+export function signingKey(): string {
+  const configured = process.env.TOUCHSTONE_SIGNING_KEY;
+  if (configured !== undefined && configured.length > 0) return configured;
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL === "1") {
+    throw new Error(
+      "TOUCHSTONE_SIGNING_KEY is not set. Refusing to sign or verify with the public development key.",
+    );
+  }
+  return DEV_KEY;
+}
 
 /**
  * Canonical JSON: keys sorted at every depth, arrays left in order.
@@ -89,7 +113,7 @@ function canonical(value: unknown): string {
 }
 
 export function sign(receipt: Omit<Receipt, "signature">): Receipt {
-  const value = createHmac("sha256", KEY()).update(canonical(receipt)).digest("hex");
+  const value = createHmac("sha256", signingKey()).update(canonical(receipt)).digest("hex");
   return { ...receipt, signature: { alg: "HMAC-SHA256", value } };
 }
 
@@ -106,7 +130,7 @@ export function verify(candidate: unknown): VerifyResult {
   if (typeof receipt.signature?.value !== "string") return { valid: false, reason: "missing_signature" };
 
   const { signature, ...unsigned } = receipt;
-  const expected = createHmac("sha256", KEY()).update(canonical(unsigned)).digest("hex");
+  const expected = createHmac("sha256", signingKey()).update(canonical(unsigned)).digest("hex");
   const left = Buffer.from(expected, "hex");
   const right = Buffer.from(signature.value, "hex");
   if (left.length !== right.length || !timingSafeEqual(left, right)) {

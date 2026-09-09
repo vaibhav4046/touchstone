@@ -50,12 +50,26 @@ and hand the work back with a receipt of who was allowed to touch what.
 | Name | Endpoint | Input | Output | Price |
 |---|---|---|---|---|
 | `broker` | `POST https://yuzu-market.vercel.app/api/broker` | `{goal, budget, capability?}` — or the sentence as `text/plain` | Bids with each listing assayed, proof samples, the negotiation, the contract and the grant that paid for it, the work, the verification, a signed receipt | **12 arena credits** |
-| `assay` | `POST https://yuzu-market.vercel.app/api/assay` | `{vendor, pitch, askingPrice?, transcript?}` | A verdict on one listing, every finding quoting the sentence that produced it, plus `deterministicScore` | **3 · first call per buyer free** |
+| `assay` | `POST https://yuzu-market.vercel.app/api/assay` | `{vendor, pitch, askingPrice?, transcript?, probeEndpoint?}` | A verdict on one listing, every finding quoting the sentence that produced it, plus `deterministicScore`. `probeEndpoint` is the path that reaches a third party, gets denied, and is answered from precedent | **3 · first call per buyer free** |
+| `shortlist` | `POST https://yuzu-market.vercel.app/api/shortlist` | `{budget, goal?, vendors[]}` — up to 12 listings | A ranked buy plan with a per-vendor allocation and one signed receipt per vendor | **10 arena credits** |
 | `verify` | `POST https://yuzu-market.vercel.app/api/verify` | Any Yuzu receipt | Whether its signature still matches its contents | **Free** |
 
-**Delivery:** broker median ~25 s, assay ~3 s. Well inside the five-minute cap.
+**Delivery:** broker median ~25 s, assay ~3 s, shortlist ~12 s. Well inside the five-minute cap.
 
 Machine-readable manifest: `GET /api/manifest`. Sample listings: `GET /api/samples`.
+
+## Environment
+
+Names only; the template is `.env.example` and holds no values.
+
+| Variable | Required | What breaks without it |
+|---|---|---|
+| `TOUCHSTONE_SIGNING_KEY` | **Yes, in production** | HMAC key for receipt signatures and escalation tickets. In production a missing key is a hard failure at the point of use — signing and verifying refuse rather than fall back to the development key, which is public in this repository. Locally it falls back so `npm test` and `npm run dev` run unconfigured. |
+| `TOUCHSTONE_OPERATOR_KEY` | Only to decide escalations | Operator secret for `POST /api/escalations`, sent as `x-operator-key` and compared in constant time. The escalation ticket id is handed to the party that asked for the probe, so without a separate credential the "human decision" would be a curl the requester makes on its own request. **Unset means the approve path refuses**, and pending escalations expire on their own. |
+| `GROQ_API_KEY` | No | Claim analysis and the prompt-injection classifier. Without it the rule dimensions still run and the receipt names what did not; `deterministicScore` is unchanged either way. |
+| `GEMINI_API_KEY` | No | Second supplier for analyst calls when Groq is rate-limited. The classifier has no substitute. |
+| `SHAREDOS_KEY` | No | Ships kernel decisions to SharedOS Cloud. The audit stays local without it. |
+| `TOUCHSTONE_BASE_URL` | No | The base URL advertised in `/api/manifest`. Defaults to `https://yuzu-market.vercel.app`. |
 
 ## SharedOS purpose strings
 

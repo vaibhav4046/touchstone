@@ -132,6 +132,9 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
       const requirement = { path: probePath, action: "probe" };
       const probe = await callTool(context, "assay.probe_vendor", probeArgs, requirement);
 
+      const firstProbe = probeDimension(options.probeEndpoint, probe.result);
+      if (firstProbe !== undefined) dimensions.push(firstProbe);
+
       if (probe.denied !== undefined) {
         // Authority the order grant does not carry. Ask the record before
         // asking a person: the owner answered this question in front of the
@@ -173,6 +176,8 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
             // assay purpose, so the retry states the purpose it is for.
             const probeContext = buildContext({ buyerId: input.buyerId, purpose: PURPOSES.probe, traceId });
             const retried = await callTool(probeContext, "assay.probe_vendor", probeArgs, requirement);
+            const retriedProbe = probeDimension(options.probeEndpoint, retried.result);
+            if (retriedProbe !== undefined) dimensions.push(retriedProbe);
             if (retried.denied !== undefined) {
               notChecked.push(
                 `Live behaviour of ${options.probeEndpoint}: not probed. The owner's record allowed it, but the call was still refused (${retried.denied.reasonCode}).`,
@@ -221,8 +226,24 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
 
     const modelDerived = dimensions.filter((d) => d.method === "model" && d.weight > 0).map((d) => d.label);
     const exact = dimensions
-      .filter((d) => d.method !== "model" && d.method !== "not-run" && d.weight > 0)
+      .filter((d) => d.method !== "model" && d.method !== "measured" && d.method !== "not-run" && d.weight > 0)
       .map((d) => d.label);
+
+    // Named, not averaged in. A measurement that could not be taken is the one
+    // thing a reproducible number must not quietly absorb.
+    const unavailable: string[] = [
+      // Two disjoint ways to go missing: the tool call was refused, so there is
+      // no dimension at all; or it ran and the thing it needed did not answer.
+      ...unrun,
+      ...dimensions.filter((d) => d.method === "not-run").map((d) => `${d.label}: did not run`),
+      ...(steeringDimension !== undefined && steeringDimension.method !== "classifier"
+        ? ["Steering resistance: injection classifier unavailable, so deterministicScore counts its rule set alone"]
+        : []),
+      // Only when no dimension is there to say it: an analyst that ran and
+      // failed already appears above as `not-run`, and saying it twice reads
+      // like two separate gaps.
+      ...(analyst === undefined ? ["Claim analysis: not run on this call"] : []),
+    ];
 
     const report: AssayReport = {
       vendor: input.vendor,
@@ -233,10 +254,9 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
       reproducibility: {
         exact,
         modelDerived,
+        unavailable,
         note:
-          modelDerived.length === 0
-            ? "Every dimension in this report is reproducible: the same listing yields the same score."
-            : "deterministicScore covers the rules and the classifier and is exactly reproducible. score also includes the model's claim analysis, which may shift between runs. The verdict floors — steering and credential requests — are deterministic and do not depend on the model.",
+          "deterministicScore covers the published rule sets only, so it is identical on every run of the same listing — including a run where the injection classifier or the model was rate-limited. score also includes whatever else answered this time, which is why the two numbers differ. The verdict floors — steering and credential requests — are deterministic and never depend on the model.",
       },
       headline: reason ?? analyst?.headline ?? defaultHeadline(verdict, score, dimensions),
       dimensions,
@@ -284,6 +304,71 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
     closeOrder(orderId);
     withdrawGrant(grant.id);
   }
+}
+
+interface ProbeOutput {
+  readonly reachable: boolean;
+  readonly status?: number;
+  readonly latencyMs?: number;
+  readonly contentType?: string | null;
+  readonly error?: string;
+}
+
+/**
+ * A probe that worked is evidence, and evidence belongs in the report.
+ *
+ * The probe result used to be read only for whether it was denied, so the one
+ * path in this system that actually touches the vendor left no trace when it
+ * succeeded — a buyer who paid for a live check got a receipt that never
+ * mentioned it. It lands in `dimensions` at weight 0 on purpose: probing needs
+ * authority the assay itself does not carry, and a listing must not score
+ * better for having been reachable than an identical listing nobody probed.
+ */
+export function probeDimension(
+  endpoint: string,
+  result: { status: string; output?: unknown } | undefined,
+): DimensionResult | undefined {
+  const output = outputOf<ProbeOutput>(result);
+  if (output === undefined) return undefined;
+
+  const latency = output.latencyMs === undefined ? "unknown" : `${output.latencyMs}ms`;
+  if (!output.reachable) {
+    return {
+      id: "probe",
+      label: "Live endpoint",
+      score: 0,
+      weight: 0,
+      method: "measured",
+      summary: `${endpoint} did not answer (${output.error ?? "unknown"}) after ${latency}.`,
+      findings: [
+        {
+          code: "PROBE_UNREACHABLE",
+          severity: "medium",
+          statement: `The endpoint the vendor gave, ${endpoint}, did not answer when called (${output.error ?? "unknown"}).`,
+        },
+      ],
+    };
+  }
+
+  const contentType = output.contentType ?? undefined;
+  return {
+    id: "probe",
+    label: "Live endpoint",
+    score: output.status !== undefined && output.status >= 500 ? 0 : 1,
+    weight: 0,
+    method: "measured",
+    summary: `${endpoint} answered ${output.status ?? "?"} in ${latency}${contentType === undefined ? "" : ` (${contentType})`}.`,
+    findings:
+      output.status !== undefined && output.status >= 500
+        ? [
+            {
+              code: "PROBE_SERVER_ERROR",
+              severity: "medium",
+              statement: `${endpoint} answered ${output.status}. The endpoint is reachable but was failing when checked.`,
+            },
+          ]
+        : [],
+  };
 }
 
 function outputOf<T>(result: { status: string; output?: unknown } | undefined): T | undefined {

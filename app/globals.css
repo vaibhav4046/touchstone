@@ -121,7 +121,9 @@ h1, h2, h3 {
      sky behind white type is noise rather than a background. The blur is small
      enough that the pixels are still legibly pixels. */
   image-rendering: pixelated;
-  filter: blur(2.5px) saturate(1.05);
+  /* the blur is baked into the plate now: a full-screen CSS filter re-runs
+     every frame and that was the judder. */
+  filter: saturate(1.05);
   transform: scale(1.03);
   will-change: opacity;
 }
@@ -536,7 +538,8 @@ blockquote {
 .stagecard img {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  /* the source plates are 960x536; anything else crops the lettering off */
+  aspect-ratio: 960 / 536;
   object-fit: cover;
   /* nearest-neighbour so the pixels stay pixels at any scale */
   image-rendering: pixelated;
@@ -671,3 +674,124 @@ blockquote {
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-new(root) { animation: none; }
 }
+
+/* ═══════════════════════  the floor (dashboard)  ═══════════════════════
+   Same tokens as the landing page, so night mode needs nothing extra here:
+   every colour below resolves through a variable that is already redefined
+   under [data-theme="night"]. A second palette is a second thing to keep in
+   sync, and it always loses. */
+
+.stage-flat { background: var(--parchment); min-height: 100vh; }
+
+.stage-flat .deck {
+  padding: 8.5rem 0 2.5rem;
+  border-bottom: 1px solid var(--hairline);
+  background:
+    radial-gradient(120% 90% at 12% 0%, color-mix(in oklab, var(--yuzu) 13%, transparent), transparent 62%),
+    var(--parchment);
+}
+.stage-flat .deck-title { font-family: var(--serif); font-size: clamp(2.3rem, 1.2rem + 3.4vw, 4rem); line-height: 1.02; letter-spacing: -0.022em; font-weight: 400; margin: 0.5rem 0 0.9rem; color: var(--ink); }
+.stage-flat .deck-title em { font-style: italic; color: var(--violet-deep); }
+.stage-flat .deck-lede { max-width: 62ch; font-size: 1.02rem; line-height: 1.62; color: var(--ink-2); margin: 0 0 1.4rem; }
+.stage-flat .deck-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.stage-flat .deck-body { padding: 2.5rem 0 5rem; display: grid; gap: 1.1rem; }
+
+.stage-flat .chip {
+  display: inline-flex; align-items: baseline; gap: 0.4rem;
+  font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.01em;
+  padding: 0.34rem 0.66rem; border-radius: var(--r-pill);
+  background: var(--linen); color: var(--ink-2); border: 1px solid var(--hairline);
+}
+.stage-flat .chip b { color: var(--ink); font-weight: 600; }
+.stage-flat .chip-link { text-decoration: none; transition: background 200ms var(--ease), border-color 200ms var(--ease); }
+.stage-flat .chip-link:hover { background: color-mix(in oklab, var(--yuzu) 22%, var(--linen)); border-color: var(--yuzu); }
+
+.stage-flat .panel {
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-large);
+  padding: 1.5rem 1.5rem 1.7rem;
+  box-shadow: var(--lift);
+}
+.stage-flat .panel-head { margin-bottom: 1.15rem; }
+.stage-flat .panel-head h2 { font-family: var(--serif); font-size: 1.6rem; font-weight: 400; letter-spacing: -0.012em; margin: 0 0 0.4rem; color: var(--ink); }
+.stage-flat .panel-head p { margin: 0; max-width: 74ch; font-size: 0.92rem; line-height: 1.6; color: var(--ink-2); }
+
+.stage-flat .panel code, .stage-flat .stream code { font-family: var(--mono); font-size: 0.78rem; }
+.stage-flat .muted { color: var(--ink-3); }
+.stage-flat .small { font-size: 0.78rem; }
+.stage-flat .empty {
+  margin: 0; padding: 1rem 1.1rem; border-radius: var(--r-card);
+  background: var(--linen); border: 1px dashed var(--hairline);
+  font-size: 0.88rem; line-height: 1.6; color: var(--ink-2); max-width: 76ch;
+}
+
+/* Tables scroll inside themselves. The page body never scrolls sideways. */
+.stage-flat .ledger { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
+.stage-flat .ledger th {
+  text-align: left; font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase;
+  letter-spacing: 0.09em; color: var(--ink-3); font-weight: 600;
+  padding: 0 0.9rem 0.55rem 0; border-bottom: 1px solid var(--hairline); white-space: nowrap;
+}
+.stage-flat .ledger td { padding: 0.62rem 0.9rem 0.62rem 0; border-bottom: 1px solid var(--hairline-soft); font-size: 0.88rem; vertical-align: top; }
+.stage-flat .ledger tr:last-child td { border-bottom: 0; }
+
+.stage-flat .tag {
+  display: inline-block; margin: 0 0.3rem 0.2rem 0; padding: 0.1rem 0.42rem;
+  font-family: var(--mono); font-size: 0.7rem; border-radius: 4px;
+  background: color-mix(in oklab, var(--violet-deep) 14%, transparent);
+  color: var(--violet-deep); border: 1px solid color-mix(in oklab, var(--violet-deep) 26%, transparent);
+}
+.stage-flat .score { font-family: var(--mono); font-weight: 600; color: var(--ink); }
+
+.stage-flat .grantcards { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); }
+.stage-flat .grantcard { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 1rem 1.05rem; background: var(--linen); }
+.stage-flat .grantcard header { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; margin-bottom: 0.7rem; }
+.stage-flat .gid { font-weight: 600; color: var(--ink); }
+.stage-flat .caps { list-style: none; margin: 0 0 0.8rem; padding: 0; display: grid; gap: 0.45rem; }
+.stage-flat .caps li { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline; }
+
+.stage-flat .meter { height: 7px; border-radius: 999px; background: var(--hairline); overflow: hidden; margin-bottom: 0.45rem; }
+.stage-flat .meter span { display: block; height: 100%; background: linear-gradient(90deg, var(--yuzu), var(--yuzu-bright)); }
+.stage-flat .budget p { margin: 0; }
+
+.stage-flat .split { display: grid; gap: 1.6rem; }
+@media (min-width: 900px) { .stage-flat .split { grid-template-columns: 1fr 1fr; } }
+.stage-flat .sub { display: flex; align-items: center; gap: 0.5rem; font-family: var(--mono); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--ink-3); margin: 0 0 0.8rem; font-weight: 600; }
+.dot-yes { background: #3f9d6d; }
+.dot-no { background: #c0503f; }
+
+.stage-flat .rules { list-style: none; margin: 0 0 0.9rem; padding: 0; display: grid; gap: 0.6rem; }
+.stage-flat .rules li { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline; padding: 0.6rem 0.75rem; border-radius: var(--r-card); background: var(--linen); border: 1px solid var(--hairline-soft); }
+.stage-flat .rules li b { font-size: 0.86rem; color: var(--ink); }
+.stage-flat .rules-wide li { display: grid; grid-template-columns: minmax(150px, auto) 1fr; gap: 0.75rem; align-items: baseline; }
+.stage-flat .rules-wide span { font-size: 0.88rem; line-height: 1.55; color: var(--ink-2); }
+
+.stage-flat .stream-state { display: flex; align-items: center; gap: 0.45rem; margin: 0 0 0.8rem; }
+.stage-flat .stream { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 26rem; overflow-y: auto; }
+.stage-flat .stream li {
+  display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: baseline;
+  padding: 0.42rem 0.7rem; border-radius: 5px; background: var(--linen);
+  border-left: 3px solid var(--hairline);
+}
+.stage-flat .stream li[data-outcome="allowed"] { border-left-color: #3f9d6d; }
+.stage-flat .stream li[data-outcome="denied"] { border-left-color: #c0503f; }
+.stage-flat .stream li[data-outcome="escalated"] { border-left-color: var(--yuzu); }
+.stage-flat .stream .verb { font-weight: 600; color: var(--ink); }
+.stage-flat .stream .res { color: var(--ink-2); }
+.stage-flat .stream .outcome { font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); margin-left: auto; }
+.stage-flat .lookup { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 1.1rem; }
+.stage-flat .lookup label { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--ink-3); }
+.stage-flat .lookup input {
+  font-family: var(--mono); font-size: 0.82rem; padding: 0.44rem 0.7rem; min-width: 15rem;
+  border-radius: var(--r-pill); border: 1px solid var(--hairline);
+  background: var(--paper); color: var(--ink);
+}
+.stage-flat .lookup input:focus-visible { outline: 2px solid var(--yuzu); outline-offset: 1px; border-color: var(--yuzu); }
+.stage-flat .lookup button {
+  font-family: var(--sans); font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  padding: 0.46rem 0.9rem; border-radius: var(--r-pill);
+  border: 1px solid var(--ink); background: var(--ink); color: var(--parchment);
+  transition: transform 180ms var(--ease), opacity 180ms var(--ease);
+}
+.stage-flat .lookup button:hover { transform: translateY(-1px); opacity: 0.9; }

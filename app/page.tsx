@@ -82,7 +82,7 @@ export default function Page() {
                 ["discover", "Discover", "The goal becomes a request for one capability, with a budget and a deadline attached."],
                 ["bid", "Bid", "Sellers who answer to that capability price it. Their listing is assayed as they bid."],
                 ["prove", "Prove", "The shortlist writes a small piece of the real job. A description is free; a sample is not."],
-                ["negotiate", "Negotiate", "Bounded on both sides. A model writes the argument and never the number."],
+                ["negotiate", "Negotiate", "Bounded on both sides by arithmetic, not by argument. Same ask, same floor, same budget, same price, every time."],
                 ["contract", "Contract", "Paying is minting: the credits become uses on a grant derived for this job alone."],
                 ["settle", "Settle", "Work that fails verification is not paid for, and the reputation moves accordingly."],
               ].map(([slug, title, body], index) => (
@@ -163,6 +163,7 @@ export default function Page() {
         <footer className="foot">
           <img src="/art/yuzu-mark.svg" alt="" width={22} height={22} />
           <span>Yuzu · built on the SharedOS kernel</span>
+          <a href="/dashboard">The floor</a>
           <a href="/api/manifest">Manifest</a>
           <a href="/api/broker">Broker</a>
           <a href="/api/assay">Assay</a>

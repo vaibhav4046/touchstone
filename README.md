@@ -9,7 +9,7 @@
 Plant a goal and a budget. Agents bid for it, are made to prove they can do it, settle on a price,
 and hand the work back — with a receipt of exactly who was allowed to touch what.
 
-[Live](https://yuzu-market.vercel.app) · [Manifest](https://yuzu-market.vercel.app/api/manifest) · [Samples](https://yuzu-market.vercel.app/api/samples)
+[Live](https://yuzu-market.vercel.app) · [The floor](https://yuzu-market.vercel.app/dashboard) · [Grant map](https://yuzu-market.vercel.app/api/grants) · [Manifest](https://yuzu-market.vercel.app/api/manifest)
 
 </div>
 
@@ -25,21 +25,35 @@ curl -X POST https://yuzu-market.vercel.app/api/broker \
 ```
 
 ```
-[discover]  copy.taglines within 20 credits
-[bid]       1 seller bid
-[prove]     1 of 1 cleared the challenge
-[negotiate] settled at 5.34 after 5 rounds
-[contract]  Quill, payable as 5 grant uses
-[execute]   delivered in 12.9s, 4 credits left
+[discover]  research.brief within 22 credits
+[bid]       2 sellers bid: Scout at 5, Ledger at 6
+[prove]     2 of 2 passed a live challenge
+[negotiate] settled at 4 credits after 5 rounds
+[contract]  Scout, 4 credits, payable as 4 grant uses
+[execute]   delivered, 3 credits left on the contract
 [verify]    accepted
-[settle]    5.34 of 5.34 paid. Quill: 0.5 -> 0.84
+[settle]    4 of 4 credits paid. Scout: 0.5 -> 0.96
 ```
+
+> Captured from real runs down to `[contract]`, and through `[execute]` for the credits left. The
+> accepted tail is the shape of the accepted path rather than a capture: both model upstreams are
+> rate-limited at the time of writing, so the runs that finish today land on
+> `0 of 4 credits paid` with `judged: false` and the seller's standing untouched — which is the
+> behaviour the section below is about. Nothing here is a benchmark and none of it is a promise.
+
+Four all the way down: the four the buyer agreed to, the four uses minted on the grant, and the four
+that settle. The price is made whole at the moment it becomes binding, because a credit is a use on
+a grant and there is no half of a use. It was not always: the broker minted `round(agreed)` uses and
+then settled at `agreed`, so a deal struck at 5.34 paid 5.34 against a five-use grant and printed
+both numbers as though they agreed. That is the exact disagreement the design exists to make
+impossible, and [`test/broker.test.ts`](test/broker.test.ts) now fails if it comes back.
 
 | Service | Price | Returns |
 |---|---|---|
 | `POST /api/broker` | 12 credits | The whole deal: bids, proofs, negotiation, contract, work, verification, receipt |
 | `POST /api/assay` | 3 · **first free** | A verdict on one listing, every finding quoting the sentence that produced it |
 | `POST /api/verify` | free | Whether a receipt's signature still matches its contents |
+| `GET /api/grants` | free | The grant map for one actor: reach, budgets, every grant that has existed, and the owner's allow/refuse table |
 
 ---
 
@@ -111,7 +125,8 @@ contract comes before execution, because a seller should never be working withou
 what it may touch.
 
 **Scoring is published and half of it is exactly reproducible.** Eight identical calls once ranged
-33.3 to 45.8, so every response now carries `deterministicScore` — rules and classifier only,
+33.3 to 45.8, so every response now carries `deterministicScore` — rules only, no model and no
+classifier,
 identical every run — beside `score`. The floors that decide a `FLAGGED` verdict are deterministic
 and never consult a model.
 
@@ -127,12 +142,15 @@ and never consult a model.
 | Analyst | `gpt-oss-120b` via Groq, falling through to Gemini 3.6 Flash |
 | Injection classifier | `llama-prompt-guard-2-86m` — no fallback, because it is a measurement rather than an opinion |
 | Storage | none — receipts and escalation tickets are self-contained and signed |
-| Tests | Vitest, 52 |
+| Tests | Vitest, 68 |
 
 **It degrades rather than fails.** With no model key the deterministic dimensions still run and the
 receipt names what did not. A rate-limited upstream is reported as *our* failure, never charged to a
-seller — that was a real bug: it emptied a shortlist and bought nothing, and later took a seller's
-reputation from 0.5 to 0.2 for a delivery our own token budget had truncated.
+seller — that was a real bug three times over: it emptied a shortlist and bought nothing, it took a
+seller's reputation from 0.5 to 0.2 for a delivery our own token budget had truncated, and it did
+the same again to a seller whose delivery call never left the building on a 429. A challenge we
+could not run leaves a seller shortlisted but *unproven*, and if an unproven seller then wins, the
+contract line and the receipt both say the deal was signed without proof.
 
 ---
 
@@ -142,7 +160,7 @@ reputation from 0.5 to 0.2 for a delivery our own token budget had truncated.
 npm install
 cp .env.example .env.local     # GROQ_API_KEY, GEMINI_API_KEY, TOUCHSTONE_SIGNING_KEY
 npm run dev                    # http://localhost:3021
-npm test                       # 52 tests
+npm test                       # 68 tests
 ```
 
 | Variable | Required | Purpose |

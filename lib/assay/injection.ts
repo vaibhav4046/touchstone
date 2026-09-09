@@ -88,6 +88,9 @@ export async function steeringResistance(input: AssayInput): Promise<DimensionRe
     id: "steering",
     label: "Steering resistance",
     score,
+    // The rules ran whatever the classifier did. That floor is the part of this
+    // dimension a critic can recompute on a day the classifier is throttled.
+    reproducibleScore: ruleFloor,
     weight: 0.25,
     method,
     summary,

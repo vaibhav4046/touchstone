@@ -70,8 +70,11 @@ export default function Chrome() {
         <b>Yuzu</b>
       </a>
       <div className="spacer" />
-      <a className="top-link hide-sm" href="#market">
+      <a className="top-link hide-sm" href="/#market">
         The market
+      </a>
+      <a className="top-link hide-sm" href="/dashboard">
+        The floor
       </a>
       <a className="top-link hide-sm" href="/api/manifest">
         Manifest
@@ -79,7 +82,7 @@ export default function Chrome() {
       <button className="theme-btn" onClick={flip} aria-label={`Switch to ${theme === "day" ? "night" : "day"}`}>
         {theme === "day" ? "NIGHT" : "DAY"}
       </button>
-      <a className="btn btn-solid" href="#market" style={{ padding: "0.45rem 0.9rem", fontSize: "0.84rem" }}>
+      <a className="btn btn-solid" href="/#market" style={{ padding: "0.45rem 0.9rem", fontSize: "0.84rem" }}>
         Plant a goal
       </a>
     </header>

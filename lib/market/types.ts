@@ -72,8 +72,6 @@ export interface Bid {
   readonly sellerName: string;
   readonly price: number;
   readonly etaSeconds: number;
-  /** The seller's own confidence. Treated as a claim, never as evidence. */
-  readonly confidence: number;
   readonly reputation: number;
   /** Assay of the seller's listing — the same engine that grades any other claim. */
   readonly listingScore: number;
@@ -85,10 +83,19 @@ export interface ProofChallenge {
   readonly sellerId: string;
   readonly prompt: string;
   readonly sample: string;
-  /** 0..1 from the verifier. This is evidence; `confidence` above is not. */
+  /** 0..1 from the verifier. Only means anything when `proven` is true. */
   readonly score: number;
   readonly adherence: number;
   readonly latencyMs: number;
+  /**
+   * A sample was obtained and judged.
+   *
+   * False when the challenge could not be run at all, which is a fact about our
+   * upstream rather than about the seller. Such a seller stays shortlisted
+   * (failing it for our outage empties real shortlists) but it has demonstrated
+   * nothing, and every line that follows has to keep saying so.
+   */
+  readonly proven: boolean;
   readonly passed: boolean;
   readonly reason: string;
 }
@@ -110,6 +117,8 @@ export interface Contract {
   readonly deliverable: string;
   /** The grant minted for this contract, and nothing wider. */
   readonly grantId: string;
+  /** Uses on that grant. The price and this number are the same integer. */
+  readonly credits: number;
   readonly grantedActions: readonly string[];
   readonly expiresAt: string;
   readonly agreedAt: string;
@@ -127,6 +136,11 @@ export interface Verification {
   /** 0..1 across the axes the verifier actually checked. */
   readonly score: number;
   readonly adherence: number;
+  /**
+   * The work was actually assessed. False when our own output budget cut the
+   * delivery short, in which case reputation must not move on it.
+   */
+  readonly judged: boolean;
   readonly accepted: boolean;
   readonly findings: readonly string[];
   readonly notChecked: readonly string[];

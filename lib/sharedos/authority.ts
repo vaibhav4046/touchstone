@@ -1,4 +1,4 @@
-import type { AccessContext, CapabilityGrant } from "@aicoo/sharedos";
+import type { AccessContext, Address, CapabilityGrant } from "@aicoo/sharedos";
 import type { DelegationChainResolver, GrantSource } from "@aicoo/sharedos";
 import { addressesEqual } from "@aicoo/sharedos";
 
@@ -25,12 +25,73 @@ declare global {
 
 const grants: Map<string, CapabilityGrant[]> = (globalThis.__touchstoneGrants ??= new Map());
 
+/**
+ * A grant that existed, after it has stopped existing.
+ *
+ * Authority is withdrawn the moment its order closes, which is the correct
+ * lifetime and also the reason a grant map read a minute later is empty. The
+ * permission is gone; the record of it should not be. This is the record: what
+ * was authorised, how much of the budget was actually spent, and how it ended.
+ *
+ * It is deliberately not authority. Nothing loads a grant from here, and
+ * `createGrantSource` never reads it -- a store the kernel consults and a store
+ * an auditor reads have different jobs and collapsing them is how a revoked
+ * permission comes back to life.
+ */
+export interface GrantRecord {
+  readonly id: string;
+  readonly subject: string;
+  readonly capabilities: readonly { resource: string; actions: readonly string[]; scope: string }[];
+  readonly purposes: readonly string[];
+  readonly maxUses?: number;
+  readonly parentGrantId?: string;
+  readonly openedAt: string;
+  closedAt?: string;
+  ending?: "withdrawn" | "expired";
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __touchstoneGrantLog: GrantRecord[] | undefined;
+}
+
+const log: GrantRecord[] = (globalThis.__touchstoneGrantLog ??= []);
+
+/** Newest first. Capped, because this is a demonstration and not a database. */
+export function grantHistory(limit = 24): readonly GrantRecord[] {
+  return log.slice(-limit).reverse();
+}
+
+function note(grant: CapabilityGrant): void {
+  if (log.some((entry) => entry.id === grant.id)) return;
+  log.push({
+    id: grant.id,
+    subject: addressId(grant.subject),
+    capabilities: grant.capabilities.map((capability) => ({
+      resource: `${capability.resource.namespace}/${capability.resource.path.join("/")}`,
+      actions: capability.actions,
+      scope: capability.scope,
+    })),
+    purposes: grant.constraints.purposes ?? [],
+    maxUses: grant.constraints.maxUses,
+    parentGrantId: grant.parentGrantId,
+    openedAt: new Date().toISOString(),
+  });
+  if (log.length > 200) log.splice(0, log.length - 200);
+}
+
+function close(grantId: string, ending: "withdrawn" | "expired"): void {
+  const entry = log.find((row) => row.id === grantId && row.closedAt === undefined);
+  if (entry === undefined) return;
+  entry.closedAt = new Date().toISOString();
+  entry.ending = ending;
+}
+
 function keyOf(namespaceId: string, subjectId: string): string {
   return `${namespaceId}::${subjectId}`;
 }
 
-function subjectIdOf(grant: CapabilityGrant): string {
-  const subject = grant.subject;
+function addressId(subject: Address): string {
   switch (subject.kind) {
     case "agent":
       return `agent:${subject.agentId}`;
@@ -41,6 +102,10 @@ function subjectIdOf(grant: CapabilityGrant): string {
     case "group":
       return `group:${subject.conversationId}`;
   }
+}
+
+function subjectIdOf(grant: CapabilityGrant): string {
+  return addressId(grant.subject);
 }
 
 function actorIdOf(context: AccessContext): string {
@@ -60,12 +125,29 @@ function actorIdOf(context: AccessContext): string {
 /** Hold a grant for as long as the order that minted it runs. */
 export function depositGrant(grant: CapabilityGrant): void {
   sweep();
+  note(grant);
   const key = keyOf(grant.namespaceId, subjectIdOf(grant));
   const held = grants.get(key) ?? [];
   grants.set(key, [...held.filter((existing) => existing.id !== grant.id), grant]);
 }
 
+/**
+ * What one subject is currently holding.
+ *
+ * Read-only and non-consuming, for the console and the grant map. The kernel's
+ * `reach` is the better answer to "where may this actor operate" because it has
+ * already resolved delegation and stripped the authority out; this is the other
+ * half of the same picture -- the grants themselves, with their budgets, so a
+ * reader can see how much of a bounded permission is left rather than only that
+ * it exists.
+ */
+export function heldGrants(namespaceId: string, subject: Address): readonly CapabilityGrant[] {
+  sweep();
+  return grants.get(keyOf(namespaceId, addressId(subject))) ?? [];
+}
+
 export function withdrawGrant(grantId: string): void {
+  close(grantId, "withdrawn");
   for (const [key, held] of grants) {
     const remaining = held.filter((grant) => grant.id !== grantId);
     if (remaining.length === 0) grants.delete(key);
@@ -85,7 +167,9 @@ function sweep(): void {
   for (const [key, held] of grants) {
     const live = held.filter((grant) => {
       const expiresAt = grant.constraints.expiresAt;
-      return expiresAt === undefined || Date.parse(expiresAt) > now;
+      const alive = expiresAt === undefined || Date.parse(expiresAt) > now;
+      if (!alive) close(grant.id, "expired");
+      return alive;
     });
     if (live.length === 0) grants.delete(key);
     else if (live.length !== held.length) grants.set(key, live);

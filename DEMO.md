@@ -51,15 +51,16 @@ The timeline writes itself, stage by stage. Read it as it lands:
 
 **On screen:** the negotiation ledger, then the lavender contract card.
 
-> "They settle inside the budget. A model writes the argument and never the number, so nobody talks
-> themselves into an impossible trade."
+> "They settle inside the budget. No model touches this part at all. The offers and the settled
+> price are arithmetic over three numbers: the ask, the seller's floor, and your budget. Same three
+> numbers, same price, every time, and nothing here can talk itself into an impossible trade."
 
 **On screen:** rest on the grant id and the granted action.
 
 > "And here is the part I would look at. SharedOS has no payment primitive — no invoice, no ledger.
-> So paying is minting: five credits becomes a five-use grant over one capability, for this contract
-> only. Spending a credit is the kernel consuming a use. The sixth delivery is refused
-> `grant_exhausted` by the same authorizer that refuses everything else."
+> So paying is minting: the agreed credits become exactly that many uses on a grant over one
+> capability, for this contract only. Spending a credit is the kernel consuming a use. The one after
+> the last is refused `grant_exhausted` by the same authorizer that refuses everything else."
 >
 > "There is no billing code in the repository. That is the feature."
 
@@ -115,8 +116,10 @@ curl -s -X POST https://yuzu-market.vercel.app/api/verify -d @receipt.json
 
 ## If a shot fails on the night
 
-- Model upstream rate-limited → the run still completes; unrunnable proofs are reported as unproven
-  rather than as failures, and the timeline says so. Say it on camera. It is a better demonstration
-  than a lucky one.
+- Model upstream rate-limited → the run still completes; a challenge we could not run leaves the
+  seller shortlisted but unproven rather than failed, and if an unproven seller wins, the contract
+  line says the deal was signed without proof and the receipt repeats it. A delivery call that never
+  reaches the seller is not charged to its reputation either. Say all of that on camera. It is a
+  better demonstration than a lucky one.
 - Nothing bought → that is a real outcome with a stated reason. Read the reason out.
 - Keep `receipt.json` saved next to the terminal so the verify shot runs offline.
