@@ -18,6 +18,7 @@ vi.mock("../lib/assay/llm", async (importOriginal) => {
 });
 
 const { POST } = await import("../app/api/assay/route");
+const { POST: BROKER } = await import("../app/api/broker/route");
 
 const LISTING = "RenderKit returns one MP4 URL per request. Price: 6 Arena credits. Delivery under 180 seconds.";
 
@@ -228,4 +229,42 @@ describe("every refusal is one an agent can act on", () => {
       expect(result.body.receipt).toBeUndefined();
     });
   }
+});
+
+/**
+ * The same refusal, on the route that spends money.
+ *
+ * The service card says a non-numeric or non-positive budget is "refused with
+ * 400 rather than replaced with a default you did not authorise", and it says
+ * it about `yuzu.broker`. Every case above proves it about `/api/assay`. They
+ * share the parser, which is exactly the reason to check the other end: a
+ * shared helper is only as good as the route remembering to call it, and the
+ * route that can spend a budget is the one where forgetting costs something.
+ */
+describe("the route that spends money refuses an unauthorised budget too", () => {
+  async function broker(body: object): Promise<{ status: number; body: Record<string, unknown> }> {
+    const response = await BROKER(
+      new Request("https://yuzu.test/api/broker", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-agent-id": "validation-suite-broker" },
+        body: JSON.stringify(body),
+      }),
+    );
+    return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+  }
+
+  it.each([
+    ["not a number", "twenty"],
+    ["negative", -40],
+    ["zero", 0],
+  ])("refuses a %s budget instead of substituting the default", async (_label, budget) => {
+    const result = await broker({ goal: "I need a competitor brief.", budget });
+
+    expect(result.status).toBe(400);
+    expect(result.body.error).toBe("invalid_budget");
+    // Nothing may have been bought on the way to refusing.
+    expect(result.body.contract).toBeUndefined();
+    expect(result.body.settlement).toBeUndefined();
+    expect(result.body.receipt).toBeUndefined();
+  });
 });
