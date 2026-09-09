@@ -789,6 +789,16 @@ async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Per
       `Never ask a clarifying question and never ask for credentials: the brief is all you get, ` +
       `so where it is thin make a reasonable assumption, state it in one line at the end, and ` +
       `deliver anyway. A request for more information is a failed delivery, not a delivery. ` +
+      // Stating the assumption and then delivering nothing is the same refusal
+      // wearing a heading. A competitor brief came back as "Competitor
+      // Analysis: - No competitor names provided. Sources: - None." with the
+      // assumption dutifully noted underneath, which followed the letter of the
+      // instruction above and none of its point. The gap is the job.
+      `An assumption is something you act on, not something you file instead of working. ` +
+      `Never return a placeholder: no "to be defined", no "none provided", no empty section ` +
+      `where the work belongs. If the brief does not name the specifics, choose the most ` +
+      `plausible ones for this market, do the work on those, and say in one line at the end ` +
+      `which ones you chose and why. ` +
       `Every constraint is exact rather than a floor: asked for three of something, produce ` +
       `three, not five, and add nothing that was not requested. Generosity reads as not ` +
       `following the brief and is graded as such.`,
