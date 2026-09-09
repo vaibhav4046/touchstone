@@ -815,6 +815,9 @@ async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Per
     // deal. Three taglines need a fraction of what a research brief needs, so
     // the budget follows the capability rather than the worst case.
     maxTokens: deliveryBudget(rfp.capability),
+    // The one call where thinking is worth its tokens. Told to think less, a
+    // research brief came back as a forty-character title and nothing else.
+    reasoning: "default",
     timeoutMs: 50_000,
   });
   if (outcome.ok) {
