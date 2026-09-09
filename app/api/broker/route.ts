@@ -3,7 +3,7 @@ import { runBroker } from "../../../lib/market/broker";
 import { listSellers, allReputations } from "../../../lib/market/registry";
 import { buildContext, drainAudit, withTurn } from "../../../lib/sharedos/host";
 import { PURPOSES } from "../../../lib/sharedos/identity";
-import { json, parseAmount, resolveBuyer } from "../../../lib/api";
+import { admit, json, parseAmount, rateLimited, resolveBuyer } from "../../../lib/api";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -19,6 +19,16 @@ export const maxDuration = 120;
  */
 export async function POST(request: Request): Promise<Response> {
   after(async () => drainAudit());
+
+  // Before the body is read, because reading it calls a model.
+  //
+  // This route had no admission at all while every other billable one did,
+  // and it is the most expensive: one call fans out an assay per bidder, a
+  // challenge per shortlisted seller, a delivery and a verification. CORS is
+  // open on /api/* by design, so any page could have fired this from every
+  // visitor it had, against our own funded keys.
+  const admission = admit(request);
+  if (!admission.ok) return rateLimited(admission);
 
   const buyerId = resolveBuyer(request);
   const raw = await request.text();

@@ -18,6 +18,13 @@ export const maxDuration = 120;
 export async function POST(request: Request): Promise<Response> {
   after(async () => drainAudit());
 
+  // `admit` was imported here and never called, which is the worst shape for
+  // this bug: it reads as guarded. A round assays and trials every candidate
+  // supplied, so an unguarded POST is a fan-out of billed model calls that
+  // anyone on the internet can start.
+  const admission = admit(request);
+  if (!admission.ok) return rateLimited(admission);
+
   const raw = await request.text();
   let body: { round?: unknown; candidates?: unknown } = {};
   try {
