@@ -151,7 +151,17 @@ export async function runRound(input: {
 
   // Round 2 without a round 1 is a buyer with nothing to allocate against, and
   // there is nobody to ask, so it runs the missing round itself.
-  if (arenaState() === undefined) await roundOne(input.candidates ?? []);
+  //
+  // It also re-runs when candidates arrive with the round-2 call, and that is
+  // the case that mattered: state left over from an earlier round is about
+  // different products, and this route was quietly spending against it while
+  // discarding the list it had just been handed. Measured on the live
+  // deployment, `{"round":2,"candidates":[three real products]}` allocated
+  // nothing and reported the shortfall as though nobody had bid. Trying a
+  // product before buying from it is the entire point of the round, so being
+  // given one and not trying it is the one shortcut not available here.
+  const supplied = input.candidates ?? [];
+  if (supplied.length > 0 || arenaState() === undefined) await roundOne(supplied);
   return roundTwo(arenaState());
 }
 

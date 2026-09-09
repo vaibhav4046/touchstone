@@ -229,4 +229,27 @@ describe("round 2: spend", () => {
       expect(purchase.credits).toBeGreaterThan(0);
     }
   }, 240_000);
+
+  // The live bug this replaces: `{"round":2,"candidates":[...]}` arriving at an
+  // instance that had already run a round used the products from that earlier
+  // round and silently dropped the list it was handed, then reported the
+  // shortfall as though nobody had bid. On the night the organiser sends the
+  // field with the call, so the products it buys from have to be the products
+  // it was given -- and it has to have tried them, because trying a product
+  // before buying from it is the whole point of the round.
+  it("tries the products it is handed, even when an earlier round already ran", async () => {
+    resetLedger();
+    await runRound({ round: 1, candidates: [HONEST] });
+
+    const result = await runRound({ round: 2, candidates: FIELD });
+    if (result.round !== 2) throw new Error("expected a round 2 result");
+
+    const bought = new Set(result.ledger.purchases.map((purchase) => purchase.sellerName));
+    expect(bought.size).toBeGreaterThanOrEqual(MIN_SELLERS);
+    expect(result.ledger.spent).toBeGreaterThanOrEqual(MIN_SPEND);
+
+    // Every name bought from is one of the products this call supplied.
+    const supplied = new Set(FIELD.map((candidate) => candidate.name));
+    for (const name of bought) expect(supplied.has(name)).toBe(true);
+  }, 240_000);
 });

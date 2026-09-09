@@ -29,8 +29,11 @@ const flag = (name, fallback) => {
 
 const BASE = flag("base", "https://yuzu-market.vercel.app").replace(/\/$/, "");
 const OUT = flag("out", "work/recording");
-const WIDTH = 1280;
-const HEIGHT = 720;
+// 1080p because the composition that overlays this is 1920x1080, and
+// upscaling a 720p capture to meet it would soften the one thing the film is
+// asking anyone to read: the text in the product.
+const WIDTH = 1920;
+const HEIGHT = 1080;
 
 /** A deal has to actually finish, and the market's own ceiling is 120s. */
 const DEAL_TIMEOUT = 150_000;
@@ -61,7 +64,10 @@ async function main() {
   const browser = await chromium.launch();
   const context = await browser.newContext({
     viewport: { width: WIDTH, height: HEIGHT },
-    deviceScaleFactor: 2,
+    // 1 rather than 2: at 1920x1080 a scale factor of 2 renders 3840x2160
+    // internally, and this machine answers that with an out-of-memory rather
+    // than a sharper frame.
+    deviceScaleFactor: 1,
     recordVideo: { dir: OUT, size: { width: WIDTH, height: HEIGHT } },
     colorScheme: "dark",
     reducedMotion: "no-preference",
