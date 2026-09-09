@@ -744,6 +744,24 @@ async function assayListing(
   return fresh;
 }
 
+/**
+ * How much room a deliverable of this kind actually needs.
+ *
+ * Measured against real deliveries rather than guessed: taglines finish well
+ * inside 900, a shot list runs long because every shot carries a camera
+ * direction and a line, and a brief is prose that legitimately fills the page.
+ * Anything unrecognised gets the middle number rather than the largest, because
+ * an over-large budget is the thing that trips the per-minute meter and takes
+ * the whole deal down with it.
+ */
+function deliveryBudget(capability: string): number {
+  const family = capability.split(".")[0] ?? "";
+  if (capability.startsWith("copy.")) return 900;
+  if (family === "research" || family === "analysis") return 3000;
+  if (family === "creative") return 2400;
+  return 1800;
+}
+
 async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Performed> {
   const outcome = await complete({
     model: MODELS.analyst,
@@ -789,11 +807,14 @@ async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Per
     // itself came back 429. A tagline set or a six-shot list does not need
     // three thousand tokens, and a delivery that truncates is reported as
     // truncated rather than charged to the seller.
-    // 3200 was the one call in a deal big enough to trip a per-minute limit on
-    // its own; 1400 then cut a six-shot list in half, which is honest but still
-    // a lost deal. 2200 fits the largest deliverable the registry sells with
-    // reasoning_effort low, and stays well under what tripped the meter.
-    maxTokens: 2200,
+    // Sized to the deliverable, because one number cannot be right for both.
+    //
+    // 3200 for everything was the single call in a deal big enough to trip a
+    // per-minute limit on its own. 2200 for everything then cut a competitor
+    // brief in half, which is honestly reported and uncharged and still a lost
+    // deal. Three taglines need a fraction of what a research brief needs, so
+    // the budget follows the capability rather than the worst case.
+    maxTokens: deliveryBudget(rfp.capability),
     timeoutMs: 50_000,
   });
   if (outcome.ok) {
