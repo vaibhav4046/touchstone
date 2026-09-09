@@ -21,7 +21,8 @@ import { resetRateLimits } from "../lib/api";
  * with the real assay engine behind them — not a mock of the thing under test.
  * The one concession is that the model suppliers may be absent locally, which
  * is exactly the condition the engine is built to survive: the deterministic
- * floors that decide a FLAGGED verdict never consult a model, so the refusal
+ * rule-set floors that decide a FLAGGED verdict fire whether or not a model
+ * answered — a model can add a floor and never lift one — so the refusal
  * assertions below hold either way.
  */
 

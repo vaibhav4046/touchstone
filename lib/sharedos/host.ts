@@ -4,9 +4,13 @@ import {
   CompositeAuditSink,
   InMemoryGrantUsageStore,
   SharedOSKernel,
+  catalogHash,
+  publishToolCatalog,
   type AccessContext,
   type AuditEvent,
+  type PublishedToolDefinition,
   type ToolCall,
+  type ToolDefinition,
   type ToolResult,
   type TurnEndRecord,
 } from "@aicoo/sharedos";
@@ -120,6 +124,51 @@ export function buildContext(input: {
 }
 
 /**
+ * How many tool calls one turn may make, whatever its grants say.
+ *
+ * `TouchstoneCeiling` already states the principle for probes — a grant bounds
+ * authority, not volume — and applies it per buyer per minute. Nothing applied
+ * it per turn, and a turn is where the volume actually comes from: settlement
+ * charges a contract by calling `market.deliver` once per credit in a `while`
+ * loop, and the only thing stopping that loop is the meter moving. A meter that
+ * stops moving for a reason nobody predicted, inside a route with
+ * `maxDuration = 120`, is a spin.
+ *
+ * So the envelope carries its own budget. It is not a permission check and it is
+ * not the kernel's job: the kernel decides whether a call is authorised, and the
+ * boundary that opened the turn decides how many calls the turn gets to make.
+ * Sixty-four is generous — the widest real turn is a broker run charging a
+ * contract worth its whole budget, which is tens — and it is a bound rather than
+ * an aspiration.
+ */
+export const TURN_CALL_BUDGET = 64;
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __touchstoneTurnCalls: Map<string, number> | undefined;
+}
+
+/**
+ * Keyed on the trace, which is what a turn's calls actually share.
+ *
+ * `executionId` is the envelope's name for the turn and `callTool` never sees
+ * one; `traceId` is on every context and is what the audit stream already joins
+ * a turn's rows by. A call made under a fresh trace is therefore outside any
+ * turn this function opened, and is deliberately not counted rather than being
+ * counted against somebody else's budget.
+ */
+const turnCalls: Map<string, number> = (globalThis.__touchstoneTurnCalls ??= new Map());
+
+/** Undefined when the call is within budget, or outside any turn we opened. */
+function spendTurnCall(context: AccessContext): string | undefined {
+  const spent = turnCalls.get(context.traceId);
+  if (spent === undefined) return undefined;
+  if (spent >= TURN_CALL_BUDGET) return "turn_call_budget_spent";
+  turnCalls.set(context.traceId, spent + 1);
+  return undefined;
+}
+
+/**
  * One turn, bounded at both ends.
  *
  * Two things were missing without this. Authority was re-resolved on every
@@ -155,6 +204,7 @@ export async function withTurn<T>(
     throw new Error(`authority_unavailable:${reasonCode ?? "unknown"}`);
   }
 
+  turnCalls.set(context.traceId, 0);
   try {
     return await body();
   } catch (error) {
@@ -162,6 +212,7 @@ export async function withTurn<T>(
     reasonCode = error instanceof Error ? error.message.slice(0, 120) : "unknown";
     throw error;
   } finally {
+    turnCalls.delete(context.traceId);
     try {
       await host().kernel.recordTurnEnd(context, {
         executionId,
@@ -209,6 +260,39 @@ export async function callTool(
     traceId: context.traceId,
     requestedAt: new Date().toISOString(),
   };
+
+  // The one refusal made here rather than by the kernel, and therefore the one
+  // that reached no sink at all until `recordRefusedCall` existed: a call over
+  // the turn's own budget is never presented to the kernel, so there is nothing
+  // for the kernel to audit. It lands as `tool.invoked` / denied with
+  // `metadata.source: "envelope"`, which is the fact that stops being inferable
+  // the moment the envelope starts refusing things — a reader counting refusals
+  // can now tell "the authorizer said no" from "the boundary never asked".
+  const overBudget = spendTurnCall(context);
+  if (overBudget !== undefined) {
+    const message = `This turn has already made ${TURN_CALL_BUDGET} tool calls, which is the envelope's own ceiling. No call was made.`;
+    await host().kernel.recordRefusedCall(context, {
+      callId: call.id,
+      tool,
+      reasonCode: overBudget,
+      cause: `turn_call_budget:${TURN_CALL_BUDGET}`,
+    });
+    return {
+      result: {
+        callId: call.id,
+        tool,
+        completedAt: new Date().toISOString(),
+        status: "denied",
+        error: { code: overBudget, message, retryable: false },
+      },
+      denied: {
+        action: requirement.action,
+        resource: `${ASSAY_NAMESPACE}/${requirement.path.join("/")}`,
+        outcome: "denied",
+        reasonCode: overBudget,
+      },
+    };
+  }
 
   const result = await host().kernel.invokeTool(context, call);
   if (result.status === "denied") {
@@ -270,6 +354,49 @@ export function traceFor(traceId: string): readonly DecisionTrace[] {
 function ceilingRule(event: AuditEvent): string | undefined {
   const rule = (event.metadata as { readonly rule?: unknown } | undefined)?.rule;
   return typeof rule === "string" ? rule : undefined;
+}
+
+export interface ToolCatalogue {
+  /**
+   * SHA-256 over the canonical JSON of the published tools.
+   *
+   * What participates is `CATALOG_HASH_FIELDS` and nothing else — name,
+   * description, schemas, hints — so two readers handed the same semantic tool
+   * set hash identically even though their execution ids and transports differ.
+   * That is what makes it usable as evidence: it answers "were these two given
+   * the same tools" against schema drift, a missing tool, a renamed tool and a
+   * stale discovery cache alike.
+   */
+  readonly hash: string;
+  /** What a model is allowed to see. No `requiredCapability`, ever. */
+  readonly published: readonly PublishedToolDefinition[];
+  /**
+   * The registrations, which carry the capability each tool would require.
+   * Host-side only, and the input `reachThroughTools` needs — it keys on the
+   * resource namespace a tool operates on, which the published projection has
+   * deliberately dropped. Never serialise this.
+   */
+  readonly definitions: readonly ToolDefinition[];
+}
+
+/**
+ * The effective tool surface for one context, and the hash that identifies it.
+ *
+ * `listTools` is permission-filtered, so this shrinks as authority narrows: an
+ * actor holding nothing gets an empty catalogue and a hash over nothing, which
+ * is fail-closed and still a well-formed answer.
+ *
+ * Not `kernel.listPublishedTools`, which is the same projection plus an
+ * `executionId`. That method describes one delivery of a catalogue to one
+ * harness, and the callers here — the grant map, and a receipt pinning the
+ * surface it was produced against — want the set itself. `catalogHash`
+ * deliberately excludes `executionId` for exactly that reason, so hashing the
+ * set directly is the honest shape rather than minting a turn id to throw away.
+ */
+export async function toolCatalogue(context: AccessContext): Promise<ToolCatalogue> {
+  const definitions = await host().kernel.listTools(context);
+  const published = publishToolCatalog(definitions);
+  return { hash: await catalogHash(published), published, definitions };
 }
 
 /**

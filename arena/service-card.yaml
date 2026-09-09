@@ -242,5 +242,5 @@ limitations:
   - A market cannot tell you a seller will deliver. It can tell you which claims could be shown false, which could not be shown false by any outcome, and what the seller actually produced when asked.
   - Reputations, the Arena ledger and the grant history live in the process that served the request and reset on a cold start. Receipts do not; they are signed and self-contained.
   - Prompt-injection detection is a measurement, not a guarantee. When the classifier cannot run, the report says the score is missing rather than substituting a general model's opinion.
-  - Half the score is exactly reproducible and half is model-derived. Both are reported separately, and the floors that decide a FLAGGED verdict never consult a model.
+  - Half the score is exactly reproducible and half is model-derived. Both are reported separately, whichever model produced the second half is named on the report, and a model can only ever add a floor: the rule-set floors fire with no model at all, so no outage or rate limit can turn a FLAGGED listing into a TRUSTED one.
   - The free model tiers behind this are finite. When they are exhausted the house template delivers, clearly labelled, and no seller is paid or credited for it.

@@ -71,6 +71,15 @@ export interface Receipt {
    */
   readonly autoDecisions?: readonly AutoDecisionTrace[];
   /**
+   * The hash of the tool surface this record actually ran against, from the
+   * kernel's own catalogue rather than a list we keep. It is computed while
+   * the order grant is live, so it names the tools that were reachable during
+   * the work -- not the empty set an idle process would report -- and being
+   * inside the signature means the surface cannot be revised afterwards
+   * either. Absent on a receipt from a path that never asked the kernel.
+   */
+  readonly toolCatalogHash?: string;
+  /**
    * Ed25519 over the canonical bytes of everything above, base64.
    *
    * `alg` and `publicKeyId` sit inside the block they describe and are

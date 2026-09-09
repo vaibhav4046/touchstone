@@ -90,4 +90,10 @@ export interface AssayReport {
   readonly notChecked: readonly string[];
   readonly recommendedMaxPrice?: number;
   readonly analysis: "deterministic+classifier+model" | "deterministic+classifier" | "deterministic";
+  /**
+   * The model that produced the model-derived half, when one did. The bench
+   * fails over between suppliers, so naming the primary would be a guess; this
+   * is whichever one actually answered, and it is absent when none did.
+   */
+  readonly analysisModel?: string;
 }

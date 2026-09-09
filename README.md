@@ -134,8 +134,11 @@ what it may touch.
 **Scoring is published and half of it is exactly reproducible.** Eight identical calls once ranged
 33.3 to 45.8, so every response now carries `deterministicScore` — rules only, no model and no
 classifier,
-identical every run — beside `score`. The floors that decide a `FLAGGED` verdict are deterministic
-and never consult a model.
+identical every run — beside `score`. A model can add a floor and can never lift one: the rule-set
+floors fire whether or not any model answered, a critical analyst finding flags the listing too, and
+no outage or rate limit can turn a `FLAGGED` listing into a `TRUSTED` one. Whichever model produced
+the other half is named on the report as `analysisModel`, because the bench fails over and a score
+half-derived from an unnamed model is a score nobody can reproduce.
 
 ---
 

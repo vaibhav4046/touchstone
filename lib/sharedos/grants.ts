@@ -1,5 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { Capability, CapabilityConstraints, CapabilityGrant, JsonObject } from "@aicoo/sharedos";
+import type { Address, Capability, CapabilityConstraints, CapabilityGrant, JsonObject } from "@aicoo/sharedos";
+import {
+  DIRECTORY_NAMESPACE,
+  DIRECTORY_READ_ACTION,
+  agentCardCapability,
+  agentCardPath,
+} from "@aicoo/sharedos";
 import { ASSAY_NAMESPACE, NAMESPACE, TOUCHSTONE, buyerAddress, type Purpose } from "./identity";
 
 /**
@@ -143,5 +149,66 @@ export function mintAutoDecidedGrant(input: {
     constraints: input.constraints,
     issuedAt: new Date(input.now.getTime() - ISSUE_BACKDATE_MS).toISOString(),
     metadata: { ...input.metadata, buyerId: input.buyerId, tier: "auto" },
+  };
+}
+
+/**
+ * Authority to read one agent's card, and no wider than the reader is owed.
+ *
+ * Reading a card is gated by SharedOS for a reason worth restating, because it
+ * is the reason this grant is narrow rather than standing: without the gate the
+ * directory answers "does this agent exist" and, through reach, "what may it
+ * touch", for every agent in the world, in one call. Yuzu is a marketplace of
+ * agents, so it is exactly the service that would leak its whole membership
+ * list through a convenience.
+ *
+ * The host's decision is therefore expressed as width, not as an `if`:
+ *
+ *   self      `descendants` over the subject's own directory path, which the
+ *             kernel documents as covering every view of it. An agent may see
+ *             its own identity and its own reach.
+ *   stranger  the `identity` view alone, and it is `agentCardCapability`'s own
+ *             exact capability rather than one written here. Another agent may
+ *             learn that this one exists and is addressable. What it holds is
+ *             not theirs to read, and the refusal for the wider view is made by
+ *             the kernel — which then names `identity` in `servableViews`, so
+ *             the reader learns what it may still ask for rather than
+ *             concluding the subject is unreachable.
+ *
+ * Unbounded on uses, deliberately. Reading a card consumes nothing in SharedOS,
+ * so a `maxUses` here would be a budget that never moves — a number that looks
+ * like a limit and is not one. The clock is the bound: thirty seconds, which is
+ * longer than a card read and shorter than anything else.
+ */
+export function mintDirectoryGrant(input: {
+  readonly reader: Address;
+  readonly subject: Address;
+  readonly self: boolean;
+  readonly purpose: string;
+  readonly now: Date;
+}): CapabilityGrant {
+  const capability: Capability = input.self
+    ? {
+        resource: { namespace: DIRECTORY_NAMESPACE, path: agentCardPath(input.subject), owner: TOUCHSTONE },
+        actions: [DIRECTORY_READ_ACTION],
+        scope: "descendants",
+      }
+    : agentCardCapability(input.subject, TOUCHSTONE, "identity");
+
+  return {
+    // Random rather than derived from the pair: two card reads can overlap, and
+    // a shared id would have the first one's withdrawal cancel the second's
+    // authority mid-read.
+    id: `grant_dir_${randomUUID().slice(0, 8)}`,
+    namespaceId: NAMESPACE,
+    subject: input.reader,
+    issuer: TOUCHSTONE,
+    capabilities: [capability],
+    constraints: {
+      purposes: [input.purpose],
+      expiresAt: new Date(input.now.getTime() + 30_000).toISOString(),
+    },
+    issuedAt: new Date(input.now.getTime() - ISSUE_BACKDATE_MS).toISOString(),
+    metadata: { tier: "directory", view: input.self ? "reach" : "identity" },
   };
 }

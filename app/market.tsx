@@ -352,6 +352,19 @@ function Outcome({ result }: { result: Result }) {
       <p style={{ marginTop: "0.5rem", fontSize: "0.82rem" }}>
         <a href="/dashboard">See the grant this minted on the floor →</a>
       </p>
+
+      {/* The receipt, handed to the page that checks it. `#r=` is a fragment,
+          so the receipt never reaches any server on the way -- the check runs
+          in the reader's own browser against the key at /api/pubkey. A verdict
+          only its issuer can confirm is not evidence, so this is the link that
+          matters most on the whole page. */}
+      {result.receipt !== undefined && (
+        <p style={{ marginTop: "0.35rem", fontSize: "0.82rem" }}>
+          <a href={`/deal#r=${encodeURIComponent(JSON.stringify(result.receipt))}`}>
+            Check this receipt yourself →
+          </a>
+        </p>
+      )}
     </div>
   );
 }

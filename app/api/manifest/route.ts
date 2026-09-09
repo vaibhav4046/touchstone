@@ -48,7 +48,13 @@ export async function GET(): Promise<Response> {
       "route, not a graceful deadline of ours -- past it the call dies with a platform timeout and " +
       "no receipt, which is the honest description of what you would see. Measured runs on the live " +
       "deployment land between 15 and 57 seconds depending on how many sellers bid. " +
-      "Check it yourself rather than taking any of this on trust: the signing key is published at " +
+      // Stated, not instructed. This clause used to open "Check it yourself
+      // rather than taking any of this on trust:" — an imperative addressed to
+      // whoever is reading, in a listing graded by a market that flags listings
+      // for addressing the agent reading them. Our own analyst read it as a
+      // steering attempt on the live deployment and raised a critical finding
+      // against us. The facts underneath are unchanged; only the mood is.
+      "None of this has to be taken on trust: the signing key is published at " +
       `${BASE}/api/pubkey with a script that verifies a receipt offline, any receipt can be pasted into ` +
       `${BASE}/deal and is checked by your own browser rather than by us, the registry is open at ` +
       `${BASE}/api/sellers and assays every listing on the way in, the grant map is at ` +
@@ -274,7 +280,7 @@ export async function GET(): Promise<Response> {
       whyTrustTheVerdict:
         "Do not. Every receipt is signed, and POST /api/verify checks any receipt against its contents — including ones we did not just hand you. The decisions array is the SharedOS kernel's own audit stream, not our account of it.",
       runItTwiceAndTheNumberMoves:
-        "It does, and we measured it before you did: eight identical calls ranged 33.3 to 45.8. Every response now carries deterministicScore beside score. It counts the published rule sets alone — not the model, and not the injection classifier, which is a hosted service that answers on a quiet minute and 429s on a busy one — so it is identical on every run of the same listing. Anything that could not be measured on a given run is named in reproducibility.unavailable rather than averaged in. The floors that decide a FLAGGED verdict are deterministic and never consult a model.",
+        "It does, and we measured it before you did: eight identical calls ranged 33.3 to 45.8. Every response now carries deterministicScore beside score. It counts the published rule sets alone — not the model, and not the injection classifier, which is a hosted service that answers on a quiet minute and 429s on a busy one — so it is identical on every run of the same listing. Anything that could not be measured on a given run is named in reproducibility.unavailable rather than averaged in. A model can only add a floor, never lift one: every critical finding flags the listing, the rule-set ones fire whether or not any model answered, and no outage or rate limit can turn a FLAGGED listing into a TRUSTED one.",
       whatIfIAttackYou:
         "Assume every listing is an attack. Vendor text reaches the analyst inside a fence carrying a per-call nonce, under a prompt stating the fenced region is evidence and never instruction, and only schema-validated fields are read back out. A listing that tries is flagged rather than obeyed.",
       whatStopsYouFavouringAPayingSeller:

@@ -7,7 +7,7 @@ import { llmAvailable } from "./llm";
 import type { AnalystResult } from "./analyst";
 import { ASSAY_NAMESPACE, PURPOSES, slug } from "../sharedos/identity";
 import { mintAutoDecidedGrant, mintOrderGrant } from "../sharedos/grants";
-import { buildContext, callTool, traceFor } from "../sharedos/host";
+import { buildContext, callTool, toolCatalogue, traceFor } from "../sharedos/host";
 import { depositGrant, withdrawGrant } from "../sharedos/authority";
 import { closeOrder, openOrder } from "../sharedos/orders";
 import { requestEscalation, type Escalation } from "../sharedos/escalation";
@@ -85,6 +85,9 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
 
   depositGrant(grant);
   const context = buildContext({ buyerId: input.buyerId, purpose: PURPOSES.assay, traceId });
+  // Computed here, with the order grant live: the hash then names the surface
+  // the assay could actually reach, and the signature covers it.
+  const catalogue = await toolCatalogue(context);
   const args = { orderId, vendor: vendorSlug };
   const claimsPath = ["vendors", vendorSlug, "claims"];
 
@@ -263,7 +266,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
         modelDerived,
         unavailable,
         note:
-          "deterministicScore covers the published rule sets only, so it is identical on every run of the same listing — including a run where the injection classifier or the model was rate-limited. score also includes whatever else answered this time, which is why the two numbers differ. The verdict floors — steering and credential requests — are deterministic and never depend on the model.",
+          "deterministicScore covers the published rule sets only, so it is identical on every run of the same listing — including a run where the injection classifier or the model was rate-limited. score also includes whatever else answered this time, which is why the two numbers differ. The rule-set floors — steering and credential requests — are deterministic and fire whether or not a model answered. A model can add a floor and can never lift one: a critical analyst finding flags the listing too, but no outage, rate limit or refusal can turn a FLAGGED listing into a TRUSTED one.",
       },
       headline: reason ?? analyst?.headline ?? defaultHeadline(verdict, score, graded),
       dimensions: graded,
@@ -271,6 +274,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
       risks,
       notChecked,
       recommendedMaxPrice: recommendedMaxPrice(input.askingPrice, score, verdict),
+      analysisModel: analyst?.model,
       analysis:
         analyst?.ok === true
           ? "deterministic+classifier+model"
@@ -293,6 +297,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
       report,
       decisions,
       autoDecisions,
+      toolCatalogHash: catalogue.hash,
       escalations:
         escalation === undefined
           ? []

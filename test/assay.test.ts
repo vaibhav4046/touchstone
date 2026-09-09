@@ -206,6 +206,39 @@ describe("receipt integrity", () => {
     expect(verify({ version: "touchstone.receipt.v1" }).valid).toBe(false);
     expect(verify(null).valid).toBe(false);
   });
+
+  // The receipt says which tools the work could reach, and the signature
+  // covers that too. Without this, "an agent cannot use what it cannot see"
+  // is a claim about a surface nobody recorded, and a surface nobody
+  // recorded can be described differently after the fact.
+  // The manifest tells buyers "whichever model answered is reported on the
+  // outcome". The bench fails over between four suppliers, so the primary is
+  // often not the one that ran, and half a score derived from a model nobody
+  // named is half a score nobody can reproduce.
+  it("names the model that produced the model-derived half, when one did", async () => {
+    const { receipt } = await assay({ vendor: "RenderKit", pitch: HONEST, buyerId: buyer });
+    const { analysis, analysisModel } = receipt.report;
+
+    if (analysis === "deterministic+classifier+model") {
+      expect(analysisModel).toBeTypeOf("string");
+      expect(analysisModel).not.toBe("");
+    } else {
+      // No model answered, so there is nothing to name and nothing is claimed.
+      expect(analysisModel).toBeUndefined();
+    }
+  }, 60_000);
+
+  it("carries the kernel's tool-surface hash, inside the signature", async () => {
+    const { receipt } = await assay({ vendor: "RenderKit", pitch: HONEST, buyerId: buyer });
+
+    expect(receipt.toolCatalogHash).toMatch(/^[0-9a-f]{16,}$/);
+    expect(verify(receipt).valid).toBe(true);
+
+    const relabelled = { ...receipt, toolCatalogHash: "0".repeat(64) };
+    const check = verify(relabelled);
+    expect(check.valid).toBe(false);
+    if (!check.valid) expect(check.reason).toBe("signature_mismatch");
+  }, 60_000);
 });
 
 describe("escalations survive a cold instance", () => {

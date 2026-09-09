@@ -39,6 +39,15 @@ function negated(text: string, index: number): boolean {
   return P.NEGATION.test(sentenceStart === -1 ? window : window.slice(sentenceStart + 1));
 }
 
+/** Letters and digits in any script, so the check is not English-only. */
+const WORDISH = /[\p{L}\p{N}]/u;
+
+/** Is the character before `at` part of the same word? Then this is not a match. */
+function startsMidToken(text: string, at: number): boolean {
+  const before = text[at - 1];
+  return before !== undefined && WORDISH.test(before);
+}
+
 function quote(text: string, re: RegExp): string | undefined {
   const match = re.exec(text);
   return match === null ? undefined : sentenceAround(text, match.index);
@@ -100,6 +109,13 @@ export function unfalsifiableLanguage(input: AssayInput): DimensionResult {
     for (;;) {
       const at = lower.indexOf(phrase, from);
       if (at === -1) break;
+      from = at + phrase.length;
+      // A substring search starts anywhere, including inside another word: the
+      // list contains "perfect", so "our first cut is imperfect" was counted as
+      // a superlative and quoted back as one. A trailing suffix is left alone —
+      // "flawlessly" is the same claim as "flawless" — but a phrase that begins
+      // mid-token is not the phrase.
+      if (startsMidToken(lower, at)) continue;
       hits += 1;
       if (findings.length < 6) {
         findings.push({
@@ -109,7 +125,6 @@ export function unfalsifiableLanguage(input: AssayInput): DimensionResult {
           evidence: sentenceAround(input.pitch, at),
         });
       }
-      from = at + phrase.length;
     }
   }
 
@@ -238,8 +253,21 @@ export function evidenceQuality(input: AssayInput): DimensionResult {
   };
 }
 
-const UNIT = /\b(\d+)\s*(videos?|images?|posts?|articles?|pages?|reports?|files?|assets?|designs?|scripts?)\b/i;
-const DURATION = /\b(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|sec|secs|seconds?|m|min|mins|minutes?|h|hours?)\b/i;
+/** A whole number, commas and decimals included. Starting mid-token misquotes. */
+const AMOUNT = String.raw`(?:${P.NUMBER})(?:\.\d+)?`;
+const UNIT = new RegExp(
+  String.raw`\b(${AMOUNT})\s*(videos?|images?|posts?|articles?|pages?|reports?|files?|assets?|designs?|scripts?)\b`,
+  "i",
+);
+const DURATION = new RegExp(
+  String.raw`\b(${AMOUNT})\s*(ms|milliseconds?|s|sec|secs|seconds?|m|min|mins|minutes?|h|hours?)\b`,
+  "i",
+);
+
+/** "4,182" is four thousand one hundred and eighty-two, not NaN. */
+function amount(text: string): number {
+  return Number(text.replace(/,/g, ""));
+}
 
 function toSeconds(value: number, unit: string): number {
   if (unit.startsWith("ms") || unit.startsWith("millisecond")) return value / 1000;
@@ -267,9 +295,9 @@ export function slaPlausibility(input: AssayInput): DimensionResult {
     };
   }
 
-  const quantity = Number(unitMatch[1]);
+  const quantity = amount(unitMatch[1] ?? "0");
   const noun = unitMatch[2] ?? "artifact";
-  const seconds = toSeconds(Number(timeMatch[1]), (timeMatch[2] ?? "s").toLowerCase());
+  const seconds = toSeconds(amount(timeMatch[1] ?? "0"), (timeMatch[2] ?? "s").toLowerCase());
   const perUnit = seconds / Math.max(1, quantity);
 
   // Generative media under ~4s per artifact is a claim, not a capability.

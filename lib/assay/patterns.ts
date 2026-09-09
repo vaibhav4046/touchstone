@@ -5,11 +5,32 @@
  * that disagrees with a finding can read the exact rule that produced it.
  */
 
-export const PRICE =
-  /(?:\b\d+(?:\.\d+)?\s*(?:arena[\s-]?)?credits?\b|\bcredits?\b\W{0,6}\d+(?:\.\d+)?|\bprice\b\W{0,12}\d+(?:\.\d+)?|[$£€]\s?\d+(?:\.\d+)?|\b\d+(?:\.\d+)?\s*(?:usd|gbp|eur)\b)/i;
+/**
+ * A number as vendors actually write one, thousands separators included.
+ *
+ * `\d+` alone is not a number, it is the tail of one. On "4,182 deliveries" it
+ * fails at the comma, the engine advances, and the match succeeds one token
+ * later — so the receipt quoted the vendor as saying "182 deliveries" about a
+ * listing that said 4,182. A document whose whole value is that it does not
+ * misquote the seller cannot start its quotes mid-token, so every rule that
+ * reads a number reads a whole one.
+ *
+ * The grouped form comes first because alternation is ordered: with `\d+`
+ * leading, "4,182" would match "4" and stop.
+ */
+export const NUMBER = String.raw`\d{1,3}(?:,\d{3})+|\d+`;
+/** The same, with an optional decimal tail. */
+const DECIMAL = String.raw`(?:${NUMBER})(?:\.\d+)?`;
 
-export const LATENCY =
-  /\b(?:\d+(?:\.\d+)?\s*(?:ms|milliseconds?|s|sec|secs|seconds?|m|min|mins|minutes?|h|hours?)\b|within\s+\d+|under\s+\d+|<\s*\d+\s*(?:s|m|min|sec))/i;
+export const PRICE = new RegExp(
+  String.raw`(?:\b${DECIMAL}\s*(?:arena[\s-]?)?credits?\b|\bcredits?\b\W{0,6}${DECIMAL}|\bprice\b\W{0,12}${DECIMAL}|[$£€]\s?${DECIMAL}|\b${DECIMAL}\s*(?:usd|gbp|eur)\b)`,
+  "i",
+);
+
+export const LATENCY = new RegExp(
+  String.raw`\b(?:${DECIMAL}\s*(?:ms|milliseconds?|s|sec|secs|seconds?|m|min|mins|minutes?|h|hours?)\b|within\s+${DECIMAL}|under\s+${DECIMAL}|<\s*${DECIMAL}\s*(?:s|m|min|sec))`,
+  "i",
+);
 
 export const INPUTS = /\b(?:input|inputs|accepts?|takes?|send me|give me|provide|payload|request format|you supply)\b/i;
 
@@ -122,5 +143,20 @@ export const OVERREACH = [
   },
 ];
 
-/** Numbers presented as evidence with nothing behind them. */
-export const UNSOURCED_STAT = /\b(?:\d{1,3}(?:\.\d+)?%|\d+\+?\s*(?:completed\s+)?(?:jobs|clients|customers|users|deliveries|contracts))\b/gi;
+/**
+ * Numbers presented as evidence with nothing behind them.
+ *
+ * The match itself is quoted back to the seller, so this one has to start at
+ * the first digit of the number or the receipt misquotes the listing it is
+ * judging. See `NUMBER`.
+ *
+ * The closing `\b` belongs to the noun branch alone. It used to sit after both,
+ * which asks for a word boundary immediately after "%" — and "%" followed by a
+ * space is two non-word characters, so there is no boundary there and never
+ * could be. The percentage half of this rule matched nothing at all: "99.9%
+ * acceptance" was silently unscored on every listing that claimed one.
+ */
+export const UNSOURCED_STAT = new RegExp(
+  String.raw`\b(?:${DECIMAL}%|(?:${NUMBER})\+?\s*(?:completed\s+)?(?:jobs|clients|customers|users|deliveries|contracts)\b)`,
+  "gi",
+);

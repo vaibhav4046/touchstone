@@ -1,8 +1,10 @@
-import type { Address, ReachResult } from "@aicoo/sharedos";
-import { host, buildContext, usageStore } from "./host";
+import type { Address, AgentCard, ReachResult, ResourceReach } from "@aicoo/sharedos";
+import { reachThroughTools } from "@aicoo/sharedos";
+import { host, buildContext, toolCatalogue, usageStore } from "./host";
 import { grantHistory, heldGrants, type GrantRecord } from "./authority";
+import { readAgentCard } from "./directory";
 import { ownerDecisions, seedPrecedents } from "./precedent-seed";
-import { NAMESPACE, PURPOSES, TOUCHSTONE, buyerAddress } from "./identity";
+import { NAMESPACE, PURPOSES, TOUCHSTONE, asPurpose, buyerAddress } from "./identity";
 
 /**
  * The grant map: who may touch what.
@@ -69,7 +71,61 @@ export interface GrantMap {
   readonly namespace: string;
   readonly owner: Address;
   readonly subject: Address;
+  /**
+   * The kernel's own description of this agent, not ours.
+   *
+   * `subject` and `namespace` above are read off this rather than assembled
+   * here, which is the whole reason it exists: an identity block a service
+   * writes about an agent is a claim, and a card is an answer. Reading it was
+   * itself authorized — see `lib/sharedos/directory.ts`.
+   *
+   * The `identity` view specifically, and not the wider `reach` one, even though
+   * the subject is entitled to that. A `reach` card would carry a second reach
+   * beside the one below, derived a few milliseconds earlier under a directory
+   * grant that is withdrawn by the time `reach` is computed — two adjacent fields
+   * with the same name disagreeing about the same agent. The card is here to
+   * state who this is; `reach` beside it states what they may touch. The wider
+   * card is served at `/api/agents/<id>`, where nothing sits next to it.
+   */
+  readonly card: AgentCard;
+  /**
+   * The purpose every field below was answered under.
+   *
+   * Not decoration. A grant minted for one purpose authorizes nothing under
+   * another, so reach, the tool catalogue and the narrowed reach are all
+   * answers to "while doing this", and a map that did not say which "this"
+   * would be unreadable the moment a buyer held authority for two.
+   */
+  readonly purpose: string;
+  /**
+   * Grant reach: everywhere this actor is authorized, over the whole world this
+   * namespace names. It ignores the tool catalogue on purpose, because the
+   * resource plane is not gated by tools — `invokeResource` can reach places no
+   * enabled tool operates on.
+   */
   readonly reach: ReachResult;
+  /**
+   * The same reach narrowed to what some offered tool actually operates on.
+   *
+   * The more honest map of what this actor can *do*, as opposed to where it is
+   * permitted to be: a place no tool in its catalogue touches is not somewhere a
+   * turn can work, and naming it would send an agent at a wall. Both are kept
+   * rather than one replacing the other, because the gap between them is
+   * information — it is authority that exists and has no instrument.
+   *
+   * Descriptive, never permissive, in both directions: an entry kept here is not
+   * a permission and an entry dropped was not a refusal. Every call is still
+   * authorized independently.
+   */
+  readonly reachThroughTools: readonly ResourceReach[];
+  /**
+   * The tools this actor can see, and the hash that identifies the set.
+   *
+   * `listTools` is permission-filtered, so the list shrinks as authority
+   * narrows and is empty for an actor holding nothing. That is the claim "an
+   * agent cannot see what it cannot use", computed rather than asserted.
+   */
+  readonly catalogue: { readonly hash: string; readonly tools: readonly string[] };
   readonly held: readonly MappedGrant[];
   readonly policy: readonly MappedPolicy[];
   /** Grants that existed and no longer do. The record outlives the authority. */
@@ -110,11 +166,43 @@ export async function grantMap(subjectId: string): Promise<GrantMap> {
   // permissions.
   await seedPrecedents(subjectId);
 
-  const reach = await host().kernel.reach(buildContext({ buyerId: subjectId, purpose: PURPOSES.broker }));
+  const grants = heldGrants(NAMESPACE, subject);
+
+  // Reach is purpose-scoped in SharedOS, so a map of it has to name a purpose,
+  // and this one used to name `yuzu.broker` unconditionally. That was wrong in a
+  // way only a live deal reveals: the grants a buyer actually holds mid-deal are
+  // minted for `yuzu.deliver` or `touchstone.assay`, and reach asked under
+  // `yuzu.broker` cannot see them — so the map's headline field read empty while
+  // `held` right beneath it listed a live contract. The purpose comes off the
+  // authority now, and the map says which one it answered under, because an
+  // unstated purpose is the difference between "reaches nothing" and "reaches
+  // nothing while brokering".
+  const purpose = grants.flatMap((grant) => grant.constraints.purposes ?? []).flatMap((candidate) => {
+    const known = asPurpose(candidate);
+    return known === undefined ? [] : [known];
+  })[0] ?? PURPOSES.broker;
+
+  // The agent reads its own card. A card read is refused rather than thrown, so
+  // a refusal here is a bug in the host policy and not a runtime condition —
+  // hence the throw: a map that silently invented an identity block when the
+  // kernel declined to describe the subject would be the exact failure this
+  // field exists to end.
+  const identity = await readAgentCard({ readerId: subjectId, subjectId, purpose, view: "identity" });
+  if (identity.read.status !== "served") {
+    throw new Error(`agent_card_refused:${identity.read.reasonCode}`);
+  }
+  const card = identity.read.card;
+
+  const context = buildContext({ buyerId: subjectId, purpose });
+  const reach = await host().kernel.reach(context);
+  // One `listTools` call, three readers: the narrowed reach below, the catalogue
+  // names, and the hash. The definitions carry `requiredCapability` and stay
+  // host-side; only the published names and the hash go on the map.
+  const catalogue = await toolCatalogue(context);
   const store = usageStore();
 
   const held = await Promise.all(
-    heldGrants(NAMESPACE, subject).map(async (grant): Promise<MappedGrant> => {
+    grants.map(async (grant): Promise<MappedGrant> => {
       const purchased = grant.constraints.maxUses;
       // A credit is a use, so the balance is a question asked of the kernel's
       // meter rather than a number this service keeps.
@@ -152,13 +240,22 @@ export async function grantMap(subjectId: string): Promise<GrantMap> {
   }));
 
   return {
-    namespace: NAMESPACE,
+    // Off the card, not assembled here. The kernel is the thing that decides
+    // against this identity, so it is the thing that gets to state it.
+    namespace: card.namespaceId,
     owner: TOUCHSTONE,
-    subject,
+    subject: card.subject,
+    card,
+    purpose,
     // The kernel's word, not ours. `unavailable` is a real answer and is passed
     // through rather than smoothed into an empty list, because a reach that
     // quietly omitted a live grant would be indistinguishable from a true one.
     reach,
+    // An unavailable reach narrows to nothing rather than to an empty list of
+    // its own: there is no reach to narrow, and answering `[]` would read as
+    // "this actor can do nothing" instead of "we could not tell".
+    reachThroughTools: reach.status === "computed" ? reachThroughTools(reach.reach, catalogue.definitions) : [],
+    catalogue: { hash: catalogue.hash, tools: catalogue.published.map((tool) => tool.name) },
     held,
     policy,
     history: grantHistory(),

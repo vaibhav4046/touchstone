@@ -48,30 +48,52 @@ export function weightedScore(dimensions: readonly DimensionResult[]): number {
   return Math.round(value * 1000) / 10;
 }
 
+/** The floors that carry a stock explanation. Everything else speaks for itself. */
+const STEERING_CODES = new Set(["STEERING_INSTRUCTION", "GUARD_INJECTION_DETECTED", "ANALYST_STEERING"]);
+
 /**
- * Two findings override the arithmetic entirely.
+ * A critical finding overrides the arithmetic entirely. Any critical finding.
  *
  * A listing that instructs the agent reading it, or that asks for credentials,
  * is not a low-scoring vendor — it is a different category of thing, and
  * averaging it against a tidy price table would hide exactly the fact a buyer
  * needed. These floors are the reason the score is not just a mean.
+ *
+ * This used to name two codes, and the list was the bug. `ANALYST_STEERING` is
+ * raised at severity critical and was not on it, so a listing asking the buyer's
+ * agent to write its own system prompt into the order notes came back TRUSTED at
+ * 82.6 with the seller's full asking price recommended — measured on the live
+ * deployment, with the critical finding sitting in the same report. Nothing was
+ * wrong with the detector. The floor simply could not see what it found.
+ *
+ * So the floor reads the severity, which is the claim itself: "critical" already
+ * means "do not buy on this evidence". A register of codes that has to be
+ * remembered every time a finding is added would fail the same way again, and
+ * the next omission would be just as invisible.
  */
 export function verdictFor(score: number, findings: readonly Finding[]): { verdict: Verdict; reason?: string } {
-  const steering = findings.find(
-    (finding) => finding.code === "STEERING_INSTRUCTION" || finding.code === "GUARD_INJECTION_DETECTED",
-  );
-  if (steering !== undefined) {
-    return { verdict: "FLAGGED", reason: "Material addresses the reading agent as if it had authority over it." };
-  }
-
-  const overreach = findings.find((finding) => finding.code.startsWith("OVERREACH_") && finding.severity === "critical");
-  if (overreach !== undefined) {
-    return { verdict: "FLAGGED", reason: "Requests authority a delivery service does not need." };
-  }
+  const critical = findings.find((finding) => finding.severity === "critical");
+  if (critical !== undefined) return { verdict: "FLAGGED", reason: floorReason(critical) };
 
   if (score >= 78) return { verdict: "TRUSTED" };
   if (score >= 58) return { verdict: "QUALIFIED" };
   return { verdict: "UNPROVEN" };
+}
+
+/**
+ * Why the floor fired, in the buyer's terms.
+ *
+ * The two familiar kinds get the sentence they have always had. A critical
+ * nobody anticipated gets its own statement rather than a canned line that
+ * would describe the wrong thing — a wrong explanation for a real finding is
+ * worse than a plain one.
+ */
+function floorReason(finding: Finding): string {
+  if (STEERING_CODES.has(finding.code)) {
+    return "Material addresses the reading agent as if it had authority over it.";
+  }
+  if (finding.code.startsWith("OVERREACH_")) return "Requests authority a delivery service does not need.";
+  return finding.statement;
 }
 
 /**

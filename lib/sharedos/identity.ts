@@ -37,3 +37,8 @@ export function slug(input: string): string {
     .slice(0, 64);
   return cleaned.length > 0 ? cleaned : "unnamed";
 }
+
+/** Narrow a grant's declared purpose back to one this service actually mints. */
+export function asPurpose(candidate: string): Purpose | undefined {
+  return (Object.values(PURPOSES) as readonly string[]).includes(candidate) ? (candidate as Purpose) : undefined;
+}

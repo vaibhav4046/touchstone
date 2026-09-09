@@ -122,10 +122,20 @@ function actorIdOf(context: AccessContext): string {
   }
 }
 
-/** Hold a grant for as long as the order that minted it runs. */
-export function depositGrant(grant: CapabilityGrant): void {
+/**
+ * Hold a grant for as long as the order that minted it runs.
+ *
+ * `record: false` is for authority whose whole life is one read: a directory
+ * grant is minted, one card is read against it, and it is withdrawn in the same
+ * function. Its opening and its closing are the same event, and `grantHistory`
+ * is a capped list of authority over the market — a row per page view would
+ * push the contract grants a reader came to see out of it. Nothing is hidden by
+ * this: the read those grants carry is audited by the kernel as
+ * `authorization.checked`, which is the record that says whether it was allowed.
+ */
+export function depositGrant(grant: CapabilityGrant, options: { readonly record?: boolean } = {}): void {
   sweep();
-  note(grant);
+  if (options.record !== false) note(grant);
   const key = keyOf(grant.namespaceId, subjectIdOf(grant));
   const held = grants.get(key) ?? [];
   grants.set(key, [...held.filter((existing) => existing.id !== grant.id), grant]);

@@ -62,7 +62,9 @@ the seller's reputation is untouched, and nothing is paid. A rejected delivery
 is not paid for. Every receipt lists what was not checked.
 
 **"Are you just a wrapper on a model?"**
-The scoring floors that decide a FLAGGED verdict never consult a model. Half
+A model can add a floor to a score and can never lift one. The rule-set floors
+fire whether or not any model answered, so an outage cannot turn a flagged
+listing into a trusted one. Half
 the score is exactly reproducible — same text, same number, every run — and
 reported separately as `deterministicScore`. The permission model is the
 SharedOS kernel deciding every call, not a prompt asking a model to behave.
