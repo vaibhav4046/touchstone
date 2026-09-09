@@ -145,11 +145,32 @@ export async function runBroker(input: {
     "prove",
     unrunnable === 0
       ? `${cleared} of ${proofs.length} passed a live challenge.`
-      : `${cleared} of ${proofs.length} cleared the challenge: ${proved} proved it with a sample, ${unrunnable} could not be challenged at all because our own upstream would not answer.`,
+      : proved > 0
+        ? `${proved} of ${proofs.length} proved it with a sample. ${unrunnable} could not be challenged at all because our own upstream would not answer, and since the upstream did answer for the others they are untested rather than unreachable, so they are out.`
+        : `None of the ${proofs.length} could be challenged: our own upstream refused every call. They stay on the shortlist rather than being failed for our outage.`,
     { proofs },
   );
 
-  const passed = shortlist.filter((bid) => proofs.find((proof) => proof.sellerId === bid.sellerId)?.passed === true);
+  // An unchallengeable seller is carried only when the outage was total.
+  //
+  // Keeping it on the shortlist exists to stop our own rate limit emptying a
+  // market, and that is the right call when nothing could be asked. It is the
+  // wrong call the moment one seller did answer: the upstream is demonstrably
+  // working, so the others are untested rather than unreachable, and handing
+  // the contract to the one we never managed to test over one we tested and
+  // rejected is not choosing between them. It is spending.
+  //
+  // A live run made the case: Scout produced a sample and scored 0.3, Ledger's
+  // challenge 429'd, and Ledger took the contract. The tested seller was the
+  // only one the market had any evidence about, and the evidence lost.
+  const upstreamAnswered = proved > 0;
+  const eligible = shortlist.filter((bid) => {
+    const proof = proofs.find((entry) => entry.sellerId === bid.sellerId);
+    if (proof?.passed !== true) return false;
+    return proof.proven || !upstreamAnswered;
+  });
+
+  const passed = eligible;
   if (passed.length === 0) {
     return finish({
       rfp,
@@ -160,7 +181,9 @@ export async function runBroker(input: {
       traceId,
       buyerId: input.buyerId,
       started,
-      unfilled: "No shortlisted seller produced a sample that met the brief. The budget went unspent.",
+      unfilled: upstreamAnswered
+        ? "No shortlisted seller produced a sample that met the brief. The budget went unspent."
+        : "No challenge could be run at all: our own model upstream refused every one of them. Nothing was proven, so nothing was bought and the budget went unspent.",
     });
   }
 

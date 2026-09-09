@@ -13,7 +13,13 @@ import { describe, expect, it, vi } from "vitest";
  * sample, while the timeline read "2 of 2 cleared the challenge".
  */
 
-const upstream = vi.hoisted(() => ({ mode: "answering" as "answering" | "down" }));
+const upstream = vi.hoisted(() => ({
+  mode: "answering" as "answering" | "down",
+  /** When set, only this seller's challenge is refused. Everything else answers. */
+  refuseChallengeFor: undefined as string | undefined,
+  /** When set, this seller answers its challenge with work too thin to clear the bar. */
+  weakSampleFrom: undefined as string | undefined,
+}));
 
 const SAMPLE =
   "Yuzu sits between a buyer's goal and the agents that answer it, taking the brief apart into a capability, a budget and a deadline before anyone is asked to price it.";
@@ -33,6 +39,15 @@ vi.mock("../lib/assay/llm", async (importOriginal) => {
       if (upstream.mode === "down" || options.model === actual.MODELS.guard) return down;
 
       const system = options.system ?? "";
+      // A partial outage: one seller unreachable while the upstream plainly
+      // works for the rest.
+      if (
+        upstream.refuseChallengeFor !== undefined &&
+        system.includes("proof-of-capability") &&
+        system.includes(upstream.refuseChallengeFor)
+      ) {
+        return { ok: false, text: "", ms: 0, error: "http_429" as string | undefined };
+      }
       if (system.includes("procurement request")) {
         return {
           ok: true,
@@ -40,7 +55,13 @@ vi.mock("../lib/assay/llm", async (importOriginal) => {
           text: '{"capability":"research.brief","deliverable":"A competitor brief in markdown.","constraints":["name every competitor"]}',
         };
       }
-      if (system.includes("proof-of-capability")) return { ok: true, ms: 1, text: SAMPLE };
+      if (system.includes("proof-of-capability")) {
+        if (upstream.weakSampleFrom !== undefined && system.includes(upstream.weakSampleFrom)) {
+          // Asked, answered, and nowhere near the brief. Proven, and rejected.
+          return { ok: true, ms: 1, text: "ok" };
+        }
+        return { ok: true, ms: 1, text: SAMPLE };
+      }
       if (system.includes("verify delivered work")) {
         return { ok: true, ms: 1, text: '{"adherence":0.9,"quality":0.9,"accepted":true,"findings":["Answers the brief."]}' };
       }
@@ -101,7 +122,7 @@ describe("a contract signed on nothing says so", () => {
     expect(outcome.contract).toBeDefined();
 
     const prove = outcome.timeline.find((event) => event.stage === "prove");
-    expect(prove?.summary).toContain("could not be challenged");
+    expect(prove?.summary).toContain("our own upstream");
 
     const notChecked = outcome.receipt.report.notChecked.join(" ");
     expect(notChecked).toContain("signed without proof");
@@ -113,4 +134,52 @@ describe("a contract signed on nothing says so", () => {
     expect(outcome.verification?.judged).toBe(false);
     expect(outcome.settlement?.reputationAfter).toBe(outcome.settlement?.reputationBefore);
   }, 30_000);
+
+  it("buys nothing rather than hiring the one seller it never managed to test", async () => {
+    upstream.mode = "answering";
+    // Exactly the live run this rule came from: Scout was asked and its sample
+    // was too thin to clear the bar, and Ledger could not be reached at all.
+    // The only bidder left standing was the one there is no evidence about.
+    upstream.weakSampleFrom = "Scout";
+    upstream.refuseChallengeFor = "Ledger";
+    try {
+      const outcome = await runBroker({
+        goal: "I am launching a coffee brand and need a competitor brief.",
+        budget: 20,
+        buyerId: `buyer-partial-${Date.now()}`,
+        capability: "research.brief",
+      });
+
+      const ledger = outcome.proofs.find((proof) => proof.sellerId === "ledger");
+      const scout = outcome.proofs.find((proof) => proof.sellerId === "scout");
+      expect(ledger?.proven).toBe(false);
+      expect(scout?.proven).toBe(true);
+      expect(scout?.passed).toBe(false);
+
+      // The defect: Ledger took the contract. Carrying an unreachable seller
+      // is protection against a total outage, and this upstream plainly works.
+      expect(outcome.contract).toBeUndefined();
+      expect(outcome.unfilled).toBeDefined();
+
+      const prove = outcome.timeline.find((event) => event.stage === "prove");
+      expect(prove?.summary).toContain("untested rather than unreachable");
+    } finally {
+      upstream.refuseChallengeFor = undefined;
+      upstream.weakSampleFrom = undefined;
+    }
+  }, 30_000);
+
+  it("still carries unchallengeable sellers when the outage is total", async () => {
+    upstream.mode = "down";
+    const outcome = await runBroker({
+      goal: "I am launching a coffee brand and need a competitor brief.",
+      budget: 20,
+      buyerId: `buyer-total-${Date.now()}`,
+      capability: "research.brief",
+    });
+    // Nothing could be asked, so nobody is failed for our outage and the
+    // shortlist survives -- the original bug, still fixed.
+    expect(outcome.contract).toBeDefined();
+  }, 30_000);
+
 });

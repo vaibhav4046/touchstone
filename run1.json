@@ -1,0 +1,432 @@
+{
+  "goal": "Launch my coffee brand. I need a competitor brief.",
+  "budget": 22,
+  "filled": true,
+  "rfp": {
+    "id": "rfp_2e874997",
+    "goal": "Launch my coffee brand. I need a competitor brief.",
+    "capability": "research.brief",
+    "deliverable": "Competitor Brief for Coffee Brand Launch",
+    "budget": 22,
+    "deadlineSeconds": 240,
+    "constraints": [
+      "budget <= 22 Arena credits",
+      "max 2 pages",
+      "PDF format"
+    ]
+  },
+  "bids": [
+    {
+      "sellerId": "scout",
+      "sellerName": "Scout",
+      "price": 5,
+      "etaSeconds": 60,
+      "reputation": 0.5,
+      "listingScore": 79.3,
+      "listingVerdict": "TRUSTED",
+      "note": "TRUSTED at 79.3/100 on published weights. Weakest dimension: evidence quality."
+    },
+    {
+      "sellerId": "ledger",
+      "sellerName": "Ledger",
+      "price": 6,
+      "etaSeconds": 90,
+      "reputation": 0.5,
+      "listingScore": 79.3,
+      "listingVerdict": "TRUSTED",
+      "note": "TRUSTED at 79.3/100 on published weights. Weakest dimension: evidence quality."
+    }
+  ],
+  "proofs": [
+    {
+      "sellerId": "scout",
+      "prompt": "Produce ONE small sample of: Competitor Brief for Coffee Brand Launch. Goal: Launch my coffee brand. I need a competitor brief.. Keep it under 90 words.",
+      "sample": "Weaknesses:** Limited flavor variety;",
+      "score": 0.3,
+      "adherence": 0,
+      "latencyMs": 5613,
+      "proven": true,
+      "passed": false,
+      "reason": "Sample missed the brief's shape."
+    },
+    {
+      "sellerId": "ledger",
+      "prompt": "Produce ONE small sample of: Competitor Brief for Coffee Brand Launch. Goal: Launch my coffee brand. I need a competitor brief.. Keep it under 90 words.",
+      "sample": "",
+      "score": 0,
+      "adherence": 0,
+      "latencyMs": 3135,
+      "proven": false,
+      "passed": true,
+      "reason": "Challenge could not be run (http_429). That is our upstream and not the seller, so this is unproven rather than failed."
+    }
+  ],
+  "negotiation": [
+    {
+      "round": 1,
+      "by": "buyer",
+      "price": 3.72,
+      "rationale": "Opening below the ask: the listing scored 79.3 and reputation is 0.5."
+    },
+    {
+      "round": 1,
+      "by": "seller",
+      "price": 4.86,
+      "rationale": "Meeting in the middle."
+    },
+    {
+      "round": 2,
+      "by": "buyer",
+      "price": 4.29,
+      "rationale": "Moving up, but the budget is the budget."
+    },
+    {
+      "round": 2,
+      "by": "seller",
+      "price": 4.58,
+      "rationale": "Meeting in the middle."
+    },
+    {
+      "round": 5,
+      "by": "buyer",
+      "price": 5,
+      "rationale": "Agreed, at a whole credit: the price becomes uses on a grant and a use cannot be divided."
+    }
+  ],
+  "contract": {
+    "id": "ct_70731081",
+    "rfpId": "rfp_2e874997",
+    "sellerId": "ledger",
+    "sellerName": "Ledger",
+    "price": 5,
+    "deadlineSeconds": 240,
+    "deliverable": "Competitor Brief for Coffee Brand Launch",
+    "grantId": "grant_ct_70731081",
+    "credits": 5,
+    "grantedActions": [
+      "deliver"
+    ],
+    "expiresAt": "2026-09-09T01:38:22.950Z",
+    "agreedAt": "2026-09-09T01:34:22.950Z"
+  },
+  "delivery": {
+    "contractId": "ct_70731081",
+    "output": "[no delivery: http_429]",
+    "elapsedMs": 3146,
+    "onTime": true
+  },
+  "verification": {
+    "contractId": "ct_70731081",
+    "score": 0,
+    "adherence": 0,
+    "judged": false,
+    "accepted": false,
+    "findings": [
+      "No work was taken: our own model upstream refused the call (http_429)."
+    ],
+    "notChecked": [
+      "Quality and adherence: not assessed. The seller was never actually asked, so its reputation is untouched."
+    ]
+  },
+  "settlement": {
+    "contractId": "ct_70731081",
+    "agreed": 5,
+    "paid": 0,
+    "reason": "Nothing was judged, so nothing was paid and the seller's standing was left where it was.",
+    "reputationBefore": 0.5,
+    "reputationAfter": 0.5
+  },
+  "timeline": [
+    {
+      "stage": "discover",
+      "at": "2026-09-09T01:34:13.749Z",
+      "summary": "Goal read as a request for research.brief within 22 credits.",
+      "detail": {
+        "rfp": {
+          "id": "rfp_2e874997",
+          "goal": "Launch my coffee brand. I need a competitor brief.",
+          "capability": "research.brief",
+          "deliverable": "Competitor Brief for Coffee Brand Launch",
+          "budget": 22,
+          "deadlineSeconds": 240,
+          "constraints": [
+            "budget <= 22 Arena credits",
+            "max 2 pages",
+            "PDF format"
+          ]
+        }
+      }
+    },
+    {
+      "stage": "bid",
+      "at": "2026-09-09T01:34:14.201Z",
+      "summary": "2 sellers bid.",
+      "detail": {
+        "bids": [
+          {
+            "sellerId": "scout",
+            "sellerName": "Scout",
+            "price": 5,
+            "etaSeconds": 60,
+            "reputation": 0.5,
+            "listingScore": 79.3,
+            "listingVerdict": "TRUSTED",
+            "note": "TRUSTED at 79.3/100 on published weights. Weakest dimension: evidence quality."
+          },
+          {
+            "sellerId": "ledger",
+            "sellerName": "Ledger",
+            "price": 6,
+            "etaSeconds": 90,
+            "reputation": 0.5,
+            "listingScore": 79.3,
+            "listingVerdict": "TRUSTED",
+            "note": "TRUSTED at 79.3/100 on published weights. Weakest dimension: evidence quality."
+          }
+        ]
+      }
+    },
+    {
+      "stage": "prove",
+      "at": "2026-09-09T01:34:22.949Z",
+      "summary": "1 of 2 cleared the challenge: 1 proved it with a sample, 1 could not be challenged at all because our own upstream would not answer.",
+      "detail": {
+        "proofs": [
+          {
+            "sellerId": "scout",
+            "prompt": "Produce ONE small sample of: Competitor Brief for Coffee Brand Launch. Goal: Launch my coffee brand. I need a competitor brief.. Keep it under 90 words.",
+            "sample": "Weaknesses:** Limited flavor variety;",
+            "score": 0.3,
+            "adherence": 0,
+            "latencyMs": 5613,
+            "proven": true,
+            "passed": false,
+            "reason": "Sample missed the brief's shape."
+          },
+          {
+            "sellerId": "ledger",
+            "prompt": "Produce ONE small sample of: Competitor Brief for Coffee Brand Launch. Goal: Launch my coffee brand. I need a competitor brief.. Keep it under 90 words.",
+            "sample": "",
+            "score": 0,
+            "adherence": 0,
+            "latencyMs": 3135,
+            "proven": false,
+            "passed": true,
+            "reason": "Challenge could not be run (http_429). That is our upstream and not the seller, so this is unproven rather than failed."
+          }
+        ]
+      }
+    },
+    {
+      "stage": "negotiate",
+      "at": "2026-09-09T01:34:22.949Z",
+      "summary": "Settled at 5 credits after 5 rounds.",
+      "detail": {
+        "negotiation": [
+          {
+            "round": 1,
+            "by": "buyer",
+            "price": 3.72,
+            "rationale": "Opening below the ask: the listing scored 79.3 and reputation is 0.5."
+          },
+          {
+            "round": 1,
+            "by": "seller",
+            "price": 4.86,
+            "rationale": "Meeting in the middle."
+          },
+          {
+            "round": 2,
+            "by": "buyer",
+            "price": 4.29,
+            "rationale": "Moving up, but the budget is the budget."
+          },
+          {
+            "round": 2,
+            "by": "seller",
+            "price": 4.58,
+            "rationale": "Meeting in the middle."
+          },
+          {
+            "round": 5,
+            "by": "buyer",
+            "price": 5,
+            "rationale": "Agreed, at a whole credit: the price becomes uses on a grant and a use cannot be divided."
+          }
+        ]
+      }
+    },
+    {
+      "stage": "contract",
+      "at": "2026-09-09T01:34:22.950Z",
+      "summary": "Ledger contracted for 5 credits, payable as 5 grant uses. Signed without proof: its challenge could not be run, so this seller demonstrated nothing before the money moved.",
+      "detail": {
+        "contract": {
+          "id": "ct_70731081",
+          "rfpId": "rfp_2e874997",
+          "sellerId": "ledger",
+          "sellerName": "Ledger",
+          "price": 5,
+          "deadlineSeconds": 240,
+          "deliverable": "Competitor Brief for Coffee Brand Launch",
+          "grantId": "grant_ct_70731081",
+          "credits": 5,
+          "grantedActions": [
+            "deliver"
+          ],
+          "expiresAt": "2026-09-09T01:38:22.950Z",
+          "agreedAt": "2026-09-09T01:34:22.950Z"
+        }
+      }
+    },
+    {
+      "stage": "execute",
+      "at": "2026-09-09T01:34:26.100Z",
+      "summary": "No work was taken from Ledger: our own model upstream refused the call (http_429). 4 credits left on the contract.",
+      "detail": {
+        "balance": {
+          "grantId": "grant_ct_70731081",
+          "purchased": 5,
+          "spent": 1,
+          "remaining": 4
+        }
+      }
+    },
+    {
+      "stage": "verify",
+      "at": "2026-09-09T01:34:26.100Z",
+      "summary": "Nothing was delivered to judge.",
+      "detail": {
+        "verification": {
+          "contractId": "ct_70731081",
+          "score": 0,
+          "adherence": 0,
+          "judged": false,
+          "accepted": false,
+          "findings": [
+            "No work was taken: our own model upstream refused the call (http_429)."
+          ],
+          "notChecked": [
+            "Quality and adherence: not assessed. The seller was never actually asked, so its reputation is untouched."
+          ]
+        }
+      }
+    },
+    {
+      "stage": "settle",
+      "at": "2026-09-09T01:34:26.100Z",
+      "summary": "0 of 5 credits paid. Ledger: 0.5 to 0.5.",
+      "detail": {
+        "settlement": {
+          "contractId": "ct_70731081",
+          "agreed": 5,
+          "paid": 0,
+          "reason": "Nothing was judged, so nothing was paid and the seller's standing was left where it was.",
+          "reputationBefore": 0.5,
+          "reputationAfter": 0.5
+        }
+      }
+    }
+  ],
+  "receipt": {
+    "version": "touchstone.receipt.v1",
+    "receiptId": "rcp_7e90d705-dd6",
+    "issuedAt": "2026-09-09T01:34:26.100Z",
+    "expiresAt": "2026-09-16T01:34:26.100Z",
+    "issuer": "touchstone",
+    "buyerId": "readme-capture",
+    "purpose": "yuzu.broker",
+    "traceId": "5566e763-2c31-4781-86fb-0ff4d90395e1",
+    "report": {
+      "vendor": "Ledger",
+      "vendorSlug": "ledger",
+      "verdict": "UNPROVEN",
+      "score": 0,
+      "deterministicScore": 0,
+      "reproducibility": {
+        "exact": [
+          "Contract arithmetic",
+          "Negotiated price",
+          "Credit settlement"
+        ],
+        "modelDerived": [
+          "Delivery verification"
+        ],
+        "unavailable": [
+          "Proof of capability for 1 of 2 shortlisted sellers"
+        ],
+        "note": "The money and the grant are arithmetic, and so is the negotiated price. The judgement of the delivered work is a model's and is labelled as such."
+      },
+      "headline": "Nothing of Ledger's was judged, so nothing was paid.",
+      "dimensions": [],
+      "claims": [],
+      "risks": [],
+      "notChecked": [
+        "Quality and adherence: not assessed. The seller was never actually asked, so its reputation is untouched.",
+        "Proof of capability: 1 of 2 shortlisted sellers produced a sample, 1 could not be challenged at all because the upstream would not answer.",
+        "The contract was signed without proof: the winning seller's challenge could not be run, so nothing was demonstrated before the money moved."
+      ],
+      "analysis": "deterministic+classifier+model"
+    },
+    "decisions": [
+      {
+        "action": "read",
+        "resource": "assay/vendors/scout/claims",
+        "outcome": "allowed",
+        "reasonCode": "allowed",
+        "grantId": "grant_ord_e6498a78"
+      },
+      {
+        "action": "classify",
+        "resource": "assay/vendors/scout/claims",
+        "outcome": "allowed",
+        "reasonCode": "allowed",
+        "grantId": "grant_ord_e6498a78"
+      },
+      {
+        "action": "analyze",
+        "resource": "assay/vendors/scout/claims",
+        "outcome": "allowed",
+        "reasonCode": "allowed",
+        "grantId": "grant_ord_e6498a78"
+      },
+      {
+        "action": "read",
+        "resource": "assay/vendors/ledger/claims",
+        "outcome": "allowed",
+        "reasonCode": "allowed",
+        "grantId": "grant_ord_c6d7d6d7"
+      },
+      {
+        "action": "classify",
+        "resource": "assay/vendors/ledger/claims",
+        "outcome": "allowed",
+        "reasonCode": "allowed",
+        "grantId": "grant_ord_c6d7d6d7"
+      },
+      {
+        "action": "analyze",
+        "resource": "assay/vendors/ledger/claims",
+        "outcome": "allowed",
+        "reasonCode": "allowed",
+        "grantId": "grant_ord_c6d7d6d7"
+      },
+      {
+        "action": "deliver",
+        "resource": "assay/market/research",
+        "outcome": "allowed",
+        "reasonCode": "allowed",
+        "grantId": "grant_ct_70731081"
+      }
+    ],
+    "escalations": [],
+    "signature": {
+      "alg": "HMAC-SHA256",
+      "value": "11d5e2f75f1408fb45a7bf9b7222329149b0a16363ad8c75d9238f58db541208"
+    }
+  },
+  "meta": {
+    "elapsedMs": 13007,
+    "buyerId": "readme-capture"
+  }
+}
