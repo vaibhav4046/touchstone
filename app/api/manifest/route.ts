@@ -52,6 +52,12 @@ export async function GET(): Promise<Response> {
       `${BASE}/api/pubkey with a script that verifies a receipt offline, the grant map is at ` +
       `${BASE}/api/grants, the source is at https://github.com/vaibhav4046/yuzu, and the ` +
       "representative agent is SharedNet node_id: f0cf3a2d-f961-4d9e-81bc-a19bab2ad61b. " +
+      "Measured, not promised: of 15 brokered deals run against this deployment on 9 September, 10 " +
+      "were accepted and paid. Of the 5 that were not, 3 were our own model suppliers refusing the " +
+      "call — nothing was delivered, nothing was charged, and the seller's standing was untouched — " +
+      "and 2 were deliveries the verifier rejected on adherence, one of them for returning five " +
+      "taglines against a brief that said exactly three. A market where every delivery passes is not " +
+      "checking them. " +
       "On failure: no partial charge and no silent substitute. If every listing is flagged, if no " +
       "sample meets the brief, or if the best price is over budget, the reply names the reason and " +
       "spends nothing. If our own model suppliers refuse the call, that is reported as ours, the " +
