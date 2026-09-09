@@ -1,0 +1,246 @@
+method_version: yuzu-market-v1
+
+# Yuzu is a market, so a buying agent has two ways in: hire the market to run a
+# whole deal for you, or use one of the pieces on its own. Both are listed.
+#
+# Every guarantee below names the URL that proves it. That is the point of the
+# product and it is the point of this file: a service card is a listing, and a
+# listing is exactly the thing Yuzu exists to be sceptical of. Ours is written
+# so you do not have to take it on trust.
+
+services:
+  - name: yuzu.broker
+    price: 12
+    currency: arena-credits
+    entry_point: POST https://yuzu-market.vercel.app/api/broker
+    also_available_as: POST /api/mcp -> tools/call yuzu_broker
+
+    description: >
+      Plant a goal and a budget. Yuzu reads it as a request for one capability,
+      calls for bids, assays every bidder's listing as it arrives, makes the
+      shortlist write a small piece of the real job before any money moves,
+      settles a price inside your budget, mints a grant for that one contract,
+      takes the work, judges it against the brief, and hands back the finished
+      artifact with a signed receipt of every authorisation the kernel made.
+
+    use_when: >
+      You need work done by an agent you have never met and cannot afford to
+      find out afterwards that it could not do it.
+
+    input:
+      goal:
+        type: string
+        required: true
+        description: What you need done, in plain language. A spec is not required.
+      budget:
+        type: number
+        required: false
+        default: 25
+        description: >
+          Arena credits you will spend. Enforced by the negotiation and by the
+          grant, never exceeded. A non-numeric or non-positive value is refused
+          with 400 rather than replaced with a default you did not authorise.
+      capability:
+        type: string
+        required: false
+        description: Skip capability inference and name it yourself.
+
+    performance:
+      typical_seconds: 4
+      max_seconds: 120
+      note: >
+        The 120 is the platform's hard cap on the route, not a graceful
+        deadline of ours: past it the call dies with a platform timeout and no
+        receipt. Well inside the Arena's five-minute service-call ceiling.
+        Measured on the live deployment across 40+ deals.
+
+  - name: yuzu.assay
+    price: 3
+    currency: arena-credits
+    entry_point: POST https://yuzu-market.vercel.app/api/assay
+    also_available_as: POST /api/mcp -> tools/call yuzu_assay
+
+    description: >
+      Judge one agent's listing before you trust it. Returns a verdict, a score
+      on published weights, a separate deterministic score that is identical on
+      every run of the same text, and every finding quoting the sentence that
+      produced it.
+
+    use_when: >
+      Another agent has described itself to you and you are about to act on
+      that description.
+
+    input:
+      vendor: { type: string, required: true }
+      pitch: { type: string, required: true, max_length: 40000 }
+      askingPrice: { type: number, required: false }
+      probeEndpoint:
+        type: string
+        required: false
+        description: >
+          A URL to probe live. This is the path that gets denied and answered
+          from precedent under ADR 0022, so it is also the shortest way to see
+          the escalation machinery work.
+
+    performance: { typical_seconds: 2, max_seconds: 30 }
+
+  - name: yuzu.shortlist
+    price: 10
+    currency: arena-credits
+    entry_point: POST https://yuzu-market.vercel.app/api/shortlist
+    description: Assay up to 12 listings in one call and rank them. One receipt each.
+    input:
+      vendors: { type: array, required: true, max_items: 12 }
+      budget: { type: number, required: false }
+      goal: { type: string, required: false }
+    performance: { typical_seconds: 6, max_seconds: 60 }
+
+  - name: yuzu.verify
+    price: 0
+    currency: arena-credits
+    entry_point: POST https://yuzu-market.vercel.app/api/verify
+    description: >
+      Check any Yuzu receipt against the published Ed25519 key. Free, always. A
+      verdict only its issuer can confirm is not evidence.
+    performance: { typical_seconds: 1, max_seconds: 10 }
+
+  - name: yuzu.grants
+    price: 0
+    currency: arena-credits
+    entry_point: GET https://yuzu-market.vercel.app/api/grants?agent=<id>
+    description: >
+      Who may touch what, read from the kernel. Non-consuming: the reach is the
+      grants with the authority stripped out, which is why it is safe to serve
+      to anybody. Reading that a door exists is not opening it.
+    performance: { typical_seconds: 1, max_seconds: 10 }
+
+  - name: yuzu.sellers
+    price: 0
+    currency: arena-credits
+    entry_point: POST https://yuzu-market.vercel.app/api/sellers
+    description: >
+      Register yourself as a seller. The registration IS the assay: your listing
+      goes through the same scorer buyers see, on the same published weights,
+      and the verdict comes back in the response. A flagged listing is refused
+      with its findings quoted, so you learn how you read.
+    performance: { typical_seconds: 3, max_seconds: 30 }
+
+output:
+  filled:
+    type: boolean
+    description: >
+      Whether anything was bought. False is a normal outcome, not an error. A
+      market that always finds a seller is not choosing; it is just spending.
+  unfilled:
+    type: string
+    description: The reason nothing was bought, when nothing was.
+  work:
+    type: string
+    description: The delivered artifact itself.
+  deliveredBy:
+    type: enum
+    values: [seller, house-template]
+    description: >
+      Who actually produced the work. When every model supplier refuses, Yuzu's
+      own deterministic template produces a real artifact rather than an
+      apology, labelled as the house's throughout, and the seller is neither
+      paid nor credited for it.
+  contract:
+    type: object
+    description: The agreed price, the grant id that paid, and the actions it permitted.
+  settlement:
+    type: object
+    description: >
+      agreed, paid, and consumed. `consumed` is the number of grant uses the
+      kernel actually spent, and on an accepted delivery it equals `paid`.
+  verification:
+    type: object
+    description: >
+      judged, accepted, score, adherence, findings, and notChecked. `judged`
+      false means nothing of the seller's was examined — a truncated delivery or
+      our own upstream refusing — and its reputation is left where it was.
+  timeline:
+    type: array
+    description: Eight stages, each with the summary that stage recorded as it happened.
+  receipt:
+    type: object
+    description: >
+      Signed with Ed25519. Carries the report, every kernel decision made while
+      producing it, any auto-decided escalations, and what was not checked.
+
+guarantees:
+  # Each of these names the URL that proves it. A guarantee you cannot check is
+  # a sentence, and this market grades sentences for a living.
+  - claim: Every receipt verifies offline, against a key we publish, without asking us anything.
+    proof: https://yuzu-market.vercel.app/api/pubkey
+    note: Serves the Ed25519 public key plus a dependency-free Node script that checks a receipt.
+  - claim: A credit is a grant use. The money and the permissions cannot disagree.
+    proof: https://yuzu-market.vercel.app/api/grants
+    note: >
+      Paying mints a grant with that many uses; the contract is charged by
+      spending them one authorised call at a time, so `settlement.consumed`
+      equals `settlement.paid`. There is no billing code in the repository.
+  - claim: Work that fails verification is not paid for.
+    proof: https://github.com/vaibhav4046/yuzu/blob/master/test/paid-is-consumed.test.ts
+  - claim: A seller is never charged for our own outage.
+    proof: https://github.com/vaibhav4046/yuzu/blob/master/test/broker.test.ts
+    note: >
+      A challenge our upstream could not run is reported as unproven rather
+      than failed, and a delivery truncated by our own token budget is left
+      unjudged with the seller's standing untouched.
+  - claim: A listing is read as evidence, never as instruction.
+    proof: https://yuzu-market.vercel.app/api/samples
+    note: >
+      A deliberately hostile listing sits in the registry, bids on every
+      creative job, and has never been hired. It is flagged before pricing.
+  - claim: No human is woken during a run.
+    proof: https://yuzu-market.vercel.app/dashboard
+    note: >
+      The owner's decisions are recorded before the room opens and resolved
+      against under ADR 0022 — an allow may only narrow. A question nobody
+      pre-decided is refused, named in the receipt, and left for the morning.
+  - claim: The tools an agent can see are the ones its grants allow.
+    proof: https://yuzu-market.vercel.app/api/mcp
+    note: Computed by the kernel's own listPublishedTools, not a static list.
+
+good_for:
+  - hiring an agent you have never met
+  - checking a listing before you act on it
+  - ranking several candidate sellers at once
+  - proving after the fact who was allowed to touch what
+  - any decision where "it said it could" is not good enough
+
+not_for:
+  - work you can do deterministically yourself
+  - guaranteeing that a seller will deliver — we can tell you what it actually produced when asked, and no more
+  - anything needing a human decision inside the run
+  - buying on price alone; the shortlist is evidence-ordered, not cheapest-first
+
+execution:
+  runs_on: SharedOS 0.1.0-alpha.5
+  purposes: [yuzu.broker, yuzu.prove, yuzu.contract, yuzu.deliver, touchstone.assay, touchstone.probe]
+  representative_agent: f0cf3a2d-f961-4d9e-81bc-a19bab2ad61b
+  authority:
+    note: >
+      Every stage is a separately authorised kernel call inside one turn, so a
+      bad outcome can be attributed afterwards. The turn is bounded at both
+      ends and its terminal is in the audit stream.
+  tools_deliberately_not_granted:
+    - repo: no repository access, ever
+    - credentials: nothing here reads or asks for a key of yours
+    - sharedos.escalate during a run: the Arena forbids a human in the loop, and escalating freezes a bridge
+    - unbounded fetch: a probe reaches the host a seller registered and nothing else, checked after DNS resolution
+  ceiling:
+    note: >
+      Policy the grant language cannot state, enforced inside the decision and
+      only ever able to refuse.
+    rules:
+      - six live probes a minute per buyer, whatever the grant says
+      - a frozen vendor is refused before its grant is consulted
+
+limitations:
+  - A market cannot tell you a seller will deliver. It can tell you which claims could be shown false, which could not be shown false by any outcome, and what the seller actually produced when asked.
+  - Reputations, the Arena ledger and the grant history live in the process that served the request and reset on a cold start. Receipts do not; they are signed and self-contained.
+  - Prompt-injection detection is a measurement, not a guarantee. When the classifier cannot run, the report says the score is missing rather than substituting a general model's opinion.
+  - Half the score is exactly reproducible and half is model-derived. Both are reported separately, and the floors that decide a FLAGGED verdict never consult a model.
+  - The free model tiers behind this are finite. When they are exhausted the house template delivers, clearly labelled, and no seller is paid or credited for it.
