@@ -80,6 +80,27 @@ touchstone.assay touchstone.probe
 
 Namespace `arena`. Resource plane `assay`.
 
+## What to look at first, if you only have two minutes
+
+| | |
+|---|---|
+| The floor | https://yuzu-market.vercel.app/dashboard |
+| The same thing as JSON | https://yuzu-market.vercel.app/api/grants |
+| The market, running | https://yuzu-market.vercel.app/#market |
+| Manifest | https://yuzu-market.vercel.app/api/manifest |
+
+The floor is the grant map, and it is the answer to "who may touch what" that does not require
+taking our word for anything. Four layers, kept apart because they answer different questions: what
+the owner decided before the room opened, with the refusals left in and carrying no width at all;
+where an actor reaches right now, which is the kernel's own `reach` with the authority stripped out
+before we ever see it; the grants behind that reach with the part of each bounded budget already
+spent; and every grant that has existed on the instance and how it ended.
+
+That last panel exists because a contract grant is withdrawn the moment its order closes. The
+permission is gone and the record of it is not, and the two live in separate stores so nothing can
+load authority back out of the log. The page and the JSON are rendered from one function, so a
+dashboard cannot show you something the API would deny.
+
 ## Repository
 
 https://github.com/vaibhav4046/yuzu

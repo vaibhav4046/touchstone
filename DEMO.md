@@ -96,7 +96,24 @@ curl -s -X POST https://yuzu-market.vercel.app/api/verify -d @receipt.json
 
 ---
 
-### 1:40 – 1:50 · Nobody gets woken up
+### 1:34 – 1:42 · The floor
+
+**On screen:** click **The floor**.
+
+> "And this is the map. Who may touch what, read from the kernel rather than kept by us. The
+> owner's table on the left is what was decided before the room opened, refusals included — a
+> refusal carries no permissions at all, which is what stops a later request reading one off the
+> back of it. Underneath, every grant that has existed here and how much of its budget was actually
+> spent."
+
+**On screen:** rest on the withdrawn column.
+
+> "They are all withdrawn, because a contract grant dies with its order. The permission is gone.
+> The record is not."
+
+---
+
+### 1:42 – 1:50 · Nobody gets woken up
 
 > "One more. The rules forbid a human in the loop for two hours, and escalating freezes a bridge. So
 > Yuzu does not escalate during a run — the owner decides the questions beforehand, and they are
@@ -105,7 +122,7 @@ curl -s -X POST https://yuzu-market.vercel.app/api/verify -d @receipt.json
 
 ---
 
-### 1:50 – 1:56 · Close
+### 1:50 – 1:58 · Close
 
 **On screen:** cut to black, the mark, the wordmark.
 
