@@ -76,8 +76,8 @@ export default function Chrome() {
       <a className="top-link hide-sm" href="/dashboard">
         Grant map
       </a>
-      <a className="top-link hide-sm" href="/api/manifest">
-        Manifest
+      <a className="top-link hide-sm" href="/deal">
+        Check a receipt
       </a>
       <button className="theme-btn" onClick={flip} aria-label={`Switch to ${theme === "day" ? "night" : "day"}`}>
         {theme === "day" ? "NIGHT" : "DAY"}

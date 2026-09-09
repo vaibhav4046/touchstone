@@ -435,6 +435,7 @@ export default async function Dashboard({
           <img src="/art/yuzu-mark.svg" alt="" width={22} height={22} />
           <span>Yuzu · built on the SharedOS kernel</span>
           <a href="/">Home</a>
+          <a href="/deal">Check a receipt</a>
           <a href="/api/grants">Grants</a>
           <a href="/api/manifest">Manifest</a>
           <a href="/api/verify">Verify</a>

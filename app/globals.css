@@ -709,7 +709,12 @@ blockquote {
 .stage-flat .deck-title em { font-style: italic; color: var(--violet-deep); }
 .stage-flat .deck-lede { max-width: 62ch; font-size: 1.02rem; line-height: 1.62; color: var(--ink-2); margin: 0 0 1.4rem; }
 .stage-flat .deck-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.stage-flat .deck-body { padding: 2.5rem 0 5rem; display: grid; gap: 1.1rem; }
+/* minmax(0,1fr), not the implicit auto: an auto track sizes to the widest
+   item min-content, and the registry table is 563px wide. That made every
+   panel on the page 613px inside a 375px phone and scrolled the whole
+   document sideways. The table already scrolls inside itself; this stops it
+   dragging its neighbours along. */
+.stage-flat .deck-body { padding: 2.5rem 0 5rem; display: grid; gap: 1.1rem; grid-template-columns: minmax(0, 1fr); }
 
 .stage-flat .chip {
   display: inline-flex; align-items: baseline; gap: 0.4rem;
