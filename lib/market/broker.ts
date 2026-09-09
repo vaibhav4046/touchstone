@@ -55,9 +55,16 @@ export async function runBroker(input: {
   readonly budget: number;
   readonly buyerId: string;
   readonly capability?: string;
+  /**
+   * The turn's trace, when the caller has already opened one.
+   *
+   * A turn terminal filed under a different trace than the tool calls it bounds
+   * joins nothing, which is the whole reason to record it.
+   */
+  readonly traceId?: string;
 }): Promise<BrokerOutcome> {
   const started = Date.now();
-  const traceId = randomUUID();
+  const traceId = input.traceId ?? randomUUID();
   const timeline: StageEvent[] = [];
   const mark = (stage: StageEvent["stage"], summary: string, detail?: Record<string, unknown>) =>
     timeline.push({ stage, at: new Date().toISOString(), summary, detail });

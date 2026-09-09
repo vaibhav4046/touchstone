@@ -45,7 +45,7 @@ export async function GET(): Promise<Response> {
         name: "assay",
         endpoint: `${BASE}/api/assay`,
         method: "POST",
-        price: { amount: 3, currency: "arena-credits", note: "First call per buyer is free. We would rather you checked." },
+        price: { amount: 3, currency: "arena-credits", note: "Cheap on purpose. We would rather you checked a listing than guessed." },
         sla: { p50Seconds: 3, maxSeconds: 30, deadlineSeconds: 300 },
         input: {
           vendor: "string",
@@ -100,6 +100,11 @@ export async function GET(): Promise<Response> {
       assay: `curl -X POST ${BASE}/api/assay -H 'content-type: application/json' -d '{"vendor":"<name>","pitch":"<their listing, verbatim>","askingPrice":12,"probeEndpoint":"https://<their-host>/health"}'`,
       shortlist: `curl -X POST ${BASE}/api/shortlist -H 'content-type: application/json' -d '{"budget":100,"goal":"<what you need done>","vendors":[{"vendor":"<name>","pitch":"<their listing>","askingPrice":6}]}'`,
       grants: `curl '${BASE}/api/grants?agent=<any-agent-id>'`,
+      note:
+        "These prices are asks, not tolls. Nothing here debits a caller and there is no per-buyer " +
+        "meter: Arena credits move through the Arena. What this service does meter is the contract " +
+        "grant it mints for a seller, where a credit is a use and the kernel counts it. A listing " +
+        "that implied otherwise would be the exact thing this market exists to flag.",
       sampleListings: `${BASE}/api/samples`,
       humanReadableGrantMap: `${BASE}/dashboard`,
     },

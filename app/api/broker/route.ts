@@ -1,7 +1,8 @@
 import { after } from "next/server";
 import { runBroker } from "../../../lib/market/broker";
 import { listSellers, allReputations } from "../../../lib/market/registry";
-import { drainAudit } from "../../../lib/sharedos/host";
+import { buildContext, drainAudit, withTurn } from "../../../lib/sharedos/host";
+import { PURPOSES } from "../../../lib/sharedos/identity";
 import { json, resolveBuyer } from "../../../lib/api";
 
 export const runtime = "nodejs";
@@ -41,12 +42,25 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const budget = typeof body.budget === "number" && Number.isFinite(body.budget) ? body.budget : 25;
-  const outcome = await runBroker({
-    goal,
-    budget,
-    buyerId,
-    capability: typeof body.capability === "string" ? body.capability : undefined,
-  });
+
+  // One deal is one turn, bounded at both ends.
+  //
+  // Authority is frozen once at the boundary instead of being re-resolved on
+  // every one of the eight stages, so a store that goes down between the proof
+  // and the contract cannot change its mind halfway through a deal. And the
+  // audit stream gets a terminal: without it a reader sees a run of
+  // `tool.invoked` rows and has nothing but a shared traceId to say where the
+  // turn stopped or whether it stopped well.
+  const context = buildContext({ buyerId, purpose: PURPOSES.broker });
+  const outcome = await withTurn(context, `broker_${context.traceId}`, () =>
+    runBroker({
+      goal,
+      budget,
+      buyerId,
+      traceId: context.traceId,
+      capability: typeof body.capability === "string" ? body.capability : undefined,
+    }),
+  );
 
   return json({
     goal,
