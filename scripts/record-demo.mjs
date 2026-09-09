@@ -139,6 +139,21 @@ async function main() {
     .catch(() => console.log("  (no settlement line appeared; recording the result as it stands)"));
   await settle(5000);
 
+  // What the deal actually did, read off the page rather than assumed. A take
+  // where every model supplier refused is honest and worth keeping, but it is
+  // not the same film as one where a seller was paid, and the difference has to
+  // be legible from the artefacts rather than by watching ninety seconds back.
+  const deal = await page.evaluate(() => {
+    const text = document.body.innerText;
+    const settled = /(\d+) of (\d+) credits paid/i.exec(text);
+    return {
+      paid: settled === null ? null : Number(settled[1]),
+      house: /house[- ]template|house-produced/i.test(text),
+      unfilled: /nothing was bought|the budget went unspent/i.test(text),
+    };
+  });
+  console.log(`  deal: ${JSON.stringify(deal)}`);
+
   beat("verify-and-settle", "Work that fails verification is not paid for, and reputation moves on outcomes only.");
   await page.evaluate(() => window.scrollBy({ top: 520, behavior: "smooth" }));
   await settle(5500);
@@ -229,11 +244,21 @@ async function main() {
 
   await writeFile(
     path.join(OUT, "beats.json"),
-    `${JSON.stringify({ base: BASE, width: WIDTH, height: HEIGHT, duration, beats, consoleErrors }, null, 2)}\n`,
+    `${JSON.stringify({ base: BASE, width: WIDTH, height: HEIGHT, duration, deal, beats, consoleErrors }, null, 2)}\n`,
   );
 
   console.log(`\n${duration}s recorded -> ${path.join(OUT, "yuzu-demo.webm")}`);
   console.log(`${beats.length} beats -> ${path.join(OUT, "beats.json")}`);
+  if (deal.paid !== null && deal.paid > 0) {
+    console.log(`A seller was paid ${deal.paid} credits on camera. This is the take to keep.`);
+  } else if (deal.house) {
+    console.log(
+      "Every model supplier refused, so the house template delivered and nobody was paid. That is honest " +
+        "and it is a weaker film: record again when the suppliers are answering.",
+    );
+  } else {
+    console.log("No settlement line was found on the page. Watch this take before using it.");
+  }
   if (consoleErrors.length > 0) {
     console.log(`\n${consoleErrors.length} console error(s) during the take:`);
     for (const error of consoleErrors.slice(0, 8)) console.log(`  ${error}`);

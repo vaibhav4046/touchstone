@@ -42,6 +42,13 @@ buyer settled on, the five uses minted on the grant, and the five that paid out.
 kernel's — one delivery consumed one use and the contract has four left, which is a question asked
 of the usage store rather than a counter this repository keeps.
 
+Run that curl and you may not get this transcript, because the model suppliers behind it are free
+tiers and they run out. In twelve measured deals on one afternoon, seven paid a seller in full and
+five came back from the house template with `deliveredBy: "house-template"`, a real artifact,
+nobody paid and nobody credited. That is not the run going wrong; it is the run saying which of the
+two things happened. If you get the house template and want the other one, the difference is a
+quota resetting, not a code path.
+
 The `[prove]` line is the market refusing to flatter itself. Scout could not be reached, and rather
 than carry an untested bidder into a contract it is dropped, because another seller *did* answer
 and that makes the upstream demonstrably fine. An earlier run did the opposite: Scout was tested
