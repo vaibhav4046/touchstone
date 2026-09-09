@@ -603,3 +603,71 @@ blockquote {
 @media (prefers-reduced-motion: reduce) {
   [data-reveal], .rise > span { opacity: 1 !important; transform: none !important; }
 }
+
+/* ─────────────────────────  theme switch  ───────────────────────── */
+
+/* The switch is a View Transition, which is the platform doing the work: two
+   snapshots and a cross-fade for free. What is added on top is the wipe — a
+   stepped radial sweep out of the toggle, so the page changes the way the art
+   does, a block at a time rather than a smooth dissolve. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: pixelwipe 620ms steps(9, end) both;
+}
+@keyframes pixelwipe {
+  from { clip-path: circle(0% at var(--switch-x, 92%) var(--switch-y, 6%)); }
+  to { clip-path: circle(145% at var(--switch-x, 92%) var(--switch-y, 6%)); }
+}
+
+/* Fallback for browsers without View Transitions: the tokens still move, so
+   nothing snaps. */
+body,
+.band,
+.card,
+.seedstage .panel,
+.foot,
+input,
+textarea,
+blockquote {
+  transition: background-color 420ms var(--ease), color 420ms var(--ease), border-color 420ms var(--ease);
+}
+
+.theme-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-pixel), var(--mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.04em;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--r-card);
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color 200ms var(--ease), border-color 200ms var(--ease);
+}
+.theme-btn:hover { color: var(--ink); border-color: var(--ink-3); }
+.top[data-over="true"] .theme-btn { color: rgba(255, 255, 255, 0.8); border-color: rgba(255, 255, 255, 0.28); }
+.top[data-over="true"] .theme-btn:hover { color: #fff; border-color: #fff; }
+
+/* Night: the verdict stamps were built for paper and need their own ground. */
+:root[data-theme="night"] .stamp[data-v="TRUSTED"] { color: #7fe0ab; background: rgba(47, 143, 99, 0.16); }
+:root[data-theme="night"] .stamp[data-v="QUALIFIED"] { color: #ffd479; background: rgba(176, 119, 17, 0.18); }
+:root[data-theme="night"] .stamp[data-v="UNPROVEN"] { color: var(--ink-3); background: rgba(255, 255, 255, 0.06); }
+:root[data-theme="night"] .stamp[data-v="FLAGGED"] { color: #ff8f80; background: rgba(195, 63, 49, 0.18); }
+:root[data-theme="night"] .finding[data-s="critical"] .tag { color: #ff8f80; }
+:root[data-theme="night"] .ledger-row[data-o="allowed"] .o { color: #7fe0ab; }
+:root[data-theme="night"] .ledger-row[data-o="denied"] .o { color: #ff8f80; }
+:root[data-theme="night"] .ledger-row[data-o="escalated"] .o { color: #ffd479; }
+:root[data-theme="night"] h2.section em { color: var(--yuzu-bright); }
+:root[data-theme="night"] .foot a:hover { color: var(--yuzu-bright); border-color: var(--yuzu-bright); }
+:root[data-theme="night"] .tint { color: #16121f; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root) { animation: none; }
+}

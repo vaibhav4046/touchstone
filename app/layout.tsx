@@ -54,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("yuzu-theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}`,
+            __html: `try{var t=localStorage.getItem("yuzu-theme");if(t==="night")document.documentElement.setAttribute("data-theme","night");}catch(e){}`,
           }}
         />
       </head>
