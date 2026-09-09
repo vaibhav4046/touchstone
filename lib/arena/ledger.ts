@@ -15,7 +15,11 @@
  * is not how much was spent but what the agent thought it was buying.
  */
 
+import { signPayload, verifyPayload, type Signed } from "../assay/receipt";
+
 export const ARENA_BUDGET = 100;
+/** Names the kind inside the signature, so one record cannot pose as another. */
+const SPEND_RECORD = "yuzu.arena.spend.v1";
 export const MIN_SPEND = 80;
 export const MIN_SELLERS = 3;
 
@@ -90,6 +94,51 @@ export function ledger(): LedgerState {
     satisfiesRule: shortfall.length === 0,
     shortfall,
   };
+}
+
+/**
+ * The ledger, made durable the only way this repository allows.
+ *
+ * Entries live in the process that served the request, and Vercel runs many:
+ * spend recorded on one instance is invisible from the others and gone on a
+ * cold start. For a prize measured in what we actually spent, a tally that
+ * cannot be read back is not a tally.
+ *
+ * There is no database here, and adding one would contradict the rest of the
+ * design. So the answer is the one receipts already use: every purchase also
+ * yields a signed, self-contained record. It is durable in the hands of
+ * whoever holds it, it checks against the same public key and the same offline
+ * script at /api/pubkey, and any instance can rebuild the whole ledger from a
+ * pile of them.
+ *
+ * Rebuilding verifies every record before counting it and ignores duplicates by
+ * seller and timestamp, so replaying one twice cannot inflate the spend. A
+ * forged record is not merely rejected but cannot be made: the signature covers
+ * the same canonical bytes as a receipt.
+ */
+export function restore(records: readonly unknown[]): { readonly restored: number; readonly rejected: number } {
+  const seen = new Set(entries().map((purchase) => `${purchase.seller}@${purchase.at}`));
+  let restored = 0;
+  let rejected = 0;
+
+  for (const candidate of records) {
+    if (!verifyPayload<Purchase>(SPEND_RECORD, candidate)) {
+      rejected += 1;
+      continue;
+    }
+    const purchase = (candidate as Signed<Purchase>).payload;
+    const key = `${purchase.seller}@${purchase.at}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries().push(purchase);
+    restored += 1;
+  }
+  return { restored, rejected };
+}
+
+/** The signed form of one purchase, which is what makes the ledger portable. */
+export function spendRecord(purchase: Purchase): Signed<Purchase> {
+  return signPayload(SPEND_RECORD, purchase);
 }
 
 export function record(entry: Omit<Purchase, "at">): RecordOutcome {

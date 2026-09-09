@@ -285,6 +285,51 @@ export function sign(receipt: Omit<Receipt, "signature">): Receipt {
   return { ...receipt, signature: { alg: "ed25519", value, publicKeyId: keyId(publicKey) } };
 }
 
+/**
+ * Sign anything, with the receipt key and the receipt canonicaliser.
+ *
+ * The Arena ledger needs to survive an instance dying, and this repository
+ * deliberately has no database. The answer it already uses everywhere else is
+ * the right one here too: make the record self-contained and sign it, so it is
+ * durable in the hands of whoever holds it rather than in storage we do not
+ * have. A spend record checks against the same public key and the same offline
+ * script at /api/pubkey as any receipt, because it is the same signature over
+ * the same canonical bytes.
+ *
+ * `kind` is inside the signed payload rather than beside it, so a record of one
+ * sort cannot be presented as another.
+ */
+export interface Signed<T> {
+  readonly kind: string;
+  readonly payload: T;
+  readonly signature: { readonly alg: "ed25519"; readonly value: string; readonly publicKeyId: string };
+}
+
+export function signPayload<T>(kind: string, payload: T): Signed<T> {
+  const { privateKey, publicKey } = keypair();
+  const value = edSign(null, Buffer.from(canonical({ kind, payload })), privateKey).toString("base64");
+  return { kind, payload, signature: { alg: "ed25519", value, publicKeyId: keyId(publicKey) } };
+}
+
+/** True only when this is a record of the kind asked for and the signature holds. */
+export function verifyPayload<T>(kind: string, candidate: unknown): candidate is Signed<T> {
+  const signed = candidate as Signed<T> | null;
+  if (signed === null || typeof signed !== "object") return false;
+  if (signed.kind !== kind) return false;
+  if (signed.signature?.alg !== "ed25519" || typeof signed.signature.value !== "string") return false;
+  try {
+    const { publicKey } = keypair();
+    return edVerify(
+      null,
+      Buffer.from(canonical({ kind: signed.kind, payload: signed.payload })),
+      publicKey,
+      Buffer.from(signed.signature.value, "base64"),
+    );
+  } catch {
+    return false;
+  }
+}
+
 export type VerifyResult =
   | { readonly valid: true; readonly expired: boolean; readonly receipt: Receipt }
   | { readonly valid: false; readonly reason: string };

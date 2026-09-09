@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { arenaState, roundFanout, runRound, type Candidate } from "../../../lib/arena/participant";
-import { ledger } from "../../../lib/arena/ledger";
+import { ledger, restore, spendRecord } from "../../../lib/arena/ledger";
 import { drainAudit } from "../../../lib/sharedos/host";
 import { MAX_FANOUT, admit, fanOutTooLarge, json, rateLimited } from "../../../lib/api";
 
@@ -33,6 +33,18 @@ export async function POST(request: Request): Promise<Response> {
     body = {};
   }
 
+  // Rebuild the tally from records the caller holds, before doing anything.
+  //
+  // The ledger lives in one process and Vercel runs many, so a round-two spend
+  // recorded on another instance is invisible here. Hand back the signed spend
+  // records from earlier calls and this instance reconstructs the whole ledger
+  // from them -- each one verified against the same key as a receipt, duplicates
+  // ignored, so replaying a record cannot inflate the spend.
+  const priorRecords = Array.isArray((body as { records?: unknown }).records)
+    ? ((body as { records: unknown[] }).records)
+    : [];
+  const rebuilt = priorRecords.length > 0 ? restore(priorRecords) : { restored: 0, rejected: 0 };
+
   const round = body.round === 1 || body.round === 2 ? body.round : undefined;
   if (round === undefined) {
     return json(
@@ -46,7 +58,22 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const result = await runRound({ round, candidates: candidatesFrom(body.candidates) });
-  return json(result);
+
+  // Hand back every purchase as a signed record. This is what makes the tally
+  // survive the instance that produced it: keep these and pass them back in
+  // `records` on the next call, and any instance rebuilds the whole ledger.
+  const book = ledger();
+  return json({
+    ...result,
+    ledger: book,
+    spendRecords: book.purchases.map(spendRecord),
+    rebuiltFromRecords: rebuilt,
+    howToKeepTheTally:
+      "The ledger lives in the process that served this call and Vercel runs many. " +
+      "Keep `spendRecords` and send them back as `records` on the next call; each is " +
+      "signed with the same key as a receipt and verifiable at /api/pubkey, duplicates " +
+      "are ignored, and a forged one cannot be made.",
+  });
 }
 
 export async function GET(): Promise<Response> {
