@@ -44,9 +44,13 @@ export async function GET(): Promise<Response> {
       "Price: 12 Arena credits for a brokered deal, 3 for a single listing assay, 0 to verify a " +
       "receipt or read the grant map. What a seller charges comes out of the budget you set, never " +
       "on top of it. " +
-      "Delivery time: a brokered deal returns in under 120 seconds or not at all -- the route is " +
-      "capped there and reports a timeout rather than holding a connection open. Measured runs land " +
-      "between 20 and 80 seconds depending on how many sellers bid. " +
+      "Delivery time: 1 brokered deal in under 120 seconds, or not at all -- the route is capped " +
+      "there and reports a timeout rather than holding a connection open. Measured runs land between " +
+      "20 and 80 seconds depending on how many sellers bid. " +
+      "Check it yourself rather than taking any of this on trust: the signing key is published at " +
+      `${BASE}/api/pubkey with a script that verifies a receipt offline, the grant map is at ` +
+      `${BASE}/api/grants, the source is at https://github.com/vaibhav4046/yuzu, and the ` +
+      "representative agent is SharedNet node_id: f0cf3a2d-f961-4d9e-81bc-a19bab2ad61b. " +
       "On failure: no partial charge and no silent substitute. If every listing is flagged, if no " +
       "sample meets the brief, or if the best price is over budget, the reply names the reason and " +
       "spends nothing. If our own model suppliers refuse the call, that is reported as ours, the " +
