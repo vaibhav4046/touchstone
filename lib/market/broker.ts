@@ -133,9 +133,11 @@ export async function runBroker(input: {
   const ranked = [...viable].sort((left, right) => utility(right, rfp) - utility(left, rfp));
   const shortlist = ranked.slice(0, 3);
   const proofs: ProofChallenge[] = [];
-  for (const bid of shortlist) {
-    proofs.push(await challenge(bid, rfp));
-  }
+  // In parallel: these are independent calls to different sellers, and running
+  // them one after another was the largest avoidable slice of a route that has
+  // to finish eight stages inside 120 seconds. `Promise.all` keeps the order,
+  // which matters because the shortlist is already in utility order.
+  proofs.push(...(await Promise.all(shortlist.map((bid) => challenge(bid, rfp)))));
   const proved = proofs.filter((proof) => proof.proven).length;
   const cleared = proofs.filter((proof) => proof.passed).length;
   // Shortlisted without a sample: the challenge could not be run at all. A
@@ -451,7 +453,17 @@ async function draftRfp(input: { goal: string; budget: number; capability?: stri
     ...fallback,
     capability: typeof parsed.capability === "string" ? parsed.capability : fallback.capability,
     deliverable: typeof parsed.deliverable === "string" ? parsed.deliverable : fallback.deliverable,
-    constraints: Array.isArray(parsed.constraints) ? parsed.constraints.slice(0, 5).map(String) : [],
+    // A price is not a property of the artifact. The model reads the budget in
+    // its prompt and helpfully writes "total budget not to exceed 18 Arena
+    // credits" into the deliverable constraints, which then reaches the seller
+    // as if it were something to satisfy in the work. The budget is enforced by
+    // the negotiation and by the grant; the seller never needs to see it.
+    constraints: Array.isArray(parsed.constraints)
+      ? parsed.constraints
+          .map(String)
+          .filter((line) => !/(budget|credits?|price|cost|spend|pay(?:ment)?)/i.test(line))
+          .slice(0, 5)
+      : [],
   };
 }
 
@@ -562,7 +574,10 @@ async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Per
       `Deliver the contracted work itself and nothing else. ` +
       `Never ask a clarifying question and never ask for credentials: the brief is all you get, ` +
       `so where it is thin make a reasonable assumption, state it in one line at the end, and ` +
-      `deliver anyway. A request for more information is a failed delivery, not a delivery.`,
+      `deliver anyway. A request for more information is a failed delivery, not a delivery. ` +
+      `Every constraint is exact rather than a floor: asked for three of something, produce ` +
+      `three, not five, and add nothing that was not requested. Generosity reads as not ` +
+      `following the brief and is graded as such.`,
     user: [`Goal: ${rfp.goal}`, `Deliverable: ${rfp.deliverable}`, rfp.constraints.length > 0 ? `Constraints: ${rfp.constraints.join("; ")}` : ""]
       .filter((line) => line !== "")
       .join("\n"),
