@@ -783,7 +783,13 @@ async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Per
       "",
       "Output the deliverable itself. No preamble, no commentary, nothing that was not requested.",
     ].join("\n"),
-    maxTokens: 3200,
+    // 3200 was the whole problem on a rate-limited account. Groq meters tokens
+    // per minute, not calls, so the delivery was the one request in a deal big
+    // enough to trip it -- every other stage went through and only the work
+    // itself came back 429. A tagline set or a six-shot list does not need
+    // three thousand tokens, and a delivery that truncates is reported as
+    // truncated rather than charged to the seller.
+    maxTokens: 1400,
     timeoutMs: 50_000,
   });
   if (outcome.ok) {

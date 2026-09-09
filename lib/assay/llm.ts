@@ -244,6 +244,15 @@ async function attempt(
         model: options.model,
         messages,
         max_completion_tokens: options.maxTokens ?? 1400,
+        // gpt-oss reasons before it answers, and on Groq the reasoning comes
+        // out of the same completion budget. A five-token probe came back with
+        // 249 characters of reasoning and an empty `content`, which this code
+        // then reported as an empty answer from the supplier. Low effort keeps
+        // the budget on the deliverable, which is the part anyone reads.
+        //
+        // Sent to every OpenAI-compatible supplier: Groq and OpenRouter both
+        // accept it, and one that does not simply ignores an unknown field.
+        ...(options.model === MODELS.analyst ? { reasoning_effort: "low" } : {}),
         // Zero, because this number ends up in a score someone is asked to
         // trust. It does not make the model deterministic — sampling is only
         // one source of drift — but it removes the one this code controls.

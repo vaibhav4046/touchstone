@@ -359,7 +359,7 @@ describe("a registered seller's endpoint is judged by what it resolves to", () =
 
     expect(result.status).toBe("failed");
     // Refused for the address it resolves to, not merely for its spelling.
-    expect(result.error?.code).toBe("endpoint_resolves_to_blocked");
-    expect(result.error?.message).toContain("10.0.0.5");
+    expect(codeOf(result)).toBe("endpoint_resolves_to_blocked");
+    if (result.status !== "succeeded") expect(result.error.message).toContain("10.0.0.5");
   });
 });
