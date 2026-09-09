@@ -74,7 +74,7 @@ export default function Chrome() {
         The market
       </a>
       <a className="top-link hide-sm" href="/dashboard">
-        The floor
+        Grant map
       </a>
       <a className="top-link hide-sm" href="/api/manifest">
         Manifest

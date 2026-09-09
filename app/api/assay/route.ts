@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { assay } from "../../../lib/assay/engine";
-import { MAX_FANOUT, admit, fanOutTooLarge, json, parseOrder, rateLimited, resolveBuyer } from "../../../lib/api";
+import { MAX_FANOUT, MAX_PITCH_CHARS, admit, fanOutTooLarge, json, parseOrder, rateLimited, resolveBuyer } from "../../../lib/api";
 
 import { drainAudit } from "../../../lib/sharedos/host";
 
@@ -27,10 +27,30 @@ export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   const order = await parseOrder(raw, buyerId);
 
+  // The body was wrong in a way worth naming. A 200 carrying a verdict on a
+  // truncated request is the worst answer available here: an agent cannot tell
+  // it from a verdict on a vendor, and it will act on it.
+  if (order.problem !== undefined) return json(order.problem, 400);
+
   // One vendor is what this route assays. A larger list is somebody pointing a
   // shortlist-shaped body at it, and it is refused rather than quietly reduced
   // to its first entry.
   if (order.vendors.length > MAX_FANOUT) return fanOutTooLarge("vendors", order.vendors.length, MAX_FANOUT);
+
+  if (order.vendors.length > 1) {
+    return json(
+      {
+        error: "too_many_vendors",
+        field: "vendors",
+        message:
+          `This route assays one listing and returns one receipt; ${order.vendors.length} were found in the body. ` +
+          "Ranking several against a budget is POST /api/shortlist, which returns a receipt per vendor. Nothing " +
+          "was scored here, rather than scoring the first one and dropping the rest without saying so.",
+        received: order.vendors.length,
+      },
+      400,
+    );
+  }
 
   const vendor = order.vendors[0];
   if (vendor === undefined) {
@@ -85,7 +105,20 @@ export async function GET(): Promise<Response> {
     method: "POST",
     price: "3 Arena credits. First call per buyer is free.",
     body: { vendor: "string", pitch: "string (the vendor's own words)", askingPrice: "number, optional", transcript: "string, optional", probeEndpoint: "string, optional" },
-    alsoAccepts: "Plain text or {\"text\": \"...\"} — the listing is extracted from it.",
+    alsoAccepts: "Plain text or {\"text\": \"...\"} — the listing is extracted from it. A body that starts with { or [ must be valid JSON: it is never read as vendor material, because a score for a truncated request cannot be told apart from a score for a vendor.",
+    limits: {
+      pitch: `${MAX_PITCH_CHARS} characters. Longer is refused, not truncated.`,
+      vendors: "one per call. Several listings at once is POST /api/shortlist.",
+      numbers: "askingPrice and budget must be positive finite numbers when present. Neither is defaulted or coerced from prose — an amount nobody set is an amount nobody authorised.",
+    },
+    refuses: [
+      "malformed_json — the body opens with a brace and does not parse",
+      "no_vendor_material — no pitch, vendors, or text anywhere in the body",
+      "invalid_listing — pitch missing, empty, not a string, or over the size cap",
+      "invalid_vendors / invalid_vendor_entry — vendors is not an array, or an entry in it is unreadable",
+      "invalid_budget / invalid_askingPrice — present but not a positive finite number",
+      "too_many_vendors — more than one listing sent to a one-listing route",
+    ],
     returns: "A signed Touchstone receipt: verdict, score, per-dimension findings with verbatim evidence, and the kernel decisions that produced it.",
   });
 }

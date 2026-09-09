@@ -94,7 +94,6 @@ export async function complete(options: {
   // and hides that the whole bench is out, which reads as one provider having a
   // bad minute rather than as a capacity problem an operator has to fix.
   return { ...last, error: codes.join("+") };
-  return last;
 }
 
 /**
@@ -156,13 +155,17 @@ async function viaGemini(options: {
       signal: AbortSignal.timeout(options.timeoutMs ?? 25_000),
     });
 
-    if (!response.ok) return { ok: false, text: "", ms: Date.now() - started, error: `gemini_${response.status}` };
+    if (!response.ok) {
+      record("gemini", false, `gemini_${response.status}`);
+      return { ok: false, text: "", ms: Date.now() - started, error: `gemini_${response.status}` };
+    }
 
     const body = (await response.json()) as {
       candidates?: ReadonlyArray<{ content?: { parts?: ReadonlyArray<{ text?: string }> }; finishReason?: string }>;
     };
     const candidate = body.candidates?.[0];
     const text = candidate?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+    record("gemini", text.length > 0, "gemini_empty");
     return {
       ok: text.length > 0,
       text,
@@ -171,12 +174,23 @@ async function viaGemini(options: {
       truncated: candidate?.finishReason === "MAX_TOKENS",
     };
   } catch (error) {
-    return { ok: false, text: "", ms: Date.now() - started, error: error instanceof Error ? error.name : "unknown" };
+    const reason = error instanceof Error ? error.name : "unknown";
+    record("gemini", false, reason);
+    return { ok: false, text: "", ms: Date.now() - started, error: reason };
   }
 }
 
-/** Worth asking the whole bench about. */
-const RETRYABLE = /^http_(429|5\d\d)$/;
+/**
+ * Worth asking the whole bench about.
+ *
+ * Any HTTP error from the primary, not just a 429. The narrower form said 429
+ * or 5xx, which meant a Groq 402 — out of credit — never reached OpenRouter or
+ * Gemini at all: the account with no money was asked, refused, and that was the
+ * end of the market's afternoon. A funding failure, a revoked key and a
+ * withdrawn model are all "this supplier cannot serve you, try another one",
+ * and the cost of being wrong is two extra calls.
+ */
+const RETRYABLE = /^http_[45]\d\d$/;
 /** Worth asking the same supplier about again. A 429 is not: it has no room. */
 const TRANSIENT = /^(?:http_5\d\d|TimeoutError|AbortError)$/;
 
@@ -203,8 +217,11 @@ async function attempt(
   const key = supplier?.key ?? process.env.GROQ_API_KEY;
   const endpoint = supplier?.endpoint ?? ENDPOINT;
   const tag = supplier?.prefix === undefined ? "http" : `${supplier.prefix}_http`;
+  const name: SupplierName = supplier?.prefix === "openrouter" ? "openrouter" : "groq";
   const started = Date.now();
   if (key === undefined || key.length === 0) {
+    // Unconfigured, not refusing. Counting a missing key as a refusal would
+    // report a supplier nobody asked for as one that let us down.
     return { ok: false, text: "", ms: 0, error: "no_api_key" };
   }
 
@@ -236,6 +253,7 @@ async function attempt(
     });
 
     if (!response.ok) {
+      record(name, false, `${tag}_${response.status}`);
       return { ok: false, text: "", ms: Date.now() - started, error: `${tag}_${response.status}` };
     }
 
@@ -244,6 +262,7 @@ async function attempt(
     };
     const choice = body.choices?.[0];
     const text = choice?.message?.content ?? "";
+    record(name, text.length > 0, `${supplier?.prefix ?? "groq"}_empty`);
     return {
       ok: text.length > 0,
       text,
@@ -253,8 +272,86 @@ async function attempt(
     };
   } catch (error) {
     const reason = error instanceof Error ? error.name : "unknown";
+    record(name, false, reason);
     return { ok: false, text: "", ms: Date.now() - started, error: reason };
   }
+}
+
+/**
+ * What each supplier did last time it was asked.
+ *
+ * Tracked rather than probed. A health endpoint that probes spends a model call
+ * per check on the exact account whose exhaustion it is reporting, which is how
+ * a monitor becomes a cause; and the useful question is not "would this
+ * supplier answer a synthetic ping" but "did it answer the real traffic". So
+ * every call through this module records its own outcome and the endpoint reads
+ * the record.
+ *
+ * The ceiling is honest and worth stating: a cold serverless instance has seen
+ * nothing, so it reports `untested` rather than inventing a green light.
+ */
+export type SupplierName = "groq" | "openrouter" | "gemini";
+
+export interface SupplierStatus {
+  readonly supplier: SupplierName;
+  readonly model: string;
+  /** A key is present. Says nothing about whether the key works. */
+  readonly configured: boolean;
+  readonly state: "answering" | "refusing" | "untested";
+  /** The code the last refusal carried, e.g. `http_429` or `openrouter_http_402`. */
+  readonly lastCode?: string;
+  readonly lastAt?: string;
+  readonly answered: number;
+  readonly refused: number;
+}
+
+interface SupplierRecord {
+  answered: number;
+  refused: number;
+  lastOk?: boolean;
+  lastCode?: string;
+  lastAt?: string;
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __yuzuSupplierHealth: Map<SupplierName, SupplierRecord> | undefined;
+}
+
+const health: Map<SupplierName, SupplierRecord> = (globalThis.__yuzuSupplierHealth ??= new Map());
+
+function record(supplier: SupplierName, ok: boolean, code?: string): void {
+  const held = health.get(supplier) ?? { answered: 0, refused: 0 };
+  health.set(supplier, {
+    answered: held.answered + (ok ? 1 : 0),
+    refused: held.refused + (ok ? 0 : 1),
+    lastOk: ok,
+    lastCode: ok ? undefined : code,
+    lastAt: new Date().toISOString(),
+  });
+}
+
+const SUPPLIERS: ReadonlyArray<{ readonly supplier: SupplierName; readonly model: string; readonly env: string }> = [
+  { supplier: "groq", model: `groq/${MODELS.analyst}`, env: "GROQ_API_KEY" },
+  { supplier: "openrouter", model: `openrouter/${MODELS.analyst}`, env: "OPENROUTER_API_KEY" },
+  { supplier: "gemini", model: GEMINI_MODEL, env: "GEMINI_API_KEY" },
+];
+
+export function supplierHealth(): readonly SupplierStatus[] {
+  return SUPPLIERS.map(({ supplier, model, env }) => {
+    const held = health.get(supplier);
+    const key = process.env[env];
+    return {
+      supplier,
+      model,
+      configured: typeof key === "string" && key.length > 0,
+      state: held?.lastOk === undefined ? "untested" : held.lastOk ? "answering" : "refusing",
+      lastCode: held?.lastCode,
+      lastAt: held?.lastAt,
+      answered: held?.answered ?? 0,
+      refused: held?.refused ?? 0,
+    };
+  });
 }
 
 /** Extracts the first JSON object or array in a model response. */

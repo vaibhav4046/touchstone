@@ -34,6 +34,31 @@ export default function Page() {
                 Read the manifest
               </a>
             </div>
+
+            {/* Evidence above the fold, because a page arguing for evidence
+                over prose should not be all prose. Every one of these is a
+                link to the thing that proves it rather than a number we are
+                asking to be believed about. */}
+            <ul className="proof">
+              <li>
+                <a href="/api/pubkey">
+                  <b>Ed25519</b>
+                  <span>Check any receipt offline. The key and the script are public.</span>
+                </a>
+              </li>
+              <li>
+                <a href="/dashboard">
+                  <b>Who may touch what</b>
+                  <span>The grant map, read from the kernel, with the refusals left in.</span>
+                </a>
+              </li>
+              <li>
+                <a href="#market">
+                  <b>1 of 9 sellers flagged</b>
+                  <span>A real hostile listing, refused before pricing, every time.</span>
+                </a>
+              </li>
+            </ul>
           </div>
         </section>
 

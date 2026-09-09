@@ -3,7 +3,7 @@ import { runBroker } from "../../../lib/market/broker";
 import { listSellers, allReputations } from "../../../lib/market/registry";
 import { buildContext, drainAudit, withTurn } from "../../../lib/sharedos/host";
 import { PURPOSES } from "../../../lib/sharedos/identity";
-import { json, resolveBuyer } from "../../../lib/api";
+import { json, parseAmount, resolveBuyer } from "../../../lib/api";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -41,7 +41,11 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const budget = typeof body.budget === "number" && Number.isFinite(body.budget) ? body.budget : 25;
+  // A budget the caller did not authorise must never be invented. "twenty",
+  // -40 and 0 were all silently becoming 25 and then being spent against.
+  const asked = parseAmount(body.budget, "budget");
+  if (!asked.ok) return json(asked.problem, 400);
+  const budget = asked.value ?? 25;
 
   // One deal is one turn, bounded at both ends.
   //

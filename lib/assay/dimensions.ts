@@ -114,8 +114,14 @@ export function unfalsifiableLanguage(input: AssayInput): DimensionResult {
   }
 
   // One flourish per hundred words is normal copy. Six is a substitute for facts.
+  //
+  // Density alone is a length game. Six superlatives in fifty words scores 0.28;
+  // the same six with five thousand words of filler around them scores 0.98,
+  // and a vendor who reads this file can buy back the difference by padding.
+  // The absolute count does not move when text is added, so the lower of the
+  // two governs and adding words can no longer raise this number.
   const density = (hits / words) * 100;
-  const score = Math.max(0, 1 - density / 6);
+  const score = Math.max(0, Math.min(1 - density / 6, 1 - hits / 12));
 
   return {
     id: "unfalsifiable",
@@ -297,4 +303,132 @@ export function slaPlausibility(input: AssayInput): DimensionResult {
       : "Stated throughput is arithmetically plausible.",
     findings,
   };
+}
+
+/**
+ * How much of this listing there was to examine at all.
+ *
+ * Four of the six dimensions score by *not* finding something: no superlatives,
+ * no embedded instructions, no request for credentials, no arithmetic that
+ * fails. A blank listing passes all four perfectly, because there is nothing in
+ * it to catch — which is how an empty pitch reached QUALIFIED at 66, one point
+ * ahead of a real vendor's listing, and how 500KB of the same sentence repeated
+ * beat every honest seller in the market. A grader that pays out for silence
+ * pays best for saying nothing at all.
+ *
+ * So a clean sheet is worth only as much as the material it was drawn from.
+ * Two things decide that, and the lower one governs:
+ *
+ *   volume     — distinct word-shaped tokens. Distinct, so repeating one
+ *                sentence 24,000 times counts once; word-shaped, so a keyboard
+ *                being hit does not count at all.
+ *   commitment — how many of the six falsifiable commitments the listing makes.
+ *                Half of them earns full credit; a listing that commits to
+ *                nothing is capped at SILENT_CEILING no matter how long it is.
+ *
+ * Both are monotone and neither rewards length: adding words can only move a
+ * listing toward the ceiling it would have had anyway, and never past it.
+ */
+export const EXAMINABLE = {
+  /** Distinct word-shaped tokens at which volume earns full credit. */
+  DISTINCT_WORDS: 24,
+  /** Falsifiable commitments (of the six) at which commitment earns full credit. */
+  COMMITMENTS: 3,
+  /** The most a listing that commits to nothing can earn on a "found nothing wrong" dimension. */
+  SILENT_CEILING: 0.25,
+} as const;
+
+/** A letter followed by letters, marks, apostrophes or hyphens. Script-agnostic. */
+const TOKEN = /\p{L}[\p{L}\p{M}'’-]*/gu;
+const HAS_ASCII_LETTER = /[a-z]/;
+const HAS_VOWEL = /[aeiouy]/;
+/** No English word runs six consonants together; "asdfjkl" and "lkjhgfdsa" do. */
+const CONSONANT_RUN = /[bcdfghjklmnpqrstvwxz]{6,}/;
+
+/**
+ * Distinct tokens that look like words, counted up to the point they stop mattering.
+ *
+ * The shape test only applies to tokens containing ASCII letters. A listing in
+ * a script this heuristic cannot read is thin material to *this* checker, not
+ * proof of gibberish, so its tokens are taken at face value — being unable to
+ * judge a vendor is not grounds for convicting one.
+ */
+export function substantiveWords(text: string): number {
+  const seen = new Set<string>();
+  for (const match of text.toLowerCase().matchAll(TOKEN)) {
+    const token = match[0];
+    if (token.length < 2 || token.length > 24) continue;
+    if (HAS_ASCII_LETTER.test(token) && (!HAS_VOWEL.test(token) || CONSONANT_RUN.test(token))) continue;
+    seen.add(token);
+    // The measure saturates here, so reading further tells us nothing and a
+    // 500KB listing costs the same as a paragraph.
+    if (seen.size >= EXAMINABLE.DISTINCT_WORDS) return seen.size;
+  }
+  return seen.size;
+}
+
+/**
+ * 0..1. The ceiling every dimension except commitment specificity is held to.
+ *
+ * `commitmentRatio` is the specificity dimension's own score. When it is
+ * absent — the static checks were denied, so nobody counted — only volume
+ * applies: a checker that failed to run must not also convict.
+ */
+export function examinableRatio(pitch: string, commitmentRatio?: number): number {
+  const volume = Math.min(1, substantiveWords(pitch) / EXAMINABLE.DISTINCT_WORDS);
+  if (commitmentRatio === undefined) return volume;
+  const target = EXAMINABLE.COMMITMENTS / COMMITMENTS.length;
+  const committed = Math.min(1, Math.max(0, commitmentRatio) / target);
+  return Math.min(volume, EXAMINABLE.SILENT_CEILING + (1 - EXAMINABLE.SILENT_CEILING) * committed);
+}
+
+/**
+ * Hold every scored dimension to what the listing actually offered up.
+ *
+ * Specificity is exempt: silence already scores zero there, so capping it would
+ * be punishing the same absence twice. Weight-0 dimensions are exempt too — a
+ * live probe is an observation of the world, and the world does not get thinner
+ * because the listing did.
+ *
+ * The cap is a pure function of the pitch, so `deterministicScore` stays
+ * reproducible: the same listing yields the same ceiling on every run, on every
+ * instance, whether or not any upstream answered.
+ */
+export function capByExaminable(
+  dimensions: readonly DimensionResult[],
+  pitch: string,
+): readonly DimensionResult[] {
+  const commitment = dimensions.find((dimension) => dimension.id === "specificity")?.score;
+  const cap = examinableRatio(pitch, commitment);
+  if (cap >= 1) return dimensions;
+
+  const words = substantiveWords(pitch);
+  const commitments = commitment === undefined ? undefined : Math.round(commitment * COMMITMENTS.length);
+  const measured = `${words === 0 ? "no" : words} distinct word${words === 1 ? "" : "s"}${
+    commitments === undefined ? "" : ` and ${commitments} of ${COMMITMENTS.length} falsifiable commitments`
+  }`;
+  const finding: Finding = {
+    code: "THIN_MATERIAL",
+    severity: "medium",
+    statement:
+      `This listing offers ${measured}, so the checks that score by finding nothing wrong had ` +
+      `almost nothing to examine. Every dimension except commitment specificity is capped at ` +
+      `${cap.toFixed(2)}: a clean sheet is worth no more than the material it was drawn from.`,
+  };
+  const note = `Capped at ${cap.toFixed(2)} — ${measured}.`;
+
+  return dimensions.map((dimension) => {
+    if (dimension.id === "specificity" || dimension.weight === 0) return dimension;
+    const score = Math.min(dimension.score, cap);
+    const reproducibleScore =
+      dimension.reproducibleScore === undefined ? undefined : Math.min(dimension.reproducibleScore, cap);
+    if (score === dimension.score && reproducibleScore === dimension.reproducibleScore) return dimension;
+    return {
+      ...dimension,
+      score,
+      reproducibleScore,
+      summary: `${dimension.summary} ${note}`,
+      findings: [...dimension.findings, finding],
+    };
+  });
 }

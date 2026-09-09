@@ -77,6 +77,8 @@ export interface Bid {
   readonly listingScore: number;
   readonly listingVerdict: string;
   readonly note: string;
+  /** Set when the listing verdict was reused from an earlier deal rather than re-derived. */
+  readonly listingAssayedAt?: string;
 }
 
 export interface ProofChallenge {
@@ -124,11 +126,30 @@ export interface Contract {
   readonly agreedAt: string;
 }
 
+/**
+ * Who actually made the delivered work.
+ *
+ * Required rather than optional, and on every one of `Delivery`, `Settlement`
+ * and the receipt, because the failure that matters here is a house artifact
+ * that reads like a seller's. An optional field defaults to absent, absent
+ * reads as "seller" to anyone skimming, and the one fact the buyer must not be
+ * wrong about would then be the one fact the type does not insist on. Making it
+ * required means a delivery that does not say who made it does not compile.
+ */
+export type DeliveredBy =
+  /** The contracted seller produced it. */
+  | "seller"
+  /** Yuzu's own deterministic template produced it, because no model supplier would answer. */
+  | "house-template";
+
 export interface Delivery {
   readonly contractId: string;
   readonly output: string;
   readonly elapsedMs: number;
   readonly onTime: boolean;
+  readonly deliveredBy: DeliveredBy;
+  /** Why the house stepped in. Present exactly when `deliveredBy` is "house-template". */
+  readonly houseReason?: string;
 }
 
 export interface Verification {
@@ -149,6 +170,12 @@ export interface Verification {
 export interface Settlement {
   readonly contractId: string;
   readonly agreed: number;
+  /**
+   * Carried onto the settlement as well as the delivery, because this is where
+   * the money is read. A reader who sees `paid: 0` next to a delivered artifact
+   * deserves the reason in the same object rather than one hop away.
+   */
+  readonly deliveredBy: DeliveredBy;
   /**
    * Uses the kernel has spent on this contract's grant, read from the usage
    * store. Not our count of anything — the authorizer's.

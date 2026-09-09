@@ -28,6 +28,11 @@ export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   const order = await parseOrder(raw, buyerId);
 
+  // The body was wrong in a way worth naming. Without this the caller gets the
+  // generic "send two or more listings" below, which is true and useless when
+  // what actually happened is that `budget` said "twenty".
+  if (order.problem !== undefined) return json(order.problem, 400);
+
   if (order.vendors.length > MAX_VENDORS) return fanOutTooLarge("vendors", order.vendors.length, MAX_VENDORS);
 
   if (order.vendors.length === 0) {

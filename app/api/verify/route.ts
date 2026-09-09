@@ -28,6 +28,39 @@ const UNCHECKABLE: Record<string, string> = {
     "This receipt names a signature algorithm this deployment does not implement. That is not evidence of tampering; nothing was checked.",
 };
 
+/**
+ * An encoding accident wearing a forgery's reason code.
+ *
+ * A receipt carries the punctuation Yuzu writes, em dashes included. Parse it
+ * and re-serialise it and the signature still checks — verified against Python
+ * in both ASCII-escaped and UTF-8 modes, with emoji, RTL text and floats. What
+ * does break it is a consumer that decodes the bytes with the wrong codec,
+ * because every character it could not represent arrives as U+FFFD and the
+ * receipt is genuinely, if accidentally, altered.
+ *
+ * The signature cannot tell that apart from an edit, and should not pretend to.
+ * But a replacement character is not something our signer ever emits, so its
+ * presence is worth naming: it turns a bare accusation into the one sentence
+ * that actually fixes the caller's problem.
+ */
+function mangled(candidate: unknown): string | undefined {
+  let serialised: string;
+  try {
+    serialised = JSON.stringify(candidate) ?? "";
+  } catch {
+    return undefined;
+  }
+  // Written as an escape on purpose: a literal replacement character in this
+  // file would be the first casualty of the very mistake it detects.
+  if (!serialised.includes(String.fromCharCode(0xfffd))) return undefined;
+  return (
+    "This receipt contains U+FFFD replacement characters, which nothing here ever writes. " +
+    "It was almost certainly decoded with the wrong character set somewhere between us and you — " +
+    "read and write it as UTF-8, or hand us the bytes you were given. The signature covers the " +
+    "canonical JSON of the parsed receipt, so re-serialising it is safe; re-encoding it is not."
+  );
+}
+
 export async function POST(request: Request): Promise<Response> {
   let body: unknown;
   try {
@@ -40,7 +73,7 @@ export async function POST(request: Request): Promise<Response> {
   const result = verify(candidate);
 
   if (!result.valid) {
-    const note = UNCHECKABLE[result.reason];
+    const note = UNCHECKABLE[result.reason] ?? mangled(candidate);
     return json({ valid: false, reason: result.reason, ...(note !== undefined ? { note } : {}) }, 200);
   }
 

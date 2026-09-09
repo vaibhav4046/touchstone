@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AssayInput, AssayReport, DimensionResult, Finding } from "./types";
 import { allFindings, deterministicScore, rankedRisks, recommendedMaxPrice, verdictFor, weightedScore } from "./score";
+import { capByExaminable } from "./dimensions";
 import { sign, type AutoDecisionTrace, type DecisionTrace, type Receipt } from "./receipt";
 import { llmAvailable } from "./llm";
 import type { AnalystResult } from "./analyst";
@@ -219,13 +220,19 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
       notChecked.push("Claim-by-claim model analysis: unavailable on this run. Deterministic and classifier findings stand alone.");
     }
 
-    const findings = allFindings(dimensions);
-    const score = weightedScore(dimensions);
+    // Nothing is scored until the listing has been asked how much of itself it
+    // actually offered up. Four of these dimensions score by finding no fault,
+    // and an empty listing gives them no fault to find — which is how a blank
+    // pitch outscored a real vendor before this line existed.
+    const graded = capByExaminable(dimensions, input.pitch);
+
+    const findings = allFindings(graded);
+    const score = weightedScore(graded);
     const { verdict, reason } = verdictFor(score, findings);
     const risks: Finding[] = [...rankedRisks(findings), ...(analyst?.risks ?? [])].slice(0, 10);
 
-    const modelDerived = dimensions.filter((d) => d.method === "model" && d.weight > 0).map((d) => d.label);
-    const exact = dimensions
+    const modelDerived = graded.filter((d) => d.method === "model" && d.weight > 0).map((d) => d.label);
+    const exact = graded
       .filter((d) => d.method !== "model" && d.method !== "measured" && d.method !== "not-run" && d.weight > 0)
       .map((d) => d.label);
 
@@ -235,7 +242,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
       // Two disjoint ways to go missing: the tool call was refused, so there is
       // no dimension at all; or it ran and the thing it needed did not answer.
       ...unrun,
-      ...dimensions.filter((d) => d.method === "not-run").map((d) => `${d.label}: did not run`),
+      ...graded.filter((d) => d.method === "not-run").map((d) => `${d.label}: did not run`),
       ...(steeringDimension !== undefined && steeringDimension.method !== "classifier"
         ? ["Steering resistance: injection classifier unavailable, so deterministicScore counts its rule set alone"]
         : []),
@@ -250,7 +257,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
       vendorSlug,
       verdict,
       score,
-      deterministicScore: deterministicScore(dimensions),
+      deterministicScore: deterministicScore(graded),
       reproducibility: {
         exact,
         modelDerived,
@@ -258,8 +265,8 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
         note:
           "deterministicScore covers the published rule sets only, so it is identical on every run of the same listing — including a run where the injection classifier or the model was rate-limited. score also includes whatever else answered this time, which is why the two numbers differ. The verdict floors — steering and credential requests — are deterministic and never depend on the model.",
       },
-      headline: reason ?? analyst?.headline ?? defaultHeadline(verdict, score, dimensions),
-      dimensions,
+      headline: reason ?? analyst?.headline ?? defaultHeadline(verdict, score, graded),
+      dimensions: graded,
       claims: analyst?.claims ?? [],
       risks,
       notChecked,

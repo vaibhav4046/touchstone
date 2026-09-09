@@ -64,18 +64,64 @@ export default function Market() {
   const [goal, setGoal] = useState(EXAMPLES[0]!);
   const [budget, setBudget] = useState("22");
   const [busy, setBusy] = useState(false);
+  const [live, setLive] = useState<Stage[]>([]);
   const [result, setResult] = useState<Result | undefined>();
 
+  /**
+   * Watch the deal rather than wait for it.
+   *
+   * A deal takes twenty to sixty seconds, and this used to be one POST with a
+   * spinner over it: the argument the whole market makes — eight stages, each
+   * one you can point at afterwards — was invisible for the entire time it was
+   * being made. The streaming route sends each stage as it lands. The reply is
+   * read by hand rather than with EventSource because EventSource cannot POST,
+   * and the goal has to go up with the request.
+   */
   const plant = useCallback(async () => {
     setBusy(true);
     setResult(undefined);
+    setLive([]);
     try {
-      const response = await fetch("/api/broker", {
+      const response = await fetch("/api/broker/stream", {
         method: "POST",
         headers: { "content-type": "application/json", "x-agent-id": "yuzu-console" },
         body: JSON.stringify({ goal, budget: Number(budget) || 22 }),
       });
-      setResult((await response.json()) as Result);
+
+      if (response.body === null || !response.ok) {
+        // The route refused before it began — a 400 or a 429, which is JSON.
+        setResult((await response.json().catch(() => ({ error: "unreadable" }))) as Result);
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE frames are separated by a blank line. Anything after the last one
+        // is a partial frame and waits for the next chunk.
+        const frames = buffer.split(/\r?\n\r?\n/);
+        buffer = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          const name = /^event:\s*(.+)$/m.exec(frame)?.[1]?.trim();
+          const payload = /^data:\s*(.+)$/m.exec(frame)?.[1];
+          if (name === undefined || payload === undefined) continue;
+          try {
+            const parsed = JSON.parse(payload) as unknown;
+            if (name === "stage") setLive((current) => [...current, parsed as Stage]);
+            else if (name === "done") setResult(parsed as Result);
+            else if (name === "failed") setResult(parsed as Result);
+          } catch {
+            // A frame we cannot read is not worth abandoning the deal for.
+          }
+        }
+      }
     } catch (error) {
       setResult({ error: "network", message: error instanceof Error ? error.message : "Request failed." });
     } finally {
@@ -117,9 +163,24 @@ export default function Market() {
 
       {result === undefined ? (
         busy ? (
-          <p className="muted" style={{ marginTop: "1.4rem" }}>
-            Reading the goal, calling for bids, challenging the shortlist, settling a price…
-          </p>
+          <div className="livestage">
+            {live.length === 0 ? (
+              <p className="muted">Reading the goal…</p>
+            ) : (
+              <ol>
+                {live.map((event, index) => (
+                  <li key={`${event.stage}-${index}`}>
+                    <code>{event.stage}</code>
+                    <span>{event.summary}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <p className="muted small" style={{ marginTop: "0.6rem" }}>
+              <span className="workdot" /> Each line above is a stage that has already happened, sent as it
+              landed. Nothing here is a progress bar.
+            </p>
+          </div>
         ) : null
       ) : (
         <Outcome result={result} />

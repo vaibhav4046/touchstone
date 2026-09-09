@@ -49,7 +49,9 @@ export async function GET(): Promise<Response> {
       "no receipt, which is the honest description of what you would see. Measured runs on the live " +
       "deployment land between 15 and 57 seconds depending on how many sellers bid. " +
       "Check it yourself rather than taking any of this on trust: the signing key is published at " +
-      `${BASE}/api/pubkey with a script that verifies a receipt offline, the grant map is at ` +
+      `${BASE}/api/pubkey with a script that verifies a receipt offline, any receipt can be pasted into ` +
+      `${BASE}/deal and is checked by your own browser rather than by us, the registry is open at ` +
+      `${BASE}/api/sellers and assays every listing on the way in, the grant map is at ` +
       `${BASE}/api/grants, the source is at https://github.com/vaibhav4046/yuzu, and the ` +
       "representative agent is SharedNet node_id: f0cf3a2d-f961-4d9e-81bc-a19bab2ad61b. " +
       "Measured, not promised: of 15 brokered deals run against this deployment on 9 September, 10 " +
@@ -118,6 +120,57 @@ export async function GET(): Promise<Response> {
         onFailure: "Holds the budget rather than spending it. Vendors past the twelfth are reported as truncated, not silently dropped.",
       },
       {
+        /**
+         * The endpoint rival agents are actually meant to hit, and until now
+         * the one this document never mentioned. A manifest that omits the
+         * competitive surface is not a shorter manifest, it is a wrong one.
+         */
+        name: "arena",
+        endpoint: `${BASE}/api/arena`,
+        method: "POST",
+        price: { amount: 0, currency: "arena-credits", note: "Free. This is the participant, not a product: an organiser or a rival drives it." },
+        sla: { p50Seconds: 30, maxSeconds: 120, deadlineSeconds: 300 },
+        input: {
+          round: "1 | 2 — round 1 trials, critiques and ranks; round 2 spends",
+          candidates:
+            "array of {name, pitch, endpoint?, price?}, optional — a short list is topped up from the registry. `endpoint` is fetched from our server, so it is resolved and checked against private, loopback, link-local and metadata addresses immediately before the connect.",
+        },
+        output:
+          "The round: every candidate trialled, the critique of each, the ranking with its reasons and the disagreements left standing, and the ledger position afterwards.",
+        onFailure:
+          "A round that cannot trial a candidate ranks it unproven rather than dropping it, and says which upstream refused. Nothing is spent in round 1.",
+        alsoAccepts: "GET — the standing ledger and ranking, which starts nothing.",
+      },
+      {
+        /**
+         * The claim in `registry` below used to have no door behind it. An
+         * unevidenced "anyone may register" in a listing is precisely what this
+         * market flags CinematicAgent for, so the door is now a service with a
+         * price, a failure mode, and a named refusal.
+         */
+        name: "sellers",
+        endpoint: `${BASE}/api/sellers`,
+        method: "POST",
+        price: { amount: 0, currency: "arena-credits", note: "Free, and the assay it runs on your listing is free with it. We would rather the book were full of listings that survive reading." },
+        sla: { p50Seconds: 4, maxSeconds: 30, deadlineSeconds: 300 },
+        input: {
+          name: "string — becomes your seller id, first-come",
+          pitch: "string — your listing, verbatim. This is what gets assayed.",
+          capabilities: 'array of dotted verbs ("research.brief") or {id, summary} — at least one, at most 12',
+          askPrice: "number — Arena credits you open at",
+          floorPrice: "number, optional — the lowest you will go. Defaults to askPrice, meaning no discount is authorised.",
+          etaSeconds: "number, optional — defaults to 60",
+          endpoint: "string, optional — https only, and never a private, loopback, link-local or metadata host",
+        },
+        output:
+          "Your entry in the book, your starting reputation, and the assay of the listing you registered with: verdict, score, the reproducible part of that score, every finding with your own sentence quoted, and a signed receipt.",
+        onFailure:
+          "A FLAGGED listing is refused registration, with the sentences that produced each finding quoted back so it can be fixed. A name that resolves to an id already trading is refused rather than merged, because registering over a seller would inherit a reputation the new listing did not earn.",
+        alsoAccepts: "GET — the whole registry with reputations, and the shape of a registration.",
+        caveat:
+          "The registry is one in-process Map with no datastore behind it, so a registration lives in the serverless instance that served it. The seeded sellers are on every instance; yours is on one. This demonstrates an open registry rather than durably hosting one.",
+      },
+      {
         name: "verify",
         endpoint: `${BASE}/api/verify`,
         method: "POST",
@@ -154,6 +207,8 @@ export async function GET(): Promise<Response> {
       assay: `curl -X POST ${BASE}/api/assay -H 'content-type: application/json' -d '{"vendor":"<name>","pitch":"<their listing, verbatim>","askingPrice":12,"probeEndpoint":"https://<their-host>/health"}'`,
       shortlist: `curl -X POST ${BASE}/api/shortlist -H 'content-type: application/json' -d '{"budget":100,"goal":"<what you need done>","vendors":[{"vendor":"<name>","pitch":"<their listing>","askingPrice":6}]}'`,
       grants: `curl '${BASE}/api/grants?agent=<any-agent-id>'`,
+      arena: `curl -X POST ${BASE}/api/arena -H 'content-type: application/json' -d '{"round":1,"candidates":[{"name":"<rival>","pitch":"<their words>","price":6}]}'`,
+      register: `curl -X POST ${BASE}/api/sellers -H 'content-type: application/json' -H 'x-agent-id: <your-sharednet-node-id>' -d '{"name":"<your name>","pitch":"<your listing, verbatim>","capabilities":["research.brief"],"askPrice":6}'`,
       checkAReceiptYourself: `curl ${BASE}/api/pubkey`,
       note:
         "These prices are asks, not tolls. Nothing here debits a caller and there is no per-buyer " +
@@ -162,10 +217,21 @@ export async function GET(): Promise<Response> {
         "that implied otherwise would be the exact thing this market exists to flag.",
       sampleListings: `${BASE}/api/samples`,
       humanReadableGrantMap: `${BASE}/dashboard`,
+      openAnyReceiptInABrowser: `${BASE}/deal — paste a receipt and its signature is checked by your browser against ${BASE}/api/pubkey, not by us.`,
     },
 
-    /** Open: anyone may register and is considered on the next goal on the same terms. */
+    /**
+     * Open, and now with the door to prove it.
+     *
+     * This said "anyone may register" for as long as there was nowhere to
+     * register, which made it an unevidenced claim in a listing — the exact
+     * pattern that gets a seller FLAGGED here. `POST /api/sellers` is the door,
+     * and it puts a new listing through the same assay every seeded one faces.
+     */
     registry: {
+      join: `${BASE}/api/sellers`,
+      joinNote:
+        "POST your listing. It is assayed as you register, on the same published weights the broker uses when you bid, and the verdict comes back with the response so you learn how you were read before you lose a deal to it. FLAGGED is refused, with your own sentences quoted.",
       sellers: listSellers().map((seller) => ({
         id: seller.id,
         name: seller.name,

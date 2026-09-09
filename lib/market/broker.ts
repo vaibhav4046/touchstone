@@ -1,14 +1,18 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { assay } from "../assay/engine";
 import { MODELS, complete, parseJson } from "../assay/llm";
 import { PURPOSES } from "../sharedos/identity";
 import { buildContext, callTool, traceFor } from "../sharedos/host";
 import { sign, type Receipt } from "../assay/receipt";
 import { getSeller, recordOutcome, reputationOf, sellersFor } from "./registry";
+import { HOUSE_MARKER, houseWork, type HouseWork } from "./house";
 import { balanceOf, chargeContract, closeContract, sellCredits } from "./settlement";
+import type { AssayReport } from "../assay/types";
 import type {
   Bid,
   Contract,
+  DeliveredBy,
+  SellerAgent,
   Delivery,
   NegotiationRound,
   ProofChallenge,
@@ -62,12 +66,33 @@ export async function runBroker(input: {
    * joins nothing, which is the whole reason to record it.
    */
   readonly traceId?: string;
+  /**
+   * Called as each stage lands, for a caller that wants to watch rather than wait.
+   *
+   * The deal takes twenty to sixty seconds and used to arrive as one object at
+   * the end, so the whole argument — eight stages, each one attributable — was
+   * invisible until it was over and the page showed a spinner instead. Agents
+   * still get the single response; a browser gets the stages as they happen.
+   * Never awaited and never allowed to throw into the deal: a watcher hanging
+   * up must not fail a contract that is already running.
+   */
+  readonly onStage?: (event: StageEvent) => void;
 }): Promise<BrokerOutcome> {
   const started = Date.now();
   const traceId = input.traceId ?? randomUUID();
   const timeline: StageEvent[] = [];
-  const mark = (stage: StageEvent["stage"], summary: string, detail?: Record<string, unknown>) =>
-    timeline.push({ stage, at: new Date().toISOString(), summary, detail });
+  const mark = (stage: StageEvent["stage"], summary: string, detail?: Record<string, unknown>) => {
+    const event: StageEvent = { stage, at: new Date().toISOString(), summary, detail };
+    timeline.push(event);
+    try {
+      input.onStage?.(event);
+    } catch {
+      // A watcher that has hung up, or one whose stream is already closed. The
+      // deal is mid-flight and a contract must not fail because nobody is
+      // looking any more.
+    }
+    return timeline.length;
+  };
 
   const rfp = await draftRfp(input);
   mark("discover", `Goal read as a request for ${rfp.capability} within ${rfp.budget} credits.`, { rfp });
@@ -101,10 +126,7 @@ export async function runBroker(input: {
   // keeps the order, which the utility ranking downstream relies on.
   const bids: Bid[] = await Promise.all(
     candidates.map(async (seller): Promise<Bid> => {
-      const { receipt } = await assay(
-        { vendor: seller.name, pitch: seller.pitch, askingPrice: seller.askPrice, buyerId: input.buyerId },
-        { traceId, fast: true },
-      );
+      const verdict = await assayListing(seller, input.buyerId, traceId);
       const reputation = reputationOf(seller.id);
       return {
         sellerId: seller.id,
@@ -112,13 +134,21 @@ export async function runBroker(input: {
         price: seller.askPrice,
         etaSeconds: seller.etaSeconds,
         reputation: reputation.score,
-        listingScore: receipt.report.score,
-        listingVerdict: receipt.report.verdict,
-        note: receipt.report.headline,
+        listingScore: verdict.score,
+        listingVerdict: verdict.verdict,
+        note: verdict.headline,
+        listingAssayedAt: verdict.assayedAt,
       };
     }),
   );
-  mark("bid", `${bids.length} sellers bid.`, { bids });
+  const reused = bids.filter((bid) => bid.listingAssayedAt !== undefined).length;
+  mark(
+    "bid",
+    reused === 0
+      ? `${bids.length} sellers bid.`
+      : `${bids.length} sellers bid. ${reused} listing${reused === 1 ? " was" : "s were"} already assayed and unchanged, so ${reused === 1 ? "its verdict was" : "those verdicts were"} reused rather than paid for again.`,
+    { bids },
+  );
 
   const viable = bids.filter((bid) => bid.listingVerdict !== "FLAGGED");
   const rejected = bids.filter((bid) => bid.listingVerdict === "FLAGGED");
@@ -314,27 +344,38 @@ export async function runBroker(input: {
 
   const execStarted = Date.now();
   const performed = await execute(seller.name, seller.pitch, rfp);
+  const house = performed.deliveredBy === "house-template";
   const delivery: Delivery = {
     contractId,
     output: performed.output,
     elapsedMs: Date.now() - execStarted,
     onTime: Date.now() - execStarted <= rfp.deadlineSeconds * 1000,
+    deliveredBy: performed.deliveredBy,
+    houseReason: house ? `Every model supplier refused the delivery call (${performed.upstream}).` : undefined,
   };
   const remaining = await balanceOf(sale.purchase.grant);
   mark(
     "execute",
-    performed.upstream === undefined
-      ? `${seller.name} delivered in ${(delivery.elapsedMs / 1000).toFixed(1)}s. ${remaining.remaining} credits left on the contract.`
-      : `No work was taken from ${seller.name}: our own model upstream refused the call (${performed.upstream}). ${remaining.remaining} credits left on the contract.`,
-    { balance: remaining },
+    house
+      ? `No work was taken from ${seller.name}: every model supplier refused the call (${performed.upstream}). Yuzu's own house template produced the deliverable instead. It is not ${seller.name}'s work, it is labelled as the house's throughout, and ${seller.name} is not paid for it.`
+      : `${seller.name} delivered in ${(delivery.elapsedMs / 1000).toFixed(1)}s. ${remaining.remaining} credits left on the contract.`,
+    { balance: remaining, deliveredBy: performed.deliveredBy },
   );
 
   // ── verify ─────────────────────────────────────────────────────────────
   const verification = await verify(rfp, delivery, performed);
   mark(
     "verify",
-    verification.accepted ? "Delivery accepted." : verification.judged ? "Delivery rejected." : "Nothing was delivered to judge.",
-    { verification },
+    house
+      ? verification.accepted
+        ? "House-produced deliverable accepted on structural checks only. No model judged it and no seller was judged at all, so no reputation moved."
+        : "House-produced deliverable failed its own structural checks, and was handed over marked as defective."
+      : verification.accepted
+        ? "Delivery accepted."
+        : verification.judged
+          ? "Delivery rejected."
+          : "Nothing was delivered to judge.",
+    { verification, deliveredBy: delivery.deliveredBy },
   );
 
   // ── settle ─────────────────────────────────────────────────────────────
@@ -350,7 +391,34 @@ export async function runBroker(input: {
   // A rejection stops the charge where it stands. The buyer is not made to pay
   // for work it refused; the use the attempt already consumed is reported as
   // `consumed` rather than erased, because the attempt happened.
-  const charged = verification.accepted
+  //
+  // A house-fulfilled deal is charged nothing, and this is the argument.
+  //
+  // The seller's standing is the easy half: it did not do the work, was never
+  // asked, and a number that only moves on evidence must not move on a call
+  // that was never made. `judged` is false, so the existing gate already holds.
+  //
+  // The price is the interesting half, and the answer is zero. `agreed` is not
+  // a fee this market charges for fulfilment; it is a price discovered against
+  // one seller's listing, one seller's proof and one seller's floor. None of
+  // that priced a template. Charging it would mean billing the buyer at a
+  // number that was negotiated about something else, which is the same species
+  // of claim as a database column called `paid` — a figure that looks settled
+  // and is not about what happened. There is no house price because nothing in
+  // this market ever discovered one, and inventing one at settlement is exactly
+  // the move `settlement.ts` refuses to make anywhere else.
+  //
+  // It also puts the incentive the right way round. The house path costs the
+  // house, so a market whose suppliers are all down earns nothing while they
+  // are down, and that is a bill the operator should be getting rather than the
+  // buyer. The argument for charging — the buyer did receive something usable —
+  // is real, and it is what the artifact is for; it is not worth the market
+  // losing the ability to say that its prices mean what they say.
+  //
+  // The one use the delivery call itself consumed is still reported as
+  // `consumed`, as it is for a rejection: it was authorised, and it happened.
+  const chargeable = verification.accepted && !house;
+  const charged = chargeable
     ? await chargeContract({
         grant: sale.purchase.grant,
         contractId,
@@ -359,30 +427,45 @@ export async function runBroker(input: {
         traceId,
       })
     : await balanceOf(sale.purchase.grant);
-  const paid = verification.accepted ? charged.spent : 0;
+  const paid = chargeable ? charged.spent : 0;
 
   const before = reputationOf(seller.id).score;
-  const after = verification.judged
-    ? recordOutcome(seller.id, verification.accepted, verification.score).score
-    : before;
+  // `!house` is redundant today, because `verifyHouse` returns `judged: false`
+  // and that alone stops the call. It stays because `judged` is a reported
+  // field rather than a policy one: it is serialised into the receipt, and the
+  // case for flipping it to true is genuinely arguable — deterministic checks
+  // did run on the artifact. The day someone makes that argument, the money and
+  // the reputation must not quietly follow the report field.
+  const after =
+    verification.judged && !house
+      ? recordOutcome(seller.id, verification.accepted, verification.score).score
+      : before;
   const settlement: Settlement = {
     contractId,
     agreed,
+    deliveredBy: delivery.deliveredBy,
     consumed: charged.spent,
     paid,
-    reason: verification.accepted
+    reason: house
+      ? `No model supplier would answer, so Yuzu's own deterministic template produced the deliverable rather than ${seller.name}. ` +
+        `${seller.name} did not do the work, is not paid for it, and its standing is unchanged at ${before}. ` +
+        `The buyer is charged 0 of the ${agreed} credits agreed: that price was negotiated against ${seller.name}'s listing and ${seller.name}'s proof, and neither of those priced a house template. ` +
+        `The ${charged.spent} use the delivery call itself consumed is on the record because it was authorised and it happened.`
+      : verification.accepted
       ? charged.spent === agreed
         ? `Delivery met the brief on every axis the verifier checked, and the kernel spent all ${agreed} uses of the contract's grant to pay for it.`
         : `Delivery was accepted, but the grant stopped authorising after ${charged.spent} of the ${agreed} uses, so ${charged.spent} is what was charged.`
-      : verification.judged
-        ? `Delivery was rejected, so the rest of the price was never spent and ${agreed - charged.spent} of the ${agreed} uses stayed with the buyer. The ${charged.spent} the delivery itself consumed is not charged, but it was authorised and it happened.`
-        : `Nothing was judged, so nothing was paid and the seller's standing was left where it was. The ${charged.spent} use the attempt consumed still stands: it was authorised and made, and only the model upstream failed to answer.`,
+        : verification.judged
+          ? `Delivery was rejected, so the rest of the price was never spent and ${agreed - charged.spent} of the ${agreed} uses stayed with the buyer. The ${charged.spent} the delivery itself consumed is not charged, but it was authorised and it happened.`
+          : `Nothing was judged, so nothing was paid and the seller's standing was left where it was. The ${charged.spent} use the attempt consumed still stands: it was authorised and made, and only the model upstream failed to answer.`,
     reputationBefore: before,
     reputationAfter: after,
   };
   mark(
     "settle",
-    `${settlement.paid} of ${agreed} credits paid, against ${charged.spent} of ${agreed} uses consumed on the grant. ${seller.name}: ${before} to ${after}.`,
+    house
+      ? `0 of ${agreed} credits paid: the house produced this, not ${seller.name}. ${charged.spent} of ${agreed} uses consumed on the grant. ${seller.name} unchanged at ${after}.`
+      : `${settlement.paid} of ${agreed} credits paid, against ${charged.spent} of ${agreed} uses consumed on the grant. ${seller.name}: ${before} to ${after}.`,
     { settlement },
   );
   closeContract(contract.grantId);
@@ -546,20 +629,21 @@ async function challenge(bid: Bid, rfp: Rfp): Promise<ProofChallenge> {
 
   if (!outcome.ok) {
     // "Produced nothing" and "we could not ask" are different facts about
-    // different parties. A rate-limited upstream is ours, and failing a seller
-    // for it is a false negative that quietly decides the market — on the first
-    // live run it emptied a shortlist of two and bought nothing at all. An
-    // unrunnable challenge carries forward as unproven, and the receipt says
-    // which of the two happened.
-    // Anchored per part, and a combined code counts if every part is ours.
-    // When both suppliers refuse, `complete` reports `http_429+gemini_429`, and
-    // an anchored single-code test would not match it -- so the seller would be
-    // failed for our outage, which is precisely the false negative this whole
-    // branch exists to prevent.
-    const OURS =
-      /^(?:(?:openrouter_)?http_(?:429|5\d\d)|gemini_(?:429|5\d\d)|TimeoutError|AbortError|no_api_key|no_fallback_key|no_openrouter_key|(?:groq|openrouter|gemini)_empty)$/;
-    const parts = (outcome.error ?? "").split("+");
-    const unrunnable = parts.length > 0 && parts.every((part) => OURS.test(part));
+    // different parties, and every failure `complete` can return is the second
+    // kind. The seller on the other end of this call is a persona in a prompt
+    // to our own analyst model, so a call that never came back is our supplier
+    // refusing us: there is no seller to blame for a request that was never
+    // made. A failure the seller could own would arrive as a returned sample
+    // that misses the brief, and that is judged below.
+    //
+    // This used to be a whitelist of the status codes that count as ours, and
+    // the whitelist is the thing that broke the market. `openrouter_http_402`
+    // — the account out of credit — was not on it, so the combined code
+    // `http_429+openrouter_http_402+gemini_429` failed the test, every bidder
+    // was dropped for our funding problem, and six live deals in a row returned
+    // a well-written apology. A whitelist of the failures that are ours is
+    // always missing the one that happens next; the class is what to test, and
+    // the class here is "the call did not come back".
     return {
       sellerId: bid.sellerId,
       prompt,
@@ -568,10 +652,8 @@ async function challenge(bid: Bid, rfp: Rfp): Promise<ProofChallenge> {
       adherence: 0,
       latencyMs,
       proven: false,
-      passed: unrunnable,
-      reason: unrunnable
-        ? `Challenge could not be run (${outcome.error}). That is our upstream and not the seller, so this is unproven rather than failed.`
-        : `No sample returned (${outcome.error ?? "unknown"}). A seller that cannot produce one is not shortlisted.`,
+      passed: true,
+      reason: `Challenge could not be run (${outcome.error ?? "unknown"}). That is our upstream and not the seller, so this is unproven rather than failed.`,
     };
   }
 
@@ -599,8 +681,67 @@ async function challenge(bid: Bid, rfp: Rfp): Promise<ProofChallenge> {
 interface Performed {
   readonly output: string;
   readonly truncated: boolean;
+  readonly deliveredBy: DeliveredBy;
   /** Set when the call never reached the seller. Ours, not theirs. */
   readonly upstream?: string;
+  /** Present exactly when `deliveredBy` is "house-template". */
+  readonly house?: HouseWork;
+}
+
+/**
+ * A listing that has not changed does not need assaying again.
+ *
+ * The registry's listings are static text. Assaying every one of them on every
+ * deal spent a model call per seller per deal to re-derive a verdict that could
+ * not have moved — three sellers meant three calls before a single bid was even
+ * priced, and on a rate-limited account those were the calls that pushed the
+ * delivery itself into a 402.
+ *
+ * Keyed by the listing's own content, so an edited pitch is a different key and
+ * is assayed afresh. The cache holds a verdict, never authority and never a
+ * receipt: a receipt names a buyer and a trace, and handing one deal's receipt
+ * to another deal would be a lie about who asked.
+ *
+ * The reuse is declared in the timeline. A market that quietly served a stale
+ * verdict as a fresh one would be doing the thing it exists to catch.
+ */
+declare global {
+  // eslint-disable-next-line no-var
+  var __yuzuListingVerdicts: Map<string, ListingVerdict> | undefined;
+}
+
+interface ListingVerdict {
+  readonly score: number;
+  readonly verdict: AssayReport["verdict"];
+  readonly headline: string;
+  /** Present only when this verdict is being reused from an earlier deal. */
+  readonly assayedAt?: string;
+}
+
+const verdicts: Map<string, ListingVerdict> = (globalThis.__yuzuListingVerdicts ??= new Map());
+
+async function assayListing(
+  seller: SellerAgent,
+  buyerId: string,
+  traceId: string,
+): Promise<ListingVerdict> {
+  const key = `${seller.id}::${createHash("sha256").update(seller.pitch).digest("hex").slice(0, 32)}`;
+  const held = verdicts.get(key);
+  if (held !== undefined) return { ...held, assayedAt: held.assayedAt ?? new Date().toISOString() };
+
+  const { receipt } = await assay(
+    { vendor: seller.name, pitch: seller.pitch, askingPrice: seller.askPrice, buyerId },
+    { traceId, fast: true },
+  );
+  const fresh: ListingVerdict = {
+    score: receipt.report.score,
+    verdict: receipt.report.verdict,
+    headline: receipt.report.headline,
+  };
+  // Only a verdict that actually consulted the model is worth keeping. One
+  // produced while the upstream was refusing is a fact about our afternoon.
+  if (receipt.report.reproducibility.unavailable.length === 0) verdicts.set(key, fresh);
+  return fresh;
 }
 
 async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Performed> {
@@ -645,14 +786,40 @@ async function execute(sellerName: string, pitch: string, rfp: Rfp): Promise<Per
     maxTokens: 3200,
     timeoutMs: 50_000,
   });
-  return {
-    output: outcome.ok ? outcome.text.trim() : `[no delivery: ${outcome.error ?? "upstream unavailable"}]`,
-    truncated: outcome.truncated === true,
-    upstream: outcome.ok ? undefined : (outcome.error ?? "upstream unavailable"),
-  };
+  if (outcome.ok) {
+    return { output: outcome.text.trim(), truncated: outcome.truncated === true, deliveredBy: "seller" };
+  }
+
+  /**
+   * No supplier would answer, so the house does the job itself.
+   *
+   * The alternative shipped for a while and it is why this exists: the buyer
+   * spent twelve credits on a route that discovered, priced, shortlisted and
+   * contracted correctly, and then handed back `[no delivery: http_429]`. The
+   * whole second half of the market — deliverable, verification, settlement,
+   * receipt — was dark whenever the bench was, which is exactly when a buyer
+   * most needs the market to still work.
+   *
+   * What comes back instead is a real, structured artifact assembled
+   * deterministically from this brief, and labelled as the house's on the
+   * delivery, the settlement, the timeline and the receipt. It is not as good
+   * as a seller's work. It is not offered as a seller's work, and the one thing
+   * this path must never do is read like one.
+   *
+   * It is also the only path here a planted goal cannot reach: no model reads
+   * the artifact, so a goal carrying instructions is copied into it as text and
+   * nothing acts on it.
+   */
+  const upstream = outcome.error ?? "upstream unavailable";
+  const house = houseWork(rfp, sellerName, upstream);
+  return { output: house.output, truncated: false, deliveredBy: "house-template", upstream, house };
 }
 
 async function verify(rfp: Rfp, delivery: Delivery, performed: Performed): Promise<Verification> {
+  if (performed.house !== undefined) {
+    return verifyHouse(rfp, delivery, performed.house, performed.upstream ?? "upstream unavailable");
+  }
+
   const findings: string[] = [];
   const notChecked: string[] = ["Originality: not checked. Yuzu compares the delivery to the brief, not to the web."];
 
@@ -744,6 +911,63 @@ async function verify(rfp: Rfp, delivery: Delivery, performed: Performed): Promi
   };
 }
 
+/**
+ * Checking the house's own work, without flattering it.
+ *
+ * These are structural checks, and the artifact was built from the same brief
+ * they check it against, so passing them is weaker evidence than a seller
+ * passing them: it says the template ran correctly, not that the work is good.
+ * That limit is stated in `notChecked` rather than left for a reader to infer,
+ * because a verification that quietly graded a template against itself and
+ * printed a number would be doing the thing this market exists to catch.
+ *
+ * They are still worth running. Every one of them fails if the generator
+ * regresses — a dropped label, a swallowed constraint, four taglines where the
+ * brief asked for five — and the first of them is the one that matters most:
+ * an unlabelled house artifact is indistinguishable from a seller's, which is
+ * the single failure mode this whole path must not have.
+ *
+ * `judged` is false throughout. No model assessed the content, and more to the
+ * point no seller was assessed at all, so nothing here may move a reputation.
+ */
+function verifyHouse(rfp: Rfp, delivery: Delivery, house: HouseWork, upstream: string): Verification {
+  const checks: ReadonlyArray<readonly [string, boolean]> = [
+    ["labelled as house-produced at both ends of the artifact", delivery.output.split(HOUSE_MARKER).length - 1 >= 2],
+    ["names the contracted seller as not the author", delivery.output.includes("did not write this")],
+    ["states that nothing was charged", delivery.output.includes("You were not charged")],
+    ["carries every constraint from the RFP verbatim", rfp.constraints.every((line) => delivery.output.includes(line))],
+    ["a structured artifact rather than a stub", delivery.output.length >= 1200],
+    house.requested === undefined
+      ? (["the brief named no item count, so none was checked", true] as const)
+      : ([`produced the ${house.requested} items the brief asked for`, house.produced === house.requested] as const),
+    ["delivered inside the deadline", delivery.onTime],
+  ];
+  const failed = checks.filter(([, passed]) => !passed).map(([label]) => label);
+
+  return {
+    contractId: delivery.contractId,
+    // Zero on both, because the axes these numbers are for — quality, and
+    // adherence to what the brief actually asked for — were not assessed by
+    // anything. A structural pass rate printed here would be read as a grade.
+    score: 0,
+    adherence: 0,
+    judged: false,
+    accepted: failed.length === 0,
+    findings: [
+      `Delivered by Yuzu's house template, not by the contracted seller. Every model supplier refused the delivery call (${upstream}).`,
+      failed.length === 0
+        ? `All ${checks.length} structural checks passed: ${checks.map(([label]) => label).join("; ")}.`
+        : `${failed.length} of ${checks.length} structural checks failed: ${failed.join("; ")}. The artifact was handed over marked as defective rather than withheld.`,
+      `${house.openSlots} slot${house.openSlots === 1 ? "" : "s"} the brief did not answer were left marked open rather than invented.`,
+    ],
+    notChecked: [
+      "Quality and adherence: not assessed. No model was available to judge the work, and the checks that were run are structural.",
+      "The template was built from this brief and then checked against the same brief, so those checks confirm the generator ran, not that the artifact is good.",
+      "The seller's capability: not assessed. It was never asked, so its reputation is untouched.",
+    ],
+  };
+}
+
 function clamp(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
 }
@@ -769,7 +993,13 @@ function finish(input: {
   // the timeline: a contract signed because our upstream was down and every
   // bidder therefore "cleared" the challenge reads identically to a contract
   // won on evidence unless the receipt says which one it was.
+  const houseFulfilled = input.delivery?.deliveredBy === "house-template";
   const proofNotes: string[] = [];
+  if (houseFulfilled) {
+    proofNotes.push(
+      `Delivered by Yuzu's house template rather than by ${input.contract?.sellerName ?? "the seller"}: every model supplier refused, so no work could be taken from the seller at all. The buyer was charged 0 of the ${input.settlement?.agreed ?? 0} credits agreed, and the seller's reputation did not move.`,
+    );
+  }
   const unprovable = input.proofs.filter((proof) => !proof.proven && proof.passed).length;
   if (input.proofs.length > 0) {
     const proved = input.proofs.filter((proof) => proof.proven).length;
@@ -795,29 +1025,47 @@ function finish(input: {
     purpose: PURPOSES.broker,
     traceId: input.traceId,
     report: {
-      vendor: input.contract?.sellerName ?? "unfilled",
-      vendorSlug: input.contract?.sellerId ?? "unfilled",
+      // Whoever the contract named, the vendor field says who actually produced
+      // the work. A receipt whose vendor is "Scout" over an artifact Scout
+      // never touched is the one lie this feature could tell, and it would tell
+      // it in the field a machine reads rather than the sentence a person does.
+      vendor: houseFulfilled ? "Yuzu (house template)" : (input.contract?.sellerName ?? "unfilled"),
+      vendorSlug: houseFulfilled ? "house-template" : (input.contract?.sellerId ?? "unfilled"),
       verdict: input.settlement?.paid ? "TRUSTED" : "UNPROVEN",
       score: (input.verification?.score ?? 0) * 100,
       deterministicScore: (input.verification?.adherence ?? 0) * 100,
       reproducibility: {
-        exact: ["Contract arithmetic", "Negotiated price", "Credit settlement"],
-        modelDerived: ["Delivery verification"],
-        unavailable:
-          unprovable > 0
-            ? [`Proof of capability for ${unprovable} of ${input.proofs.length} shortlisted sellers`]
-            : [],
-        note: "The money and the grant are arithmetic, and so is the negotiated price. The judgement of the delivered work is a model's and is labelled as such.",
+        exact: [
+          "Contract arithmetic",
+          "Negotiated price",
+          "Credit settlement",
+          // The house artifact is a pure function of the RFP, so this is a
+          // reproducibility claim a reader can actually run: same brief, same
+          // bytes.
+          ...(houseFulfilled ? ["The delivered artifact itself, assembled from the brief by a fixed template"] : []),
+        ],
+        modelDerived: houseFulfilled ? [] : ["Delivery verification"],
+        unavailable: [
+          ...(unprovable > 0 ? [`Proof of capability for ${unprovable} of ${input.proofs.length} shortlisted sellers`] : []),
+          ...(houseFulfilled ? ["The seller's delivery, and any judgement of quality: no model supplier would answer"] : []),
+        ],
+        note: houseFulfilled
+          ? "No model was involved in this deal's delivery at all. The artifact was assembled by a deterministic template and checked by deterministic structural tests; nothing here is a model's opinion, and nothing here is the seller's work."
+          : "The money and the grant are arithmetic, and so is the negotiated price. The judgement of the delivered work is a model's and is labelled as such.",
       },
       // "Scout delivered for 0 credits" is two false statements in the one
-      // line a reader actually reads. What happened instead gets named.
+      // line a reader actually reads. What happened instead gets named — and
+      // the house case is named first, because a house artifact that reads as
+      // Scout's is the worst sentence this receipt could carry.
       headline:
         input.unfilled ??
-        (input.verification?.judged === false
-          ? `Nothing of ${input.contract?.sellerName}'s was judged, so nothing was paid.`
-          : input.settlement?.paid === 0
-            ? `${input.contract?.sellerName} delivered work the verifier rejected, so nothing was paid.`
-            : `${input.contract?.sellerName} delivered for ${input.settlement?.paid} credits.`),
+        (input.delivery?.deliveredBy === "house-template"
+          ? `No model supplier would answer, so Yuzu's own template produced this deliverable. ${input.contract?.sellerName} did not write it, was not paid, and its standing did not move.`
+          : input.verification?.judged === false
+            ? `Nothing of ${input.contract?.sellerName}'s was judged, so nothing was paid.`
+            : input.settlement?.paid === 0
+              ? `${input.contract?.sellerName} delivered work the verifier rejected, so nothing was paid.`
+              : `${input.contract?.sellerName} delivered for ${input.settlement?.paid} credits.`),
       dimensions: [],
       claims: [],
       risks: [],
@@ -825,7 +1073,10 @@ function finish(input: {
         ...(input.verification?.notChecked ?? (input.unfilled ? [input.unfilled] : [])),
         ...proofNotes,
       ],
-      analysis: "deterministic+classifier+model",
+      // A house-fulfilled deal had no model in it anywhere: not in the
+      // delivery, not in the verification. Printing the usual string would be
+      // the receipt overstating its own method.
+      analysis: houseFulfilled ? "deterministic" : "deterministic+classifier+model",
     },
     decisions: traceFor(input.traceId),
     escalations: [],
