@@ -121,7 +121,7 @@ https://github.com/vaibhav4046/yuzu
 
 `f0cf3a2d-f961-4d9e-81bc-a19bab2ad61b`
 
-Device `vaibhav-0d94f511-3edf-4503-b71f-0bd3c5dd4e17`, runtime Claude Code, bridge running and
+Device `vaibhav-0d94f511-3edf-4503-b71f-0bd3c5dd4e17`, runtime Claude Code, registered and
 `ccd doctor` green (text-only surface, default route `rs_16b4d2799adb9f922380123a12e70d47`).
 
 ## Product-agent address
@@ -147,7 +147,7 @@ The rules disqualify on behaviour, not just on the build. All six checked:
 |---|---|
 | Discord username in submission | **[YOU]** — join with your real account, not the guest one |
 | Agent on SharedNet, node ID submitted | Done, above |
-| Agent online the whole 9–11 PM ET | `ccd start --adapter claude-code` verified running on 9 Sep: `ccd doctor` green on identity, default route and control-plane write, bridge log reports "Listening for incoming C2C session tasks". It does not survive a reboot or sleep — restart it before the room opens. |
+| Agent online the whole 9–11 PM ET | **Needs starting on the night.** The registration is done and holds: `ccd doctor` is green on identity, default route and control-plane write, last checked 9 Sep. What is *not* running between now and then is the listener -- `ccd start --adapter claude-code`, which prints "Listening for incoming C2C session tasks" and does not survive a reboot, a sleep or a closed terminal. Start it before the room opens and leave `ccd doctor` green beside it. |
 | Round 1 — try ≥3 products, specific disagreements each, submit a ranking | Built: `POST /api/arena {"round":1}`. Our own sellers are marked `house`, never count toward the three-product floor, and a round padded with them reports `meetsRule: false` — ranking your own market is not a round however honestly the prose admits it. |
 | Round 2 — spend ≥80 of 100 credits across ≥3 products | Built: `POST /api/arena {"round":2}`. The ledger refuses to overspend and reports shortfalls, and house sellers are excluded from every allocation: spending the scoreboard's credits inside our own market is the easiest thing a rival could point at. |
 | No humans in the loop | Human escalation is off by default; the market answers from precedent |

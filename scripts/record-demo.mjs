@@ -149,7 +149,11 @@ async function main() {
     return {
       paid: settled === null ? null : Number(settled[1]),
       house: /house[- ]template|house-produced/i.test(text),
-      unfilled: /nothing was bought|the budget went unspent/i.test(text),
+      // Only ask this when there is no settlement, because the page explains
+      // what an unfilled result is in its own standing copy and matching that
+      // put `unfilled: true` on a take that had just paid a seller six credits.
+      // A wrong fact in the artefact is worse than no fact.
+      unfilled: settled === null && /nothing was bought|the budget went unspent/i.test(text),
     };
   });
   console.log(`  deal: ${JSON.stringify(deal)}`);
