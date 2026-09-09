@@ -35,10 +35,20 @@ export class MemoryAuditSink implements AuditSink {
 /**
  * Ships decisions to SharedOS Cloud.
  *
+ * Verified live on 9 September: production traffic moved the project from 961
+ * to 980 decisions in their console. They land under the Development
+ * environment rather than Production, and that is not something this code can
+ * choose -- the environment follows the key, the Cloud is a design-partner
+ * preview that issues one development key when a project is created, and there
+ * is no console or API path to mint a production one. The `environment` field
+ * on the payload is accepted and ignored.
+ *
  * This is the one port no decision waits on. It batches, it swallows its own
  * failures, and a turn is never slower or less correct because shipping was.
  */
 export interface ShippingState {
+  /** These counters belong to one serverless instance, never the deployment. */
+  readonly scope: "this instance only";
   /** Whether a key is configured at all. */
   readonly configured: boolean;
   /** Stopped trying: the credential was rejected three times. */
@@ -76,6 +86,12 @@ export class CloudAuditSink implements AuditSink {
    */
   state(): ShippingState {
     return {
+      // Per instance, like everything else held in this process. An instance
+      // that has served no billable call has shipped nothing and says so, which
+      // is not the same as the integration being down -- checking health on a
+      // cold instance will always read `never-attempted`. The console is the
+      // only place that sees the fleet.
+      scope: "this instance only",
       configured: this.#key !== undefined && this.#key.length > 0,
       shuttered: this.#shuttered(),
       last: this.#last,

@@ -178,7 +178,7 @@ npm test                       # 124 tests
 | `GEMINI_API_KEY` | no | Analyst of last resort. A different model, so it is third by design. |
 | `TOUCHSTONE_SIGNING_SECRET` | yes in production | Ed25519 seed, base64 of 32 bytes. Signs receipts. The public half is served at `/api/pubkey`, so verification needs nothing from us. |
 | `TOUCHSTONE_SIGNING_KEY` | yes in production | HMAC key, escalation tickets only. A ticket is authority — it mints a grant — and for a symmetric key verifying and forging are the same operation, which is exactly why it must not be public. |
-| `SHAREDOS_KEY` | no | Ships decisions to SharedOS Cloud. A project key from the Cloud console — the placeholder currently in production is rejected `401`, and `/api/health` says so rather than claiming the shipping works. |
+| `SHAREDOS_KEY` | no | Ships decisions to SharedOS Cloud. Live: production traffic took the project from 961 to 980 decisions in their console. Events file under the Development environment because the environment follows the key and the Cloud issues only a development key per project — there is no path to mint a production one, and the `environment` field on the payload is accepted and ignored. |
 
 ---
 
