@@ -39,6 +39,24 @@ export const MODELS = {
  * report that quietly swapped them would be making exactly the kind of
  * unfalsifiable claim this service exists to catch.
  */
+/**
+ * Every Groq key configured, in order.
+ *
+ * `GROQ_API_KEY` takes a comma-separated list. One key is the ordinary case and
+ * needs no comma; more than one only helps when they belong to *different*
+ * organisations, because the daily budget is per organisation and per model.
+ * That is worth stating because it is not obvious and it cost an afternoon to
+ * establish: two keys issued from the same account share one pot, and spending
+ * five requests on the first dropped the second's remaining-requests header by
+ * the same five.
+ */
+function groqKeys(): readonly string[] {
+  return (process.env.GROQ_API_KEY ?? "")
+    .split(",")
+    .map((key) => key.trim())
+    .filter((key) => key.length > 0);
+}
+
 const ANALYST_BENCH: readonly string[] = [
   MODELS.analyst,
   "openai/gpt-oss-20b",
@@ -95,14 +113,24 @@ export async function complete(options: {
   }
   if (last.ok || !RETRYABLE.test(last.error ?? "") || options.model !== MODELS.analyst) return last;
 
-  // The rest of the bench on this key, before paying the latency of another
-  // supplier. A per-model daily limit means the next model is untouched budget.
+  // The rest of the bench, before paying the latency of another supplier. A
+  // per-model daily limit means the next model is untouched budget; a key from
+  // a different organisation is a whole untouched bench. Models first, keys
+  // outermost, so the common single-key case never pays for the loop.
   const benchCodes: string[] = [last.error ?? "unknown"];
-  for (const model of ANALYST_BENCH.slice(1)) {
-    const sideways = await attempt({ ...options, model });
-    if (sideways.ok) return { ...sideways, model };
-    benchCodes.push(`${model.split("/").pop() ?? model}:${sideways.error ?? "unknown"}`);
-    if (!RETRYABLE.test(sideways.error ?? "")) break;
+  const keys = groqKeys();
+  outer: for (const [index, key] of keys.entries()) {
+    for (const model of ANALYST_BENCH.slice(index === 0 ? 1 : 0)) {
+      const supplier = index === 0 ? undefined : { endpoint: ENDPOINT, key, prefix: undefined };
+      const sideways = await attempt({ ...options, model }, supplier);
+      if (sideways.ok) return { ...sideways, model };
+      const label = `${model.split("/").pop() ?? model}${keys.length > 1 ? `#${index + 1}` : ""}`;
+      benchCodes.push(`${label}:${sideways.error ?? "unknown"}`);
+      // A refusal that is not about capacity will not become one on the next
+      // model or the next key, and eight round trips to prove it would eat the
+      // route's whole budget.
+      if (!RETRYABLE.test(sideways.error ?? "")) break outer;
+    }
   }
   last = { ...last, error: benchCodes.join("+") };
 
@@ -233,7 +261,16 @@ async function viaGemini(options: {
  * withdrawn model are all "this supplier cannot serve you, try another one",
  * and the cost of being wrong is two extra calls.
  */
-const RETRYABLE = /^http_[45]\d\d$/;
+/**
+ * Worth asking the rest of the bench about: this supplier has no room.
+ *
+ * 402 belongs here — OpenRouter answers it when the account cannot afford the
+ * tokens requested, which is capacity rather than configuration. 401, 403 and
+ * 404 do not: a rejected key and an unknown model give the same answer on
+ * every model and every key, so walking eight combinations to re-learn it
+ * spends most of a route's budget proving what the first call already said.
+ */
+const RETRYABLE = /^(?:[a-z]+_)?http_(?:402|408|429|5\d\d)$/;
 /** Worth asking the same supplier about again. A 429 is not: it has no room. */
 const TRANSIENT = /^(?:http_5\d\d|TimeoutError|AbortError)$/;
 
@@ -257,7 +294,7 @@ async function attempt(
   },
   supplier?: Supplier,
 ): Promise<LlmOutcome> {
-  const key = supplier?.key ?? process.env.GROQ_API_KEY;
+  const key = supplier?.key ?? groqKeys()[0];
   const endpoint = supplier?.endpoint ?? ENDPOINT;
   const tag = supplier?.prefix === undefined ? "http" : `${supplier.prefix}_http`;
   const name: SupplierName = supplier?.prefix === "openrouter" ? "openrouter" : "groq";

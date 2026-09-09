@@ -173,7 +173,7 @@ npm test                       # 124 tests
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `GROQ_API_KEY` | no | Analyst and injection classifier. Absent, deterministic checks still run. |
+| `GROQ_API_KEY` | no | Analyst and injection classifier. Comma-separated: a second key is a second bench, but only if it belongs to a different Groq organisation — the daily budget is per organisation and per model, and two keys from one account share a pot. Absent, the deterministic checks still run. |
 | `OPENROUTER_API_KEY` | no | Second analyst supplier. Same model as Groq, so failing over does not move the scores. |
 | `GEMINI_API_KEY` | no | Analyst of last resort. A different model, so it is third by design. |
 | `TOUCHSTONE_SIGNING_SECRET` | yes in production | Ed25519 seed, base64 of 32 bytes. Signs receipts. The public half is served at `/api/pubkey`, so verification needs nothing from us. |

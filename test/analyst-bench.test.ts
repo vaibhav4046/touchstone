@@ -112,3 +112,52 @@ describe("the analyst bench spends a second model's budget rather than giving up
     expect(asked.every((model) => model === MODELS.guard)).toBe(true);
   });
 });
+
+/**
+ * A second key only helps if it is a second organisation.
+ *
+ * Groq's daily budget is per organisation and per model. Two keys issued from
+ * the same account share one pot — established the hard way: five requests
+ * spent on the first dropped the second's `x-ratelimit-remaining-requests` by
+ * the same five. So the rotation exists for a key from a *different* account,
+ * and the list is comma-separated so adding one is configuration rather than a
+ * deploy.
+ */
+describe("a second Groq key is a second bench", () => {
+  it("walks every model on the first key before touching the second", async () => {
+    process.env.GROQ_API_KEY = "key-one,key-two";
+    const seen: { key: string; model: string }[] = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      const model = (JSON.parse(String(init.body)) as { model: string }).model;
+      const key = String((init.headers as Record<string, string>).authorization).replace("Bearer ", "");
+      seen.push({ key, model });
+      // Everything on key-one is out; key-one's whole bench must be tried first.
+      return key === "key-one" ? rateLimited(model) : answered(`answered by ${key}`);
+    }) as typeof fetch;
+
+    const outcome = await complete({ model: MODELS.analyst, user: "anything", maxTokens: 50 });
+
+    expect(outcome.ok).toBe(true);
+    expect(outcome.text).toContain("key-two");
+    // All four models on the first key, then the first model on the second.
+    expect(seen.filter((call) => call.key === "key-one")).toHaveLength(4);
+    expect(seen.at(-1)).toEqual({ key: "key-two", model: MODELS.analyst });
+  });
+
+  it("stops the moment a refusal is not about capacity", async () => {
+    process.env.GROQ_API_KEY = "key-one,key-two";
+    const seen: string[] = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      seen.push((JSON.parse(String(init.body)) as { model: string }).model);
+      // A bad key is not a busy one, and eight round trips to prove that would
+      // eat the route's whole budget.
+      return new Response(JSON.stringify({ error: { message: "Invalid API Key" } }), { status: 401 });
+    }) as typeof fetch;
+
+    const outcome = await complete({ model: MODELS.analyst, user: "anything", maxTokens: 50 });
+
+    expect(outcome.ok).toBe(false);
+    // The primary, then one sideways step that also 401s, and no further.
+    expect(seen.length).toBeLessThanOrEqual(2);
+  });
+});
