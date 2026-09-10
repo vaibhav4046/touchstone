@@ -1297,16 +1297,16 @@ blockquote {
 
 .pixel-screen-container {
   position: relative;
+  aspect-ratio: 16 / 9;
+  width: 100%;
   background: #0f0a1c;
-  border: 4px solid #3a2d5c;
+  border: 3px solid #3a2d5c;
   box-shadow: 
     0 0 0 2px #17102b,
     6px 6px 0px 0px rgba(23, 16, 43, 0.8),
     12px 12px 28px rgba(0, 0, 0, 0.6);
-  border-radius: 2px;
+  border-radius: 4px;
   overflow: hidden;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
 }
 
@@ -1320,12 +1320,10 @@ blockquote {
 
 .pixel-screen-video {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
   object-fit: cover;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
+  image-rendering: auto;
 }
 
 .pixel-crt-lines {

@@ -291,11 +291,11 @@ export default function Page() {
                 </p>
               </div>
 
-              {/* HyperFrames Motion Video Artifact - Pixelated */}
+              {/* HyperFrames Motion Video Artifact - High Fidelity */}
               <div className="pixel-screen-container motion-hyperframe" data-reveal>
                 <div className="pixel-hud-header">
                   <span>HYPERFRAMES · MOTION ARTIFACT</span>
-                  <span>24 FPS · CRISP</span>
+                  <span>1080P · SEAMLESS</span>
                 </div>
                 <video
                   autoPlay
