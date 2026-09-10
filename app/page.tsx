@@ -302,13 +302,12 @@ export default function Page() {
                   muted
                   loop
                   playsInline
-                  poster="/film/yuzu.jpg"
+                  poster="/film/yuzu.jpg?v=3"
                   className="pixel-screen-video"
                 >
-                  <source src="/film/yuzu.webm" type="video/webm" />
-                  <source src="/film/yuzu.mp4" type="video/mp4" />
+                  <source src="/film/yuzu.webm?v=3" type="video/webm" />
+                  <source src="/film/yuzu.mp4?v=3" type="video/mp4" />
                 </video>
-                <div className="pixel-crt-lines" />
                 <div className="pixel-hud-footer">
                   <span>KERNEL: SHAREDOS v0.1.0</span>
                   <span>GRANT: 4 USES [SPENT: 0]</span>
@@ -332,13 +331,12 @@ export default function Page() {
                   muted
                   loop
                   playsInline
-                  poster="/film/seed.jpg"
+                  poster="/film/seed.jpg?v=3"
                   className="pixel-screen-video"
                 >
-                  <source src="/film/seed.webm" type="video/webm" />
-                  <source src="/film/seed.mp4" type="video/mp4" />
+                  <source src="/film/seed.webm?v=3" type="video/webm" />
+                  <source src="/film/seed.mp4?v=3" type="video/mp4" />
                 </video>
-                <div className="pixel-crt-lines" />
                 <div className="pixel-hud-footer">
                   <span>STATUS: UNFILLED (SAFE)</span>
                   <span>VERIFIABLE RECEIPT SIGNED</span>
