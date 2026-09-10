@@ -1321,7 +1321,8 @@ blockquote {
     16px 16px 36px rgba(0, 0, 0, 0.7);
 }
 
-.pixel-screen-video {
+.pixel-screen-video,
+.pixel-screen-img {
   width: 100%;
   height: 100%;
   display: block;

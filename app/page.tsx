@@ -308,7 +308,7 @@ export default function Page() {
                 </p>
               </div>
 
-              <div className="pixel-screen-container motion-hover-play" data-reveal>
+              <div className="pixel-screen-container" data-reveal>
                 <picture>
                   <source srcSet="/film/permission-4k.webp 3840w, /film/permission@2x.webp 2048w, /film/permission.webp 1024w" type="image/webp" />
                   <img
@@ -317,7 +317,7 @@ export default function Page() {
                     width={1024}
                     height={576}
                     loading="lazy"
-                    className="pixel-screen-video pixellated"
+                    className="pixel-screen-img pixellated"
                     style={{ objectFit: "cover", width: "100%", height: "100%", borderRadius: "4px" }}
                   />
                 </picture>
@@ -329,7 +329,7 @@ export default function Page() {
         <section className="band">
           <div className="wrap">
             <div className="pixel-split-layout">
-              <div className="pixel-screen-container motion-hover-play" data-reveal>
+              <div className="pixel-screen-container" data-reveal>
                 <picture>
                   <source srcSet="/film/refusal-4k.webp 3840w, /film/refusal@2x.webp 2048w, /film/refusal.webp 1024w" type="image/webp" />
                   <img
@@ -338,7 +338,7 @@ export default function Page() {
                     width={1024}
                     height={576}
                     loading="lazy"
-                    className="pixel-screen-video pixellated"
+                    className="pixel-screen-img pixellated"
                     style={{ objectFit: "cover", width: "100%", height: "100%", borderRadius: "4px" }}
                   />
                 </picture>

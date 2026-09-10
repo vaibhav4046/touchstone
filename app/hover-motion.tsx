@@ -10,15 +10,19 @@ export default function HoverMotion() {
 
     cardContainers.forEach((container) => {
       const video = container.querySelector<HTMLVideoElement>("video");
-      if (!video) return;
+      if (!video || !(video instanceof HTMLVideoElement) || typeof video.play !== "function") return;
 
       const onEnter = () => {
         container.classList.add("is-hovered");
-        video.play().catch(() => {});
+        try {
+          video.play().catch(() => {});
+        } catch {}
       };
       const onLeave = () => {
         container.classList.remove("is-hovered");
-        video.pause();
+        try {
+          video.pause();
+        } catch {}
       };
 
       container.addEventListener("mouseenter", onEnter);
@@ -26,13 +30,15 @@ export default function HoverMotion() {
 
       // Touch tap support
       const onClick = () => {
-        if (video.paused) {
-          container.classList.add("is-hovered");
-          video.play().catch(() => {});
-        } else {
-          container.classList.remove("is-hovered");
-          video.pause();
-        }
+        try {
+          if (video.paused) {
+            container.classList.add("is-hovered");
+            video.play().catch(() => {});
+          } else {
+            container.classList.remove("is-hovered");
+            video.pause();
+          }
+        } catch {}
       };
       container.addEventListener("click", onClick);
 
@@ -43,12 +49,16 @@ export default function HoverMotion() {
       });
     });
 
-    // 2. Continuous Autoplay Videos (ensure they keep playing smoothly without pausing on leave)
+    // 2. Continuous Autoplay Videos (ensure actual videos keep playing smoothly)
     const continuousVideos = document.querySelectorAll<HTMLVideoElement>(
-      ".pixel-screen-video, .endcard-video"
+      "video.pixel-screen-video, video.endcard-video"
     );
     continuousVideos.forEach((video) => {
-      video.play().catch(() => {});
+      if (video instanceof HTMLVideoElement && typeof video.play === "function") {
+        try {
+          video.play().catch(() => {});
+        } catch {}
+      }
     });
 
     return () => {
