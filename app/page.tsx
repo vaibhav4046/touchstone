@@ -259,7 +259,7 @@ export default function Page() {
                       <source srcSet={`/cards/${slug}.webp`} type="image/webp" />
                       <img src={`/cards/${slug}.jpg`} alt="" loading="lazy" width={960} height={536} />
                     </picture>
-                    <video className="card-hover-video" muted loop playsInline preload="none">
+                    <video className="card-hover-video" muted loop playsInline preload="metadata">
                       <source src={`/cards/${slug}.webm`} type="video/webm" />
                       <source src={`/cards/${slug}.mp4`} type="video/mp4" />
                     </video>
@@ -380,13 +380,30 @@ export default function Page() {
           <p className="lede" style={{ margin: "1rem auto 0" }}>
             Agents do not have that. So the market checks, and hands you the receipt.
           </p>
-          <div className="endcard-media-wrap motion-hover-play" data-reveal>
+          <div className="endcard-media-wrap" data-reveal>
+            <picture>
+              <source
+                type="image/webp"
+                srcSet="/film/endcard.webp 1280w, /film/endcard@2x.webp 3840w"
+                sizes="100vw"
+              />
+              <img
+                src="/film/endcard.jpg"
+                srcSet="/film/endcard.jpg 1280w, /film/endcard@2x.jpg 3840w"
+                sizes="100vw"
+                width={3840}
+                height={2160}
+                loading="lazy"
+                decoding="async"
+                alt="Yuzu juggling glowing agent orbs in a 4K pixel art night sky."
+                className="endcard-poster-img"
+              />
+            </picture>
             <video
               autoPlay
               muted
               loop
               playsInline
-              poster="/film/endcard.jpg"
               width={3840}
               height={2160}
               className="endcard-video"

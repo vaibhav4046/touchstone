@@ -98,16 +98,19 @@ function getSubagentForStage(stage: string): string {
   return "MarketplaceAuditor";
 }
 
-function TypewriterText({ text, speed = 12 }: { text: string; speed?: number }) {
+function TypewriterText({ text, speed = 25 }: { text: string; speed?: number }) {
   const [displayed, setDisplayed] = useState("");
   useEffect(() => {
     let index = 0;
     setDisplayed("");
+    const step = 3;
     const interval = setInterval(() => {
-      index++;
-      setDisplayed(text.slice(0, index));
+      index += step;
       if (index >= text.length) {
+        setDisplayed(text);
         clearInterval(interval);
+      } else {
+        setDisplayed(text.slice(0, index));
       }
     }, speed);
     return () => clearInterval(interval);
@@ -132,7 +135,7 @@ function TypewriterDelivery({ text }: { text: string }) {
       return;
     }
     let index = 0;
-    const step = Math.max(2, Math.floor(text.length / 100));
+    const step = Math.max(6, Math.floor(text.length / 50));
     const interval = setInterval(() => {
       index += step;
       if (index >= text.length) {
@@ -141,7 +144,7 @@ function TypewriterDelivery({ text }: { text: string }) {
       } else {
         setDisplayed(text.slice(0, index));
       }
-    }, 18);
+    }, 30);
     return () => clearInterval(interval);
   }, [text, skipped]);
 
@@ -188,7 +191,7 @@ function SubagentWorkflow({ live, busy }: { live: Stage[]; busy: boolean }) {
       <div className="subagent-workflow-header">
         <span style={{ color: "var(--yuzu)", fontWeight: 600 }}>
           <span className="subagent-status-dot pixellated" style={{ display: "inline-block", marginRight: "6px" }} />
-          AUTONOMOUS SUBAGENTS IN THE ARENA
+          {busy ? "AUTONOMOUS SUBAGENTS IN THE ARENA" : "AUTONOMOUS SUBAGENTS READY FOR GOAL DISPATCH"}
         </span>
         <span style={{ color: "var(--ink-3)" }}>ZERO AMBIENT AUTHORITY</span>
       </div>
@@ -205,6 +208,8 @@ function SubagentWorkflow({ live, busy }: { live: Stage[]; busy: boolean }) {
             actionText = latestSummary;
           } else if (isDone) {
             actionText = "✓ Stage executed within capability grant bounds.";
+          } else {
+            actionText = `[STANDBY] ${agent.desc}`;
           }
 
           return (
@@ -212,11 +217,11 @@ function SubagentWorkflow({ live, busy }: { live: Stage[]; busy: boolean }) {
               <div className="subagent-node-header">
                 <span className="subagent-node-name">{agent.name}</span>
                 <span className="subagent-node-status">
-                  {status === "active" ? "● ACTIVE" : status === "completed" ? "✓ DONE" : "WAITING"}
+                  {status === "active" ? "● ACTIVE" : status === "completed" ? "✓ DONE" : "STANDBY"}
                 </span>
               </div>
               <div className="subagent-node-action">
-                {isCurrent ? <TypewriterText text={actionText} speed={15} /> : actionText}
+                {isCurrent ? <TypewriterText text={actionText} speed={25} /> : actionText}
               </div>
               <div className="subagent-node-cap">
                 {agent.caps.map((cap) => (
@@ -298,18 +303,21 @@ export default function Market() {
       if (busy) return;
       let i = 0;
       setGoal("");
+      const step = 2;
       const timer = setInterval(() => {
-        i++;
-        setGoal(target.slice(0, i));
+        i += step;
         if (i >= target.length) {
+          setGoal(target);
           clearInterval(timer);
           if (autoSend) {
             setTimeout(() => {
               executePlant(target, budget);
-            }, 300);
+            }, 250);
           }
+        } else {
+          setGoal(target.slice(0, i));
         }
-      }, 18);
+      }, 30);
     },
     [busy, executePlant, budget]
   );
@@ -400,7 +408,7 @@ export default function Market() {
                       </span>
                       <span>
                         {isLatest ? (
-                          <TypewriterText text={event.summary} speed={12} />
+                          <TypewriterText text={event.summary} speed={25} />
                         ) : (
                           event.summary
                         )}
@@ -414,7 +422,11 @@ export default function Market() {
               <span className="workdot" /> Each line above is an attributable subagent stage that has already happened, sent as it landed.
             </p>
           </div>
-        ) : null
+        ) : (
+          <div className="livestage" style={{ marginTop: "1.2rem" }}>
+            <SubagentWorkflow live={[]} busy={false} />
+          </div>
+        )
       ) : (
         <Outcome result={result} />
       )}
