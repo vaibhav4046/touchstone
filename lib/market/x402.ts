@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { sign, verify } from "../assay/receipt";
+import { signPayload } from "../assay/receipt";
 
 export interface FeeConfig {
   /** Percentage commission (e.g. 0.025 for 2.5%) */
@@ -149,10 +149,11 @@ export function mintPaymentReceipt(params: {
   };
 
   const hash = hashReceipt(raw);
+  const signed = signPayload("x402.receipt.v1", { ...raw, hash });
   return {
     ...raw,
     hash,
-    signature: createHash("sha256").update(`${hash}:ed25519_verified`).digest("hex"),
+    signature: signed.signature.value,
   };
 }
 

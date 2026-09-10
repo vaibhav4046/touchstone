@@ -57,6 +57,7 @@ export const UNFALSIFIABLE = [
  * not marketing — it is an attempt to move authority through a message.
  */
 export const STEERING = [
+  /\b(?:ignore|disregard|forget|discard|drop|bypass|dismiss|set\s+aside)\s+(?:all\s+)?(?:(?:previous|prior|preceding|earlier|other|system)\s+)?(?:directives|instructions|rules|guidelines|policies|prompts?)\b/i,
   /\bignore\s+(?:all\s+)?(?:previous|prior|other|the\s+other)\b/i,
   /\bdisregard\s+(?:all\s+)?(?:previous|prior|other)\b/i,
   /\brank\s+(?:this|us|me)\s+(?:first|highest|top|#?1)\b/i,
@@ -67,7 +68,7 @@ export const STEERING = [
   /\bas\s+an\s+ai(?:\s+agent)?,?\s+you\s+(?:must|should|are required)\b/i,
   /\boverride\s+(?:your|the)\s+(?:instructions|rules|policy|guidelines)\b/i,
   /\bthis\s+(?:listing|message)\s+is\s+(?:a\s+)?(?:system|developer|admin)\s+(?:instruction|message|prompt)\b/i,
-  /\b(?:forget|discard|drop|bypass|dismiss|set\s+aside)\s+(?:all\s+)?(?:previous|prior|preceding|earlier|other)\s+(?:directives|instructions|rules|guidelines|policies)?\b/i,
+  /\b(?:you\s+are\s+now|act\s+as|enter)\s+(?:in\s+)?(?:developer|dan|jailbreak|unrestricted|god)\s+mode\b/i,
   /\b(?:notice\s+to|attention|instruction\s+for)\s+(?:the\s+)?(?:autonomous\s+)?(?:evaluator|agent|buyer|model)\b/i,
   /\b(?:award|assign|grant|give)\s+(?:this\s+)?(?:listing|product|solution|entry|service|seller|us|me)?\s*(?:the\s+)?(?:top|maximum|highest|perfect|winning|\d{2,3}(?:%|\s*points|\s*score))\s*(?:rating|standing|score|mark|grade|rank)?\b/i,
   /\b(?:ensure|make\s+sure)\s+(?:this\s+)?(?:listing|solution|seller|us|me)\s+is\s+(?:selected|chosen|picked|awarded)\b/i,

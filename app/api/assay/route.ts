@@ -2,7 +2,8 @@ import { after } from "next/server";
 import { assay } from "../../../lib/assay/engine";
 import { MAX_FANOUT, MAX_PITCH_CHARS, admit, fanOutTooLarge, json, parseOrder, rateLimited, resolveBuyer } from "../../../lib/api";
 
-import { drainAudit } from "../../../lib/sharedos/host";
+import { buildContext, drainAudit, withTurn } from "../../../lib/sharedos/host";
+import { PURPOSES } from "../../../lib/sharedos/identity";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -70,7 +71,10 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const probeEndpoint = order.probeEndpoint;
-  const { receipt, escalation, elapsedMs } = await assay(vendor, probeEndpoint ? { probeEndpoint } : {});
+  const context = buildContext({ buyerId, purpose: PURPOSES.assay });
+  const { receipt, escalation, elapsedMs } = await withTurn(context, `assay_${context.traceId}`, () =>
+    assay(vendor, { ...(probeEndpoint ? { probeEndpoint } : {}), traceId: context.traceId })
+  );
 
   return json({
     verdict: receipt.report.verdict,

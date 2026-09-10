@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { CapabilityGrant } from "@aicoo/sharedos";
 import type { AccessContext } from "@aicoo/sharedos";
 import { ASSAY_NAMESPACE, PURPOSES, TOUCHSTONE, type Purpose } from "./identity";
@@ -100,7 +100,9 @@ function unseal(id: string): Ticket | undefined {
   const [body, mac] = id.slice(4).split(".");
   if (body === undefined || mac === undefined) return undefined;
   const expected = createHmac("sha256", signingKey()).update(body).digest("base64url").slice(0, 22);
-  if (expected.length !== mac.length || !timingSafeEqual(Buffer.from(expected), Buffer.from(mac))) {
+  const digestExpected = createHash("sha256").update(expected).digest();
+  const digestMac = createHash("sha256").update(mac).digest();
+  if (!timingSafeEqual(digestExpected, digestMac)) {
     return undefined;
   }
   try {

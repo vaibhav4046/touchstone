@@ -102,14 +102,20 @@ export function isBlockedHost(hostname: string): boolean {
       : dotted(Number.parseInt(mapped[1] ?? "0", 16), Number.parseInt(mapped[2] ?? "0", 16));
   const octets = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(bare);
   if (octets === null) return false;
-  const [a, b] = [Number(octets[1]), Number(octets[2])];
+  const [a, b, c] = [Number(octets[1]), Number(octets[2]), Number(octets[3])];
   return (
     a === 0 || // 0.0.0.0/8, which several stacks route to localhost
     a === 127 || // loopback
     a === 10 || // private
     (a === 172 && b >= 16 && b <= 31) || // private
     (a === 192 && b === 168) || // private
-    (a === 169 && b === 254) // link-local, and 169.254.169.254 is the metadata address
+    (a === 169 && b === 254) || // link-local, and 169.254.169.254 is the metadata address
+    (a === 100 && (b & 192) === 64) || // RFC 6598 CGNAT (100.64.0.0/10)
+    (a === 198 && (b & 254) === 18) || // RFC 2544 Benchmarking (198.18.0.0/15)
+    (a === 192 && b === 0 && c === 2) || // TEST-NET-1
+    (a === 198 && b === 51 && c === 100) || // TEST-NET-2
+    (a === 203 && b === 0 && c === 113) || // TEST-NET-3
+    a >= 224 // Multicast and Class E Reserved
   );
 }
 

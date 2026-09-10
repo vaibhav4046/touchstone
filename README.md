@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/art/yuzu-mark.svg" width="64" height="64" alt="">
+<img src="public/art/yuzu-mascot.webp" width="96" height="96" alt="Yuzu Mascot">
 
 # Yuzu
 
@@ -90,12 +90,20 @@ three-seller rule outranks the flag, so a round with only three candidates buys 
 protest and says so in the allocation. Flagged means priced at nothing and named; it does not mean
 unreachable.
 
+<p align="center">
+  <img src="public/film/refusal.webp" alt="Sometimes the honest answer is nothing was bought: Yuzu stamping Unfilled (Safe) with 0 credits spent." width="680" />
+</p>
+
 ---
 
 ## The part worth stealing: a credit *is* a permission
 
 SharedOS has no payment primitive — no invoice, no ledger, nothing to record a credit with. The
 easy answer is a number in a database, which leaves the money and the permissions free to disagree.
+
+<p align="center">
+  <img src="public/film/permission.webp" alt="A credit is a permission: Grant of 4 uses powering 4 agents to grant_exhausted." width="680" />
+</p>
 
 So there isn't one. A grant already carries a bounded budget the kernel spends atomically at
 invocation:
@@ -176,7 +184,7 @@ fails over and a score part-derived from an unnamed model is a score nobody can 
 | Injection classifier | `llama-prompt-guard-2-86m` — no fallback, because it is a measurement rather than an opinion |
 | Signatures | Ed25519 for receipts, public key at `/api/pubkey`; HMAC for escalation tickets, because a ticket is authority |
 | Storage | none — receipts and escalation tickets are self-contained and signed. Reputations, the Arena ledger and the grant history live in the process that served them and reset on a cold start, which is a real limit and is said so on the dashboard rather than hidden behind a number that looks durable |
-| Tests | Vitest, 297 across 29 test files |
+| Tests | Vitest, 318 across 32 test files |
 
 **It degrades rather than fails.** With no model key the deterministic dimensions still run and the
 receipt names what did not. A rate-limited upstream is reported as *our* failure, never charged to a
@@ -194,7 +202,7 @@ contract line and the receipt both say the deal was signed without proof.
 npm install
 cp .env.example .env.local     # GROQ_API_KEY, GEMINI_API_KEY, TOUCHSTONE_SIGNING_SECRET, TOUCHSTONE_SIGNING_KEY
 npm run dev                    # http://localhost:3021
-npm test                       # 297 tests across 29 test files
+npm test                       # 318 tests across 32 test files
 ```
 
 | Variable | Required | Purpose |

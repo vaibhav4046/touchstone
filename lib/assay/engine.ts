@@ -98,7 +98,39 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
   try {
     // Reading the material is itself authorised. If this is denied there is
     // nothing to assay and the receipt says so rather than inventing a score.
-    await callTool(context, "assay.read_claims", args, { path: claimsPath, action: "read" });
+    const readOutcome = await callTool(context, "assay.read_claims", args, { path: claimsPath, action: "read" });
+    if (readOutcome.denied !== undefined || readOutcome.result?.status === "denied") {
+      const reasonCode = readOutcome.denied?.reasonCode ?? (readOutcome.result?.status === "denied" ? readOutcome.result.error.code : "access_denied");
+      const report: AssayReport = {
+        vendor: input.vendor,
+        vendorSlug,
+        verdict: "UNPROVEN",
+        score: 0,
+        deterministicScore: 0,
+        reproducibility: { exact: [], modelDerived: [], unavailable: [`read_claims: denied (${reasonCode})`], note: "Access denied by kernel." },
+        headline: `Assay refused: material read denied by kernel policy (${reasonCode}).`,
+        dimensions: [],
+        claims: [],
+        risks: [{ code: "ACCESS_DENIED", severity: "high", statement: `Read access to ${vendorSlug} claims was denied by kernel policy (${reasonCode}).` }],
+        notChecked: [`Material reading refused by authorizer (${reasonCode}). No analysis performed.`],
+        analysis: "deterministic",
+      };
+      const receipt = sign({
+        version: "touchstone.receipt.v1",
+        receiptId: `rcp_${randomUUID().slice(0, 12)}`,
+        issuedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + RECEIPT_TTL_MS).toISOString(),
+        issuer: "touchstone",
+        buyerId: input.buyerId ?? "anonymous-buyer",
+        purpose: PURPOSES.assay,
+        traceId,
+        report,
+        decisions: traceFor(traceId),
+        escalations: [],
+        toolCatalogHash: catalogue.hash,
+      });
+      return { receipt, elapsedMs: Date.now() - started };
+    }
 
     const [steeringCall, staticCall, analystCall] = await Promise.all([
       callTool(context, "assay.steering_scan", args, { path: claimsPath, action: "classify" }),

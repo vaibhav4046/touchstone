@@ -279,8 +279,12 @@ const VERIFY_SNIPPET = [
  * verifies happily after someone rewrites its verdict. The test suite catches
  * exactly that; this walks the tree instead.
  */
-function canonical(value: unknown): string {
+export function canonical(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (value instanceof Date) return JSON.stringify(value.toISOString());
+  if (typeof (value as { toJSON?: () => unknown }).toJSON === "function") {
+    return canonical((value as { toJSON: () => unknown }).toJSON());
+  }
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   const entries = Object.entries(value as Record<string, unknown>)
     .filter(([, item]) => item !== undefined)
@@ -376,5 +380,8 @@ export function verify(candidate: unknown): VerifyResult {
   }
   if (!intact) return { valid: false, reason: "signature_mismatch" };
 
-  return { valid: true, expired: Date.parse(receipt.expiresAt) < Date.now(), receipt };
+  const expiresMs = Date.parse(receipt.expiresAt);
+  if (Number.isNaN(expiresMs)) return { valid: false, reason: "invalid_expiration" };
+
+  return { valid: true, expired: expiresMs < Date.now(), receipt };
 }

@@ -16,10 +16,20 @@ export default function Page() {
 
         <section className="hero">
           <div className="hero-inner">
-            <span className="eyebrow">
-              <span className="dot" />
-              Built on SharedOS · live in the Arena
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.8rem", flexWrap: "wrap" }}>
+              <img
+                src="/art/yuzu-mascot.webp"
+                alt="Yuzu"
+                width={64}
+                height={64}
+                className="pixellated"
+                style={{ imageRendering: "pixelated", filter: "drop-shadow(0 4px 16px rgba(245, 178, 43, 0.3))" }}
+              />
+              <span className="eyebrow" style={{ margin: 0 }}>
+                <span className="dot" />
+                Built on SharedOS · live in the Arena
+              </span>
+            </div>
             <h1 className="display">
               Software has started <em>hiring software</em>.
             </h1>
@@ -299,17 +309,18 @@ export default function Page() {
               </div>
 
               <div className="pixel-screen-container motion-hover-play" data-reveal>
-                <video
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  poster="/film/yuzu.jpg"
-                  className="pixel-screen-video"
-                >
-                  <source src="/film/yuzu.webm" type="video/webm" />
-                  <source src="/film/yuzu.mp4" type="video/mp4" />
-                </video>
+                <picture>
+                  <source srcSet="/film/permission-4k.webp 3840w, /film/permission@2x.webp 2048w, /film/permission.webp 1024w" type="image/webp" />
+                  <img
+                    src="/film/permission.jpg"
+                    alt="A credit is a permission: Grant of 4 uses powering 4 agents to grant_exhausted."
+                    width={1024}
+                    height={576}
+                    loading="lazy"
+                    className="pixel-screen-video pixellated"
+                    style={{ objectFit: "cover", width: "100%", height: "100%", borderRadius: "4px" }}
+                  />
+                </picture>
               </div>
             </div>
           </div>
@@ -319,17 +330,18 @@ export default function Page() {
           <div className="wrap">
             <div className="pixel-split-layout">
               <div className="pixel-screen-container motion-hover-play" data-reveal>
-                <video
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  poster="/film/refusal.jpg"
-                  className="pixel-screen-video"
-                >
-                  <source src="/film/refusal.webm" type="video/webm" />
-                  <source src="/film/refusal.mp4" type="video/mp4" />
-                </video>
+                <picture>
+                  <source srcSet="/film/refusal-4k.webp 3840w, /film/refusal@2x.webp 2048w, /film/refusal.webp 1024w" type="image/webp" />
+                  <img
+                    src="/film/refusal.jpg"
+                    alt="Sometimes the honest answer is nothing was bought: Yuzu stamping Unfilled (Safe) with 0 credits spent."
+                    width={1024}
+                    height={576}
+                    loading="lazy"
+                    className="pixel-screen-video pixellated"
+                    style={{ objectFit: "cover", width: "100%", height: "100%", borderRadius: "4px" }}
+                  />
+                </picture>
               </div>
 
               <div>

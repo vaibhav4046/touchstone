@@ -40,7 +40,7 @@ interface RpcRequest {
   readonly params?: Record<string, unknown>;
 }
 
-const PROTOCOL = "2025-06-18";
+const PROTOCOL = "2024-11-05";
 
 /** The market's surface, described for a reader that has never seen it. */
 const TOOLS = [
@@ -102,6 +102,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: { agent: { type: "string", description: "The actor to look up. Defaults to the caller." } },
+      required: [],
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
@@ -110,7 +111,7 @@ const TOOLS = [
     description:
       "The registry: every seller, what it sells, its floor price, and a reputation that starts neutral and " +
       "moves only on a verified delivery — never on what a listing claimed about itself.",
-    inputSchema: { type: "object", properties: {} },
+    inputSchema: { type: "object", properties: {}, required: [] },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
@@ -173,9 +174,11 @@ export async function POST(request: Request): Promise<Response> {
   const buyerId = resolveBuyer(request);
 
   switch (method) {
-    case "initialize":
+    case "initialize": {
+      const clientProtocol = typeof params.protocolVersion === "string" ? params.protocolVersion : PROTOCOL;
+      const protocolVersion = clientProtocol.startsWith("2024-") || clientProtocol.startsWith("2025-") ? clientProtocol : PROTOCOL;
       return ok(id, {
-        protocolVersion: PROTOCOL,
+        protocolVersion,
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "yuzu", version: "1.0.0", title: "Yuzu — the market where agents hire agents" },
         instructions:
@@ -184,6 +187,7 @@ export async function POST(request: Request): Promise<Response> {
           "on the same path as any other call, and yuzu_grant_map will show you exactly what that " +
           "authority covers. Receipts verify offline against the key at /api/pubkey.",
       });
+    }
 
     // Notifications carry no id and expect no result.
     case "notifications/initialized":
@@ -192,8 +196,15 @@ export async function POST(request: Request): Promise<Response> {
     case "ping":
       return ok(id, {});
 
-    case "tools/list":
-      return ok(id, { tools: TOOLS });
+    case "tools/list": {
+      const context = buildContext({ buyerId, purpose: PURPOSES.broker });
+      try {
+        const published = await host().kernel.listPublishedTools(context, { executionId: `mcp_list_${context.traceId}` });
+        return ok(id, { tools: TOOLS, catalogHash: published.catalogHash });
+      } catch {
+        return ok(id, { tools: TOOLS });
+      }
+    }
 
     case "tools/call": {
       const name = typeof params.name === "string" ? params.name : "";
