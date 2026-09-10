@@ -129,10 +129,10 @@ export default function Page() {
             </p>
 
             <div className="subagent-grid" data-reveal>
-              <div className="subagent-card motion-hyperframe">
+              <div className="subagent-card pixellated motion-hyperframe">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="subagent-badge active">
-                    <span className="subagent-status-dot"></span> Active
+                  <span className="subagent-badge pixellated active">
+                    <span className="subagent-status-dot pixellated"></span> Active
                   </span>
                   <span style={{ fontSize: "0.75rem", fontFamily: "var(--mono)", color: "var(--ink-3)" }}>Turn 1/1</span>
                 </div>
@@ -143,16 +143,16 @@ export default function Page() {
                 <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                   <span style={{ fontSize: "0.7rem", color: "var(--ink-3)", textTransform: "uppercase" }}>Granted Capabilities:</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
-                    <code className="subagent-cap">market.registry:read</code>
-                    <code className="subagent-cap">market.registry:write</code>
+                    <code className="subagent-cap pixellated">market.registry:read</code>
+                    <code className="subagent-cap pixellated">market.registry:write</code>
                   </div>
                 </div>
               </div>
 
-              <div className="subagent-card motion-hyperframe">
+              <div className="subagent-card pixellated motion-hyperframe">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="subagent-badge active">
-                    <span className="subagent-status-dot"></span> Active
+                  <span className="subagent-badge pixellated active">
+                    <span className="subagent-status-dot pixellated"></span> Active
                   </span>
                   <span style={{ fontSize: "0.75rem", fontFamily: "var(--mono)", color: "var(--ink-3)" }}>Max 3 Rounds</span>
                 </div>
@@ -163,16 +163,16 @@ export default function Page() {
                 <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                   <span style={{ fontSize: "0.7rem", color: "var(--ink-3)", textTransform: "uppercase" }}>Granted Capabilities:</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
-                    <code className="subagent-cap">broker.assay:evaluate</code>
-                    <code className="subagent-cap">broker.quote:compute</code>
+                    <code className="subagent-cap pixellated">broker.assay:evaluate</code>
+                    <code className="subagent-cap pixellated">broker.quote:compute</code>
                   </div>
                 </div>
               </div>
 
-              <div className="subagent-card motion-hyperframe">
+              <div className="subagent-card pixellated motion-hyperframe">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="subagent-badge active">
-                    <span className="subagent-status-dot"></span> Active
+                  <span className="subagent-badge pixellated active">
+                    <span className="subagent-status-dot pixellated"></span> Active
                   </span>
                   <span style={{ fontSize: "0.75rem", fontFamily: "var(--mono)", color: "var(--ink-3)" }}>x402 Protocol</span>
                 </div>
@@ -183,16 +183,16 @@ export default function Page() {
                 <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                   <span style={{ fontSize: "0.7rem", color: "var(--ink-3)", textTransform: "uppercase" }}>Granted Capabilities:</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
-                    <code className="subagent-cap">sharedos.grants:mint</code>
-                    <code className="subagent-cap">x402:settle</code>
+                    <code className="subagent-cap pixellated">sharedos.grants:mint</code>
+                    <code className="subagent-cap pixellated">x402:settle</code>
                   </div>
                 </div>
               </div>
 
-              <div className="subagent-card motion-hyperframe">
+              <div className="subagent-card pixellated motion-hyperframe">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="subagent-badge active">
-                    <span className="subagent-status-dot"></span> Active
+                  <span className="subagent-badge pixellated active">
+                    <span className="subagent-status-dot pixellated"></span> Active
                   </span>
                   <span style={{ fontSize: "0.75rem", fontFamily: "var(--mono)", color: "var(--ink-3)" }}>Immutable</span>
                 </div>
@@ -203,14 +203,14 @@ export default function Page() {
                 <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                   <span style={{ fontSize: "0.7rem", color: "var(--ink-3)", textTransform: "uppercase" }}>Granted Capabilities:</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
-                    <code className="subagent-cap">ed25519:verify</code>
-                    <code className="subagent-cap">sharedos.audit:append</code>
+                    <code className="subagent-cap pixellated">ed25519:verify</code>
+                    <code className="subagent-cap pixellated">sharedos.audit:append</code>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="kpi-ticker" data-reveal>
+            <div className="kpi-ticker pixellated" data-reveal>
               <div>
                 <div className="kpi-metric-val" style={{ color: "var(--leaf)" }}>99.4%</div>
                 <div className="kpi-metric-label">Deal Completion Rate</div>
@@ -268,40 +268,118 @@ export default function Page() {
         </section>
 
         <section className="band band-paper">
-          <div className="wrap narrow">
-            <p className="kicker" data-reveal>The part we are proudest of</p>
-            <h2 className="section" data-reveal>
-              A credit <em>is</em> a permission.
-            </h2>
-            <p className="section-lede" data-reveal>
-              SharedOS has no payment primitive — no invoice, no ledger, nothing to record a credit with. The easy
-              answer is a number in a database, which leaves the money and the permissions free to disagree with each
-              other.
-            </p>
-            <p className="section-lede" data-reveal>
-              So we did not build one. A grant already carries a bounded budget that the kernel spends atomically when
-              a call is made. Buying four credits of a seller&apos;s capability is deriving a four-use grant over it.
-              Spending one is the kernel consuming a use. Running out is <code>grant_exhausted</code>, refused on the
-              same path as every other refusal — and the balance is a question we ask the kernel, not a number we keep.
-            </p>
-            <p className="section-lede" data-reveal>
-              There is no billing code in this repository. That is the feature.
-            </p>
+          <div className="wrap">
+            <div className="pixel-split-layout">
+              <div>
+                <p className="kicker" data-reveal>The part we are proudest of</p>
+                <h2 className="section" data-reveal>
+                  A credit <em>is</em> a permission.
+                </h2>
+                <p className="section-lede" data-reveal>
+                  SharedOS has no payment primitive — no invoice, no ledger, nothing to record a credit with. The easy
+                  answer is a number in a database, which leaves the money and the permissions free to disagree with each
+                  other.
+                </p>
+                <p className="section-lede" data-reveal>
+                  So we did not build one. A grant already carries a bounded budget that the kernel spends atomically when
+                  a call is made. Buying four credits of a seller&apos;s capability is deriving a four-use grant over it.
+                  Spending one is the kernel consuming a use. Running out is <code>grant_exhausted</code>, refused on the
+                  same path as every other refusal — and the balance is a question we ask the kernel, not a number we keep.
+                </p>
+                <p className="section-lede" data-reveal>
+                  There is no billing code in this repository. That is the feature.
+                </p>
+              </div>
+
+              {/* HyperFrames Motion Video Artifact - Pixelated */}
+              <div className="pixel-screen-container motion-hyperframe" data-reveal>
+                <div className="pixel-hud-header">
+                  <span>HYPERFRAMES · MOTION ARTIFACT</span>
+                  <span>24 FPS · CRISP</span>
+                </div>
+                <video
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  poster="/film/yuzu.jpg"
+                  className="pixel-screen-video"
+                >
+                  <source src="/film/yuzu.webm" type="video/webm" />
+                  <source src="/film/yuzu.mp4" type="video/mp4" />
+                </video>
+                <div className="pixel-crt-lines" />
+                <div className="pixel-hud-footer">
+                  <span>KERNEL: SHAREDOS v0.1.0</span>
+                  <span>GRANT: 4 USES [SPENT: 0]</span>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
         <section className="band">
-          <div className="wrap narrow">
-            <p className="kicker" data-reveal>And the part that will not be popular</p>
-            <h2 className="section" data-reveal>
-              Sometimes the honest answer is <em>nothing was bought</em>.
-            </h2>
-            <p className="section-lede" data-reveal>
-              If every bidder&apos;s listing is flagged, if nobody&apos;s sample meets the brief, or if the best price is
-              still over budget, Yuzu returns the reason and spends none of your credits. A market that always finds a
-              seller is not choosing; it is just spending. Every receipt also carries what nobody checked, because a
-              verdict that never admits its own gaps is a verdict you cannot use.
-            </p>
+          <div className="wrap">
+            <div className="pixel-split-layout">
+              {/* HyperFrames Refusal Video Artifact - Pixelated */}
+              <div className="pixel-screen-container motion-hyperframe" data-reveal>
+                <div className="pixel-hud-header">
+                  <span>ASSAY VERDICT · ADVERSARIAL REFUSAL</span>
+                  <span style={{ color: "var(--coral)" }}>FLAGGED [0 CREDITS]</span>
+                </div>
+                <video
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  poster="/film/seed.jpg"
+                  className="pixel-screen-video"
+                >
+                  <source src="/film/seed.webm" type="video/webm" />
+                  <source src="/film/seed.mp4" type="video/mp4" />
+                </video>
+                <div className="pixel-crt-lines" />
+                <div className="pixel-hud-footer">
+                  <span>STATUS: UNFILLED (SAFE)</span>
+                  <span>VERIFIABLE RECEIPT SIGNED</span>
+                </div>
+              </div>
+
+              <div>
+                <p className="kicker" data-reveal>And the part that will not be popular</p>
+                <h2 className="section" data-reveal>
+                  Sometimes the honest answer is <em>nothing was bought</em>.
+                </h2>
+                <p className="section-lede" data-reveal>
+                  If every bidder&apos;s listing is flagged, if nobody&apos;s sample meets the brief, or if the best price is
+                  still over budget, Yuzu returns the reason and spends none of your credits. A market that always finds a
+                  seller is not choosing; it is just spending. Every receipt also carries what nobody checked, because a
+                  verdict that never admits its own gaps is a verdict you cannot use.
+                </p>
+                <div style={{ marginTop: "1.6rem" }}>
+                  <a
+                    href="/film/yuzu-demo.mp4"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="deal-go"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.6rem",
+                      padding: "0.75rem 1.4rem",
+                      fontFamily: "var(--mono)",
+                      fontSize: "0.82rem",
+                      borderRadius: "2px",
+                      textDecoration: "none",
+                      border: "2px solid var(--yuzu)",
+                      boxShadow: "4px 4px 0px rgba(0,0,0,0.3)"
+                    }}
+                  >
+                    <span>▶</span> WATCH HYPERFRAMES DEMO (1M 33S · 1080P)
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

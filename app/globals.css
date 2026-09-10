@@ -1280,3 +1280,175 @@ blockquote {
   letter-spacing: 0.04em;
 }
 
+/* ───────────────────────── Pixelated Motion Artifacts & Video Frames ───────────────────────── */
+.pixel-split-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  align-items: center;
+}
+
+@media (min-width: 960px) {
+  .pixel-split-layout {
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 3rem;
+  }
+}
+
+.pixel-screen-container {
+  position: relative;
+  background: #0f0a1c;
+  border: 4px solid #3a2d5c;
+  box-shadow: 
+    0 0 0 2px #17102b,
+    6px 6px 0px 0px rgba(23, 16, 43, 0.8),
+    12px 12px 28px rgba(0, 0, 0, 0.6);
+  border-radius: 2px;
+  overflow: hidden;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+
+.pixel-screen-container:hover {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 
+    0 0 0 2px var(--yuzu),
+    8px 8px 0px 0px var(--yuzu),
+    16px 16px 36px rgba(0, 0, 0, 0.7);
+}
+
+.pixel-screen-video {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+.pixel-crt-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.3) 50%
+  ), linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.04),
+    rgba(0, 255, 0, 0.02),
+    rgba(0, 0, 255, 0.04)
+  );
+  background-size: 100% 4px, 6px 100%;
+  z-index: 2;
+}
+
+.pixel-hud-header {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--yuzu-bright);
+  text-shadow: 0 0 4px rgba(255, 217, 121, 0.6);
+  z-index: 3;
+  letter-spacing: 0.05em;
+  background: rgba(15, 10, 28, 0.85);
+  padding: 4px 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 217, 121, 0.35);
+  backdrop-filter: blur(4px);
+}
+
+.pixel-hud-footer {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: var(--leaf);
+  text-shadow: 0 0 4px rgba(111, 191, 152, 0.6);
+  z-index: 3;
+  background: rgba(15, 10, 28, 0.85);
+  padding: 4px 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(111, 191, 152, 0.35);
+  backdrop-filter: blur(4px);
+}
+
+/* ───────────────────────── Pixellated Subagents Aesthetic ───────────────────────── */
+@keyframes pixelBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.subagent-card.pixellated {
+  border-radius: 2px;
+  border: 3px solid var(--hairline);
+  box-shadow: 
+    4px 4px 0px 0px rgba(28, 26, 23, 0.12),
+    0 0 12px rgba(160, 107, 240, 0.08);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: var(--paper);
+  transition: transform 0.2s steps(4), box-shadow 0.2s steps(4), border-color 0.2s steps(4);
+}
+
+:root[data-theme="night"] .subagent-card.pixellated {
+  border: 3px solid #3a2d5c;
+  box-shadow: 4px 4px 0px 0px #17102b;
+}
+
+.subagent-card.pixellated:hover {
+  transform: translate(-3px, -3px);
+  border-color: var(--yuzu);
+  box-shadow: 
+    7px 7px 0px 0px var(--yuzu),
+    0 0 20px rgba(247, 171, 53, 0.2);
+}
+
+.subagent-badge.pixellated {
+  border-radius: 2px;
+  border: 1px solid rgba(111, 191, 152, 0.6);
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.12);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.subagent-status-dot.pixellated {
+  border-radius: 0;
+  width: 6px;
+  height: 6px;
+  animation: pixelBlink 1.2s infinite steps(1);
+}
+
+.subagent-cap.pixellated {
+  border-radius: 2px;
+  border: 1px solid var(--hairline);
+  box-shadow: 1px 1px 0px rgba(0, 0, 0, 0.08);
+  font-size: 0.72rem;
+  letter-spacing: -0.02em;
+}
+
+.kpi-ticker.pixellated {
+  border-radius: 2px;
+  border: 3px solid var(--hairline);
+  box-shadow: 5px 5px 0px 0px rgba(28, 26, 23, 0.12);
+  image-rendering: pixelated;
+}
+
+:root[data-theme="night"] .kpi-ticker.pixellated {
+  border: 3px solid #3a2d5c;
+  box-shadow: 5px 5px 0px 0px #17102b;
+}
