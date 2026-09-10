@@ -325,7 +325,7 @@ export default function Page() {
               <div className="pixel-screen-container motion-hyperframe" data-reveal>
                 <div className="pixel-hud-header">
                   <span>ASSAY VERDICT · ADVERSARIAL REFUSAL</span>
-                  <span style={{ color: "var(--coral)" }}>FLAGGED [0 CREDITS]</span>
+                  <span style={{ color: "var(--coral)" }}>FLAGGED [0 CREDITS] · 16-BIT</span>
                 </div>
                 <video
                   autoPlay
