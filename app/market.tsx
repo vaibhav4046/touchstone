@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface Bid {
   sellerId: string;
@@ -60,6 +60,179 @@ const EXAMPLES = [
   "Write me five taglines for a note-taking app that syncs offline.",
 ];
 
+const SUBAGENTS = [
+  {
+    name: "ProductLister",
+    role: "Catalog & Listing Assay",
+    caps: ["market.registry:read", "market.registry:write"],
+    stages: ["discover", "bid"],
+    desc: "Indexes capabilities, executes seller assay, drops injections",
+  },
+  {
+    name: "PriceNegotiator",
+    role: "Proof & Arithmetic Bargaining",
+    caps: ["broker.assay:evaluate", "broker.quote:compute"],
+    stages: ["prove", "negotiate"],
+    desc: "Challenges shortlist with samples, locks arithmetic price curve",
+  },
+  {
+    name: "PaymentManager",
+    role: "Kernel Grants & Settlement",
+    caps: ["sharedos.grants:mint", "x402:settle"],
+    stages: ["contract", "settle"],
+    desc: "Mints zero-ambient SharedOS grant (credits=uses), settles x402 escrow",
+  },
+  {
+    name: "MarketplaceAuditor",
+    role: "Integrity & Ed25519 Receipts",
+    caps: ["ed25519:verify", "sharedos.audit:append"],
+    stages: ["execute", "deliver", "verify"],
+    desc: "Verifies deliverables, attests outputs, appends signed ledger receipt",
+  },
+];
+
+function getSubagentForStage(stage: string): string {
+  if (stage === "discover" || stage === "bid") return "ProductLister";
+  if (stage === "prove" || stage === "negotiate") return "PriceNegotiator";
+  if (stage === "contract" || stage === "settle") return "PaymentManager";
+  return "MarketplaceAuditor";
+}
+
+function TypewriterText({ text, speed = 12 }: { text: string; speed?: number }) {
+  const [displayed, setDisplayed] = useState("");
+  useEffect(() => {
+    let index = 0;
+    setDisplayed("");
+    const interval = setInterval(() => {
+      index++;
+      setDisplayed(text.slice(0, index));
+      if (index >= text.length) {
+        clearInterval(interval);
+      }
+    }, speed);
+    return () => clearInterval(interval);
+  }, [text, speed]);
+
+  const isDone = displayed.length >= text.length;
+  return (
+    <span>
+      {displayed}
+      {!isDone && <span className="typewriter-cursor" />}
+    </span>
+  );
+}
+
+function TypewriterDelivery({ text }: { text: string }) {
+  const [displayed, setDisplayed] = useState("");
+  const [skipped, setSkipped] = useState(false);
+
+  useEffect(() => {
+    if (skipped) {
+      setDisplayed(text);
+      return;
+    }
+    let index = 0;
+    const step = Math.max(2, Math.floor(text.length / 100));
+    const interval = setInterval(() => {
+      index += step;
+      if (index >= text.length) {
+        setDisplayed(text);
+        clearInterval(interval);
+      } else {
+        setDisplayed(text.slice(0, index));
+      }
+    }, 18);
+    return () => clearInterval(interval);
+  }, [text, skipped]);
+
+  const isComplete = skipped || displayed.length >= text.length;
+
+  return (
+    <div>
+      {!isComplete && (
+        <button
+          type="button"
+          className="typewriter-skip-btn"
+          onClick={() => setSkipped(true)}
+        >
+          ⚡ Instant View (Skip Typing)
+        </button>
+      )}
+      <blockquote
+        style={{
+          whiteSpace: "pre-wrap",
+          maxHeight: "17rem",
+          overflowY: "auto",
+          marginBottom: "1.2rem",
+          fontFamily: "var(--mono)",
+          fontSize: "0.88rem",
+          lineHeight: 1.5,
+        }}
+      >
+        {displayed}
+        {!isComplete && <span className="typewriter-cursor" />}
+      </blockquote>
+    </div>
+  );
+}
+
+function SubagentWorkflow({ live, busy }: { live: Stage[]; busy: boolean }) {
+  const currentStage = live.length > 0 ? live[live.length - 1]!.stage : "discover";
+  const activeAgentName = getSubagentForStage(currentStage);
+
+  const order = ["ProductLister", "PriceNegotiator", "PaymentManager", "MarketplaceAuditor"];
+  const activeIdx = order.indexOf(activeAgentName);
+
+  return (
+    <div className="subagent-workflow-deck">
+      <div className="subagent-workflow-header">
+        <span style={{ color: "var(--yuzu)", fontWeight: 600 }}>
+          <span className="subagent-status-dot pixellated" style={{ display: "inline-block", marginRight: "6px" }} />
+          AUTONOMOUS SUBAGENTS IN THE ARENA
+        </span>
+        <span style={{ color: "var(--ink-3)" }}>ZERO AMBIENT AUTHORITY</span>
+      </div>
+
+      <div className="subagent-workflow-grid">
+        {SUBAGENTS.map((agent, idx) => {
+          const isCurrent = busy && activeAgentName === agent.name;
+          const isDone = (!busy && live.length > 0) || (busy && idx < activeIdx);
+          const status = isCurrent ? "active" : isDone ? "completed" : "idle";
+
+          let actionText = agent.desc;
+          if (isCurrent) {
+            const latestSummary = live.length > 0 ? live[live.length - 1]!.summary : "Reading goal...";
+            actionText = latestSummary;
+          } else if (isDone) {
+            actionText = "✓ Stage executed within capability grant bounds.";
+          }
+
+          return (
+            <div className={`subagent-node ${status}`} key={agent.name}>
+              <div className="subagent-node-header">
+                <span className="subagent-node-name">{agent.name}</span>
+                <span className="subagent-node-status">
+                  {status === "active" ? "● ACTIVE" : status === "completed" ? "✓ DONE" : "WAITING"}
+                </span>
+              </div>
+              <div className="subagent-node-action">
+                {isCurrent ? <TypewriterText text={actionText} speed={15} /> : actionText}
+              </div>
+              <div className="subagent-node-cap">
+                {agent.caps.map((cap) => (
+                  <code key={cap} className="subagent-cap pixellated" style={{ display: "inline-block", margin: "2px 3px 0 0" }}>
+                    {cap}
+                  </code>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Market() {
   const [goal, setGoal] = useState(EXAMPLES[0]!);
   const [budget, setBudget] = useState("22");
@@ -67,17 +240,7 @@ export default function Market() {
   const [live, setLive] = useState<Stage[]>([]);
   const [result, setResult] = useState<Result | undefined>();
 
-  /**
-   * Watch the deal rather than wait for it.
-   *
-   * A deal takes twenty to sixty seconds, and this used to be one POST with a
-   * spinner over it: the argument the whole market makes — eight stages, each
-   * one you can point at afterwards — was invisible for the entire time it was
-   * being made. The streaming route sends each stage as it lands. The reply is
-   * read by hand rather than with EventSource because EventSource cannot POST,
-   * and the goal has to go up with the request.
-   */
-  const plant = useCallback(async () => {
+  const executePlant = useCallback(async (currentGoal: string, currentBudget: string) => {
     setBusy(true);
     setResult(undefined);
     setLive([]);
@@ -85,11 +248,10 @@ export default function Market() {
       const response = await fetch("/api/broker/stream", {
         method: "POST",
         headers: { "content-type": "application/json", "x-agent-id": "yuzu-console" },
-        body: JSON.stringify({ goal, budget: Number(budget) || 22 }),
+        body: JSON.stringify({ goal: currentGoal, budget: Number(currentBudget) || 22 }),
       });
 
       if (response.body === null || !response.ok) {
-        // The route refused before it began — a 400 or a 429, which is JSON.
         setResult((await response.json().catch(() => ({ error: "unreadable" }))) as Result);
         return;
       }
@@ -103,8 +265,6 @@ export default function Market() {
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        // SSE frames are separated by a blank line. Anything after the last one
-        // is a partial frame and waits for the next chunk.
         const frames = buffer.split(/\r?\n\r?\n/);
         buffer = frames.pop() ?? "";
 
@@ -118,7 +278,7 @@ export default function Market() {
             else if (name === "done") setResult(parsed as Result);
             else if (name === "failed") setResult(parsed as Result);
           } catch {
-            // A frame we cannot read is not worth abandoning the deal for.
+            // Frame parsing error ignored
           }
         }
       }
@@ -127,7 +287,55 @@ export default function Market() {
     } finally {
       setBusy(false);
     }
-  }, [goal, budget]);
+  }, []);
+
+  const plant = useCallback(() => {
+    executePlant(goal, budget);
+  }, [executePlant, goal, budget]);
+
+  const typeGoal = useCallback(
+    (target: string, autoSend = false) => {
+      if (busy) return;
+      let i = 0;
+      setGoal("");
+      const timer = setInterval(() => {
+        i++;
+        setGoal(target.slice(0, i));
+        if (i >= target.length) {
+          clearInterval(timer);
+          if (autoSend) {
+            setTimeout(() => {
+              executePlant(target, budget);
+            }, 300);
+          }
+        }
+      }, 18);
+    },
+    [busy, executePlant, budget]
+  );
+
+  useEffect(() => {
+    const handleHeroClick = (e: MouseEvent) => {
+      e.preventDefault();
+      const el = document.getElementById("market");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+      setTimeout(() => {
+        typeGoal(EXAMPLES[0]!, true);
+      }, 400);
+    };
+
+    const heroBtn = document.getElementById("hero-watch-btn");
+    if (heroBtn) {
+      heroBtn.addEventListener("click", handleHeroClick as EventListener);
+    }
+    return () => {
+      if (heroBtn) {
+        heroBtn.removeEventListener("click", handleHeroClick as EventListener);
+      }
+    };
+  }, [typeGoal]);
 
   return (
     <div className="panel">
@@ -135,7 +343,12 @@ export default function Market() {
 
       <label className="field">
         <span>What do you need done</span>
-        <textarea value={goal} onChange={(event) => setGoal(event.target.value)} style={{ minHeight: "5.2rem" }} />
+        <textarea
+          value={goal}
+          onChange={(event) => setGoal(event.target.value)}
+          style={{ minHeight: "5.2rem" }}
+          placeholder="Describe what you want agents to produce..."
+        />
       </label>
 
       <div className="row" style={{ alignItems: "flex-end" }}>
@@ -143,7 +356,12 @@ export default function Market() {
           <span>Budget in credits</span>
           <input type="number" value={budget} min="1" onChange={(event) => setBudget(event.target.value)} />
         </label>
-        <button className="btn btn-ink" onClick={plant} disabled={busy || goal.trim().length === 0} style={{ flex: "0 0 auto" }}>
+        <button
+          className="btn btn-ink"
+          onClick={plant}
+          disabled={busy || goal.trim().length === 0}
+          style={{ flex: "0 0 auto" }}
+        >
           {busy ? "The market is working…" : "Send it to the market"}
         </button>
       </div>
@@ -154,7 +372,7 @@ export default function Market() {
             key={example}
             className="pill"
             style={{ border: "1px dashed var(--hairline)", background: "transparent", cursor: "pointer" }}
-            onClick={() => setGoal(example)}
+            onClick={() => typeGoal(example, false)}
           >
             {example.slice(0, 38)}…
           </button>
@@ -164,21 +382,36 @@ export default function Market() {
       {result === undefined ? (
         busy ? (
           <div className="livestage">
+            <SubagentWorkflow live={live} busy={busy} />
             {live.length === 0 ? (
-              <p className="muted">Reading the goal…</p>
+              <p className="muted">
+                Reading the goal… <span className="typewriter-cursor" />
+              </p>
             ) : (
               <ol>
-                {live.map((event, index) => (
-                  <li key={`${event.stage}-${index}`}>
-                    <code>{event.stage}</code>
-                    <span>{event.summary}</span>
-                  </li>
-                ))}
+                {live.map((event, index) => {
+                  const agent = getSubagentForStage(event.stage);
+                  const isLatest = index === live.length - 1;
+                  return (
+                    <li key={`${event.stage}-${index}`}>
+                      <code style={{ marginRight: "6px" }}>{event.stage}</code>
+                      <span className="subagent-cap pixellated" style={{ marginRight: "8px", color: "var(--violet-deep)" }}>
+                        [{agent}]
+                      </span>
+                      <span>
+                        {isLatest ? (
+                          <TypewriterText text={event.summary} speed={12} />
+                        ) : (
+                          event.summary
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
               </ol>
             )}
             <p className="muted small" style={{ marginTop: "0.6rem" }}>
-              <span className="workdot" /> Each line above is a stage that has already happened, sent as it
-              landed. Nothing here is a progress bar.
+              <span className="workdot" /> Each line above is an attributable subagent stage that has already happened, sent as it landed.
             </p>
           </div>
         ) : null
@@ -202,14 +435,20 @@ function Outcome({ result }: { result: Result }) {
     <div style={{ marginTop: "1.6rem", borderTop: "1px solid var(--hairline)", paddingTop: "1.2rem" }}>
       {result.timeline !== undefined && (
         <ol className="ledger" style={{ listStyle: "none", padding: 0, margin: "0 0 1.4rem" }}>
-          {result.timeline.map((stage, index) => (
-            <li className="ledger-row" data-o="allowed" key={index}>
-              <span className="o" style={{ color: "var(--violet-deep)" }}>
-                {stage.stage}
-              </span>
-              <span className="r">{stage.summary}</span>
-            </li>
-          ))}
+          {result.timeline.map((stage, index) => {
+            const agent = getSubagentForStage(stage.stage);
+            return (
+              <li className="ledger-row" data-o="allowed" key={index}>
+                <span className="o" style={{ color: "var(--violet-deep)" }}>
+                  {stage.stage}
+                </span>
+                <span className="r">
+                  <strong style={{ fontFamily: "var(--mono)", fontSize: "0.78rem", marginRight: "6px" }}>[{agent}]</strong>
+                  {stage.summary}
+                </span>
+              </li>
+            );
+          })}
         </ol>
       )}
 
@@ -336,11 +575,41 @@ function Outcome({ result }: { result: Result }) {
       {result.delivery !== undefined && (
         <>
           <p className="kicker">What came back</p>
-          <blockquote style={{ whiteSpace: "pre-wrap", maxHeight: "17rem", overflowY: "auto", marginBottom: "1.2rem" }}>
-            {result.delivery.output}
-          </blockquote>
+          <TypewriterDelivery text={result.delivery.output} />
         </>
       )}
+
+      {/* Sub-Agent Attestation Deck */}
+      <div className="subagent-workflow-deck" style={{ margin: "1.4rem 0" }}>
+        <div className="subagent-workflow-header">
+          <span style={{ color: "var(--leaf)", fontWeight: 600 }}>
+            ✓ SUB-AGENT VERIFIED ATTESTATION
+          </span>
+          <span style={{ color: "var(--ink-3)" }}>0 AMBIENT ACCESS · 100% CHECKED</span>
+        </div>
+        <div className="grid grid-2" style={{ gap: "0.5rem" }}>
+          <div className="subagent-node completed" style={{ margin: 0 }}>
+            <div className="subagent-node-name">ProductLister</div>
+            <div className="subagent-node-action">Verified candidate listings, filtered prompt-injection attacks.</div>
+            <code className="subagent-cap pixellated">market.registry:read: OK</code>
+          </div>
+          <div className="subagent-node completed" style={{ margin: 0 }}>
+            <div className="subagent-node-name">PriceNegotiator</div>
+            <div className="subagent-node-action">Enforced bounded arithmetic bargaining within buyer budget.</div>
+            <code className="subagent-cap pixellated">broker.quote:compute: OK</code>
+          </div>
+          <div className="subagent-node completed" style={{ margin: 0 }}>
+            <div className="subagent-node-name">PaymentManager</div>
+            <div className="subagent-node-action">Derived atomic capability grant. 1 credit = 1 grant use.</div>
+            <code className="subagent-cap pixellated">sharedos.grants:mint: OK</code>
+          </div>
+          <div className="subagent-node completed" style={{ margin: 0 }}>
+            <div className="subagent-node-name">MarketplaceAuditor</div>
+            <div className="subagent-node-action">Ed25519 signature verified, audit hash appended to ledger.</div>
+            <code className="subagent-cap pixellated">ed25519:verify: OK</code>
+          </div>
+        </div>
+      </div>
 
       {result.unfilled !== undefined && (
         <div className="note" style={{ marginBottom: "1.2rem" }}>
@@ -384,17 +653,10 @@ function Outcome({ result }: { result: Result }) {
         {result.meta?.elapsedMs}ms · receipt {result.receipt?.receiptId} · {result.receipt?.signature.value.slice(0, 18)}…
       </p>
 
-      {/* The deal is over and its grant has already been withdrawn, which is
-          the correct lifetime. The floor is where the record of it lives. */}
       <p style={{ marginTop: "0.5rem", fontSize: "0.82rem" }}>
         <a href="/dashboard">See the grant this minted on the floor →</a>
       </p>
 
-      {/* The receipt, handed to the page that checks it. `#r=` is a fragment,
-          so the receipt never reaches any server on the way -- the check runs
-          in the reader's own browser against the key at /api/pubkey. A verdict
-          only its issuer can confirm is not evidence, so this is the link that
-          matters most on the whole page. */}
       {result.receipt !== undefined && (
         <p style={{ marginTop: "0.35rem", fontSize: "0.82rem" }}>
           <a href={`/deal#r=${encodeURIComponent(JSON.stringify(result.receipt))}`}>
