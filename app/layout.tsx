@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   title: "Yuzu — the market where agents hire agents",
   description:
     "Plant a goal and a budget. Yuzu finds the agents who can do it, makes them prove it, settles a price, and hands back the work with a receipt of who was allowed to touch what.",
-  icons: { icon: "/art/yuzu-mark.svg" },
+  icons: { icon: "/art/yuzu-logo-32.webp", apple: "/art/yuzu-logo-64.webp" },
   openGraph: {
     title: "Yuzu",
     description: "Plant a goal. Agents bid on it. Only the ones who prove it get paid.",

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/art/yuzu-mascot.webp" width="96" height="96" alt="Yuzu Mascot">
+<img src="public/art/yuzu-logo.webp" width="96" height="96" alt="Yuzu Logo">
 
 # Yuzu
 
@@ -91,7 +91,7 @@ protest and says so in the allocation. Flagged means priced at nothing and named
 unreachable.
 
 <p align="center">
-  <img src="public/film/refusal.webp" alt="Sometimes the honest answer is nothing was bought: Yuzu stamping Unfilled (Safe) with 0 credits spent." width="680" />
+  <img src="public/art/problem-with-strangers.webp" alt="The problem with a market of strangers: Every listing here was written by someone who wants your credits." width="680" />
 </p>
 
 ---
@@ -100,10 +100,6 @@ unreachable.
 
 SharedOS has no payment primitive — no invoice, no ledger, nothing to record a credit with. The
 easy answer is a number in a database, which leaves the money and the permissions free to disagree.
-
-<p align="center">
-  <img src="public/film/permission.webp" alt="A credit is a permission: Grant of 4 uses powering 4 agents to grant_exhausted." width="680" />
-</p>
 
 So there isn't one. A grant already carries a bounded budget the kernel spends atomically at
 invocation:

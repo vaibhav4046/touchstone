@@ -1501,46 +1501,123 @@ blockquote {
   opacity: 1;
 }
 
-.endcard-media-wrap {
+.endcard-terminal-wrap {
   position: relative;
   width: 100%;
-  max-width: var(--page);
-  margin: 1.8rem auto 0;
+  max-width: 820px;
+  margin: 2.2rem auto clamp(2.5rem, 2rem + 3vw, 4.5rem);
+  text-align: left;
+}
+
+.endcard-mascot-badge {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.endcard-console {
+  background: #110d1c;
+  border: 2px solid #3c2a63;
+  box-shadow: 
+    0 0 0 2px #0a0614,
+    8px 8px 0px 0px rgba(10, 6, 20, 0.9),
+    0 16px 40px rgba(0, 0, 0, 0.7);
   border-radius: 4px;
   overflow: hidden;
-  border: 3px solid #3a2d5c;
-  box-shadow: 
-    0 0 0 2px #17102b,
-    8px 8px 0px 0px rgba(23, 16, 43, 0.8),
-    16px 16px 36px rgba(0, 0, 0, 0.6);
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  aspect-ratio: 16 / 9;
-  background: #0f0a1c;
+  font-family: var(--mono);
 }
 
-.endcard-poster-img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
+.endcard-console-bar {
+  background: #1e1633;
+  padding: 0.6rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid #2d1f4d;
 }
 
-.endcard-video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  z-index: 1;
+.endcard-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.endcard-dot.red { background: #ff5f56; }
+.endcard-dot.yellow { background: #ffbd2e; }
+.endcard-dot.green { background: #27c93f; }
+
+.endcard-console-title {
+  margin-left: 0.6rem;
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.65);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.endcard-console-body {
+  padding: 1.4rem 1.6rem;
+  color: #e5e1eb;
+}
+
+.endcard-terminal-line {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  word-break: break-all;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.endcard-terminal-line.ind {
+  padding-left: 1.4rem;
+}
+
+.endcard-prompt {
+  color: var(--yuzu);
+  font-weight: bold;
+}
+
+.endcard-cmd {
+  color: #f7f5fa;
+}
+
+.endcard-flag {
+  color: var(--leaf);
+}
+
+.endcard-str {
+  color: #d1b3ff;
+}
+
+.endcard-terminal-output {
+  margin-top: 1.2rem;
+  padding: 0.8rem 1rem;
+  background: rgba(245, 178, 43, 0.08);
+  border-left: 3px solid var(--yuzu);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.endcard-out-badge {
+  background: var(--yuzu);
+  color: #120e1f;
+  font-size: 0.72rem;
+  font-weight: bold;
+  padding: 0.15rem 0.45rem;
+  border-radius: 2px;
+}
+
+.endcard-out-text {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.endcard-actions-row {
+  margin-top: 1.5rem;
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
 }
 
 /* ───────────────────────── Typewriter & Terminal Mechanics ───────────────────────── */

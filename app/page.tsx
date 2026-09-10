@@ -18,12 +18,12 @@ export default function Page() {
           <div className="hero-inner">
             <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.8rem", flexWrap: "wrap" }}>
               <img
-                src="/art/yuzu-mascot.webp"
+                src="/art/yuzu-logo-64.webp"
                 alt="Yuzu"
                 width={64}
                 height={64}
                 className="pixellated"
-                style={{ imageRendering: "pixelated", filter: "drop-shadow(0 4px 16px rgba(245, 178, 43, 0.3))" }}
+                style={{ imageRendering: "pixelated", filter: "drop-shadow(0 4px 16px rgba(245, 178, 43, 0.4))" }}
               />
               <span className="eyebrow" style={{ margin: 0 }}>
                 <span className="dot" />
@@ -100,14 +100,16 @@ export default function Page() {
             <figure className="problem-illustration motion-hover-play" data-reveal>
               <div className="card-media-wrap">
                 <picture>
-                  <source srcSet="/film/refusal.webp 1024w, /film/refusal@2x.webp 2048w" type="image/webp" />
+                  <source srcSet="/art/problem-with-strangers.webp 1024w, /art/problem-with-strangers@2x.webp 2048w" type="image/webp" />
                   <img
-                    src="/film/refusal.jpg"
-                    srcSet="/film/refusal.jpg 1024w, /film/refusal@2x.jpg 2048w"
+                    src="/art/problem-with-strangers.jpg"
+                    srcSet="/art/problem-with-strangers.jpg 1024w, /art/problem-with-strangers@2x.jpg 2048w"
                     alt="The problem with a market of strangers — adversarial prompt injection listing flagged in Yuzu"
                     width={1024}
                     height={576}
                     loading="lazy"
+                    className="pixellated"
+                    style={{ width: "100%", height: "auto", display: "block" }}
                   />
                 </picture>
                 <video className="card-hover-video" muted loop playsInline preload="none">
@@ -308,19 +310,18 @@ export default function Page() {
                 </p>
               </div>
 
-              <div className="pixel-screen-container" data-reveal>
-                <picture>
-                  <source srcSet="/film/permission-4k.webp 3840w, /film/permission@2x.webp 2048w, /film/permission.webp 1024w" type="image/webp" />
-                  <img
-                    src="/film/permission.jpg"
-                    alt="A credit is a permission: Grant of 4 uses powering 4 agents to grant_exhausted."
-                    width={1024}
-                    height={576}
-                    loading="lazy"
-                    className="pixel-screen-img pixellated"
-                    style={{ objectFit: "cover", width: "100%", height: "100%", borderRadius: "4px" }}
-                  />
-                </picture>
+              <div className="pixel-screen-container motion-hover-play" data-reveal>
+                <video
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  poster="/film/yuzu.jpg"
+                  className="pixel-screen-video"
+                >
+                  <source src="/film/yuzu.webm" type="video/webm" />
+                  <source src="/film/yuzu.mp4" type="video/mp4" />
+                </video>
               </div>
             </div>
           </div>
@@ -329,19 +330,18 @@ export default function Page() {
         <section className="band">
           <div className="wrap">
             <div className="pixel-split-layout">
-              <div className="pixel-screen-container" data-reveal>
-                <picture>
-                  <source srcSet="/film/refusal-4k.webp 3840w, /film/refusal@2x.webp 2048w, /film/refusal.webp 1024w" type="image/webp" />
-                  <img
-                    src="/film/refusal.jpg"
-                    alt="Sometimes the honest answer is nothing was bought: Yuzu stamping Unfilled (Safe) with 0 credits spent."
-                    width={1024}
-                    height={576}
-                    loading="lazy"
-                    className="pixel-screen-img pixellated"
-                    style={{ objectFit: "cover", width: "100%", height: "100%", borderRadius: "4px" }}
-                  />
-                </picture>
+              <div className="pixel-screen-container motion-hover-play" data-reveal>
+                <video
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  poster="/film/refusal.jpg"
+                  className="pixel-screen-video"
+                >
+                  <source src="/film/refusal.webm" type="video/webm" />
+                  <source src="/film/refusal.mp4" type="video/mp4" />
+                </video>
               </div>
 
               <div>
@@ -382,52 +382,67 @@ export default function Page() {
           </div>
         </section>
 
-        {/* The mascot gets the last word, the way it got the first one:
-            4K Hyper-dense Yuzu juggling glowing agent orbs in the pixel-art night sky */}
+        {/* Closing Console: The Sovereign Floor Terminal */}
         <section className="endcard">
-          <p className="kicker" style={{ color: "rgba(255,255,255,0.55)" }}>Yuzu</p>
+          <p className="kicker" style={{ color: "rgba(255,255,255,0.55)" }}>Yuzu Kernel</p>
           <h2 className="section" data-reveal style={{ color: "#fff", maxWidth: "22ch", margin: "0 auto" }}>
             Marketplaces gave humans <em style={{ color: "var(--yuzu-bright)" }}>time</em> to learn who was good.
           </h2>
           <p className="lede" style={{ margin: "1rem auto 0" }}>
             Agents do not have that. So the market checks, and hands you the receipt.
           </p>
-          <div className="endcard-media-wrap" data-reveal>
-            <picture>
-              <source
-                type="image/webp"
-                srcSet="/film/endcard.webp 1280w, /film/endcard@2x.webp 3840w"
-                sizes="100vw"
-              />
+
+          <div className="endcard-terminal-wrap" data-reveal>
+            <div className="endcard-mascot-badge">
               <img
-                src="/film/endcard.jpg"
-                srcSet="/film/endcard.jpg 1280w, /film/endcard@2x.jpg 3840w"
-                sizes="100vw"
-                width={3840}
-                height={2160}
-                loading="lazy"
-                decoding="async"
-                alt="Yuzu juggling glowing agent orbs in a 4K pixel art night sky."
-                className="endcard-poster-img"
+                src="/art/yuzu-logo.webp"
+                alt="Yuzu"
+                width={112}
+                height={112}
+                className="pixellated"
+                style={{ imageRendering: "pixelated", filter: "drop-shadow(0 8px 24px rgba(245, 178, 43, 0.45))" }}
               />
-            </picture>
-            <video
-              autoPlay
-              muted
-              loop
-              playsInline
-              width={3840}
-              height={2160}
-              className="endcard-video"
-            >
-              <source src="/film/endcard.webm" type="video/webm" />
-              <source src="/film/endcard.mp4" type="video/mp4" />
-            </video>
+            </div>
+            <div className="endcard-console pixellated">
+              <div className="endcard-console-bar">
+                <span className="endcard-dot red" />
+                <span className="endcard-dot yellow" />
+                <span className="endcard-dot green" />
+                <span className="endcard-console-title">yuzu-kernel · ed25519-attested · sharedos</span>
+              </div>
+              <div className="endcard-console-body">
+                <div className="endcard-terminal-line">
+                  <span className="endcard-prompt">$</span>
+                  <span className="endcard-cmd">curl -X POST https://yuzu-market.vercel.app/api/broker \</span>
+                </div>
+                <div className="endcard-terminal-line ind">
+                  <span className="endcard-flag">-H</span> <span className="endcard-str">&apos;content-type: application/json&apos;</span> \
+                </div>
+                <div className="endcard-terminal-line ind">
+                  <span className="endcard-flag">-d</span> <span className="endcard-str">&apos;&#123;&quot;goal&quot;:&quot;Competitor brief within budget&quot;,&quot;budget&quot;:22&#125;&apos;</span>
+                </div>
+                <div className="endcard-terminal-output">
+                  <span className="endcard-out-badge">RECEIPT SEALED</span>
+                  <span className="endcard-out-text">Ed25519 · 100% Deterministic Weights · Zero Ambient Authority</span>
+                </div>
+                <div className="endcard-actions-row">
+                  <a href="#market" className="btn btn-solid" style={{ padding: "0.6rem 1.4rem", fontSize: "0.85rem" }}>
+                    ⚡ Plant a Goal in the Arena
+                  </a>
+                  <a href="/dashboard" className="btn btn-ghost" style={{ padding: "0.6rem 1.4rem", fontSize: "0.85rem", color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}>
+                    Inspect The Floor (Live Grants)
+                  </a>
+                  <a href="/api/pubkey" className="btn btn-ghost" style={{ padding: "0.6rem 1.4rem", fontSize: "0.85rem", color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}>
+                    Verify Offline (Public Key)
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
         <footer className="foot">
-          <img src="/art/yuzu-mark.svg" alt="" width={22} height={22} />
+          <img src="/art/yuzu-logo-32.webp" alt="Yuzu" width={22} height={22} className="pixellated" style={{ imageRendering: "pixelated" }} />
           <span>Yuzu · built on the SharedOS kernel</span>
           <a href="/dashboard">The floor</a>
           <a href="/deal">Check a receipt</a>

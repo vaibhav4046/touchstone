@@ -51,7 +51,7 @@ export default function HoverMotion() {
 
     // 2. Continuous Autoplay Videos (ensure actual videos keep playing smoothly)
     const continuousVideos = document.querySelectorAll<HTMLVideoElement>(
-      "video.pixel-screen-video, video.endcard-video"
+      "video.pixel-screen-video"
     );
     continuousVideos.forEach((video) => {
       if (video instanceof HTMLVideoElement && typeof video.play === "function") {

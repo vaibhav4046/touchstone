@@ -66,7 +66,7 @@ export default function Chrome() {
   return (
     <header className="top" data-over={over} data-solid={!over}>
       <a className="brand" href="/">
-        <img src="/art/yuzu-mark.svg" alt="" width={30} height={30} />
+        <img src="/art/yuzu-logo-32.webp" alt="Yuzu" width={30} height={30} className="pixellated" style={{ imageRendering: "pixelated" }} />
         <b>Yuzu</b>
       </a>
       <div className="spacer" />
