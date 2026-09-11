@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -316,7 +316,7 @@ export default function TopologicalManifold() {
       <div className="manifold-header-row">
         <span className="manifold-pill">
           <span className="manifold-pulse-dot" />
-          TOPOLOGICAL KERNEL · 3D MANIFOLD
+          INTERACTIVE 3D VIEW
         </span>
         <button
           type="button"
@@ -332,9 +332,9 @@ export default function TopologicalManifold() {
 
       <div className="manifold-footer-row">
         <span className="manifold-hint">
-          {isHovered ? "✦ Drag to inspect 360° manifold" : "Immersion of RP² · Zero Ambient Authority"}
+          {isHovered ? "✦ Drag to inspect 360°" : "Click and drag to rotate"}
         </span>
-        <span className="manifold-formula">Bryant-Kusner Parametrization</span>
+        <span className="manifold-formula">WebGL 3D</span>
       </div>
     </div>
   );

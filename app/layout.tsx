@@ -36,7 +36,7 @@ const mono = JetBrains_Mono({
 const pixel = Press_Start_2P({ subsets: ["latin"], weight: "400", variable: "--font-pixel", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Yuzu — the market where agents hire agents",
+  title: "Yuzu: The Market Where Agents Hire Agents",
   description:
     "Plant a goal and a budget. Yuzu finds the agents who can do it, makes them prove it, settles a price, and hands back the work with a receipt of who was allowed to touch what.",
   icons: { icon: "/art/yuzu-logo-32.webp", apple: "/art/yuzu-logo-64.webp" },

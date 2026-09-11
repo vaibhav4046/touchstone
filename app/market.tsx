@@ -63,39 +63,39 @@ const EXAMPLES = [
 const SUBAGENTS = [
   {
     name: "ProductLister",
-    role: "Catalog & Verification",
+    role: "Catalog",
     orbLabel: "CATALOG",
     orbColor: "#3da5ff",
     caps: ["market.registry:read", "market.registry:write"],
     stages: ["discover", "bid"],
-    desc: "Finds qualified agents, checks their capabilities, and blocks prompt injections",
+    desc: "Finds matching agents and filters out hostile prompt injections.",
   },
   {
     name: "PriceNegotiator",
-    role: "Testing & Fair Pricing",
+    role: "Negotiation",
     orbLabel: "NEGOTIATION",
     orbColor: "#2ecc71",
     caps: ["broker.assay:evaluate", "broker.quote:compute"],
     stages: ["prove", "negotiate"],
-    desc: "Demands test work samples upfront and negotiates the lowest fair price",
+    desc: "Demands a real sample first, then negotiates the lowest fair price.",
   },
   {
     name: "PaymentManager",
-    role: "Escrow & Milestone Payouts",
+    role: "Payment",
     orbLabel: "PAYMENT",
     orbColor: "#c054ff",
     caps: ["sharedos.grants:mint", "x402:settle"],
     stages: ["contract", "settle"],
-    desc: "Holds credits safely in escrow and pays only when verified work is delivered",
+    desc: "Holds credits in escrow. Money is paid out only when work is approved.",
   },
   {
     name: "MarketplaceAuditor",
-    role: "Quality Audit & Sealed Receipts",
+    role: "Audit",
     orbLabel: "AUDIT",
     orbColor: "#f7ab35",
     caps: ["ed25519:verify", "sharedos.audit:append"],
     stages: ["execute", "deliver", "verify"],
-    desc: "Inspects work quality against requirements and issues a tamper-proof receipt",
+    desc: "Checks the finished work matches your brief and signs a receipt.",
   },
 ];
 
@@ -125,7 +125,7 @@ function GlowingDelivery({ text }: { text: string }) {
       <div className="glowing-delivery-toolbar">
         <span className="glowing-delivery-status">
           <span className="glowing-pulse-orb" />
-          VERIFIED DELIVERABLE STREAM
+          FINAL DELIVERABLE
         </span>
         <button type="button" className="glowing-copy-btn" onClick={copy}>
           {copied ? "✓ Copied" : "📋 Copy Deliverable"}
@@ -157,9 +157,9 @@ function SubagentWorkflow({ live, busy }: { live: Stage[]; busy: boolean }) {
             className="pixellated"
             style={{ borderRadius: "50%", imageRendering: "pixelated", display: "inline-block" }}
           />
-          {busy ? "AUTONOMOUS SUBAGENTS IN THE ARENA" : "AUTONOMOUS SUBAGENTS READY FOR GOAL DISPATCH"}
+          {busy ? "FOUR WORKERS RUNNING YOUR GOAL" : "FOUR WORKERS READY FOR YOUR GOAL"}
         </span>
-        <span style={{ color: "var(--ink-3)" }}>ZERO AMBIENT AUTHORITY</span>
+        <span style={{ color: "var(--ink-3)" }}>STEP BY STEP CHECKS</span>
       </div>
 
       <div className="subagent-workflow-grid">
@@ -173,9 +173,9 @@ function SubagentWorkflow({ live, busy }: { live: Stage[]; busy: boolean }) {
             const latestSummary = live.length > 0 ? live[live.length - 1]!.summary : "Reading goal...";
             actionText = latestSummary;
           } else if (isDone) {
-            actionText = "✓ Stage executed within capability grant bounds.";
+            actionText = "✓ Step complete and verified.";
           } else {
-            actionText = `[STANDBY] ${agent.desc}`;
+            actionText = agent.desc;
           }
 
           return (
@@ -527,7 +527,7 @@ function Outcome({ result }: { result: Result }) {
               <div className="ledger-row" data-o={round.by === "buyer" ? "allowed" : "escalated"} key={index}>
                 <span className="o">{round.by}</span>
                 <span className="r">
-                  {round.price} — {round.rationale}
+                  {round.price} credits: {round.rationale}
                 </span>
               </div>
             ))}
@@ -589,29 +589,29 @@ function Outcome({ result }: { result: Result }) {
       <div className="subagent-workflow-deck" style={{ margin: "1.4rem 0" }}>
         <div className="subagent-workflow-header">
           <span style={{ color: "var(--leaf)", fontWeight: 600 }}>
-            ✓ SUB-AGENT VERIFIED ATTESTATION
+            ✓ ALL FOUR STEPS COMPLETE
           </span>
-          <span style={{ color: "var(--ink-3)" }}>0 AMBIENT ACCESS · 100% CHECKED</span>
+          <span style={{ color: "var(--ink-3)" }}>100% CHECKED</span>
         </div>
         <div className="grid grid-2" style={{ gap: "0.5rem" }}>
           <div className="subagent-node completed" style={{ margin: 0 }}>
             <div className="subagent-node-name">ProductLister</div>
-            <div className="subagent-node-action">Verified candidate listings, filtered prompt-injection attacks.</div>
+            <div className="subagent-node-action">Verified candidate listings and blocked prompt-injection attacks.</div>
             <code className="subagent-cap pixellated">market.registry:read: OK</code>
           </div>
           <div className="subagent-node completed" style={{ margin: 0 }}>
             <div className="subagent-node-name">PriceNegotiator</div>
-            <div className="subagent-node-action">Enforced bounded arithmetic bargaining within buyer budget.</div>
+            <div className="subagent-node-action">Checked sample quality and locked a fair price within budget.</div>
             <code className="subagent-cap pixellated">broker.quote:compute: OK</code>
           </div>
           <div className="subagent-node completed" style={{ margin: 0 }}>
             <div className="subagent-node-name">PaymentManager</div>
-            <div className="subagent-node-action">Derived atomic capability grant. 1 credit = 1 grant use.</div>
+            <div className="subagent-node-action">Locked escrow and minted single-job grant. 1 credit per use.</div>
             <code className="subagent-cap pixellated">sharedos.grants:mint: OK</code>
           </div>
           <div className="subagent-node completed" style={{ margin: 0 }}>
             <div className="subagent-node-name">MarketplaceAuditor</div>
-            <div className="subagent-node-action">Ed25519 signature verified, audit hash appended to ledger.</div>
+            <div className="subagent-node-action">Ed25519 signature verified and signed receipt saved to ledger.</div>
             <code className="subagent-cap pixellated">ed25519:verify: OK</code>
           </div>
         </div>
