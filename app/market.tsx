@@ -64,6 +64,8 @@ const SUBAGENTS = [
   {
     name: "ProductLister",
     role: "Catalog & Listing Assay",
+    orbLabel: "CATALOG",
+    orbColor: "#3da5ff",
     caps: ["market.registry:read", "market.registry:write"],
     stages: ["discover", "bid"],
     desc: "Indexes capabilities, executes seller assay, drops injections",
@@ -71,6 +73,8 @@ const SUBAGENTS = [
   {
     name: "PriceNegotiator",
     role: "Proof & Arithmetic Bargaining",
+    orbLabel: "NEGOTIATION",
+    orbColor: "#2ecc71",
     caps: ["broker.assay:evaluate", "broker.quote:compute"],
     stages: ["prove", "negotiate"],
     desc: "Challenges shortlist with samples, locks arithmetic price curve",
@@ -78,6 +82,8 @@ const SUBAGENTS = [
   {
     name: "PaymentManager",
     role: "Kernel Grants & Settlement",
+    orbLabel: "PAYMENT",
+    orbColor: "#c054ff",
     caps: ["sharedos.grants:mint", "x402:settle"],
     stages: ["contract", "settle"],
     desc: "Mints zero-ambient SharedOS grant (credits=uses), settles x402 escrow",
@@ -85,6 +91,8 @@ const SUBAGENTS = [
   {
     name: "MarketplaceAuditor",
     role: "Integrity & Ed25519 Receipts",
+    orbLabel: "AUDIT",
+    orbColor: "#f7ab35",
     caps: ["ed25519:verify", "sharedos.audit:append"],
     stages: ["execute", "deliver", "verify"],
     desc: "Verifies deliverables, attests outputs, appends signed ledger receipt",
@@ -140,8 +148,15 @@ function SubagentWorkflow({ live, busy }: { live: Stage[]; busy: boolean }) {
   return (
     <div className="subagent-workflow-deck">
       <div className="subagent-workflow-header">
-        <span style={{ color: "var(--yuzu)", fontWeight: 600 }}>
-          <span className="subagent-status-dot pixellated" style={{ display: "inline-block", marginRight: "6px" }} />
+        <span style={{ color: "var(--yuzu)", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px" }}>
+          <img
+            src="/art/yuzu-mascot-orbs-transparent.webp"
+            alt="Yuzu conducting 4 subagent orbs"
+            width={24}
+            height={24}
+            className="pixellated"
+            style={{ borderRadius: "50%", imageRendering: "pixelated", display: "inline-block" }}
+          />
           {busy ? "AUTONOMOUS SUBAGENTS IN THE ARENA" : "AUTONOMOUS SUBAGENTS READY FOR GOAL DISPATCH"}
         </span>
         <span style={{ color: "var(--ink-3)" }}>ZERO AMBIENT AUTHORITY</span>
@@ -166,7 +181,33 @@ function SubagentWorkflow({ live, busy }: { live: Stage[]; busy: boolean }) {
           return (
             <div className={`subagent-node ${status}`} key={agent.name}>
               <div className="subagent-node-header">
-                <span className="subagent-node-name">{agent.name}</span>
+                <span className="subagent-node-name" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <span
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background: agent.orbColor,
+                      boxShadow: `0 0 8px ${agent.orbColor}`,
+                      display: "inline-block",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span>{agent.name}</span>
+                  <span
+                    style={{
+                      fontSize: "0.58rem",
+                      fontWeight: 700,
+                      color: agent.orbColor,
+                      border: `1px solid ${agent.orbColor}55`,
+                      padding: "0.08rem 0.32rem",
+                      borderRadius: "4px",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    {agent.orbLabel}
+                  </span>
+                </span>
                 <span className="subagent-node-status">
                   {status === "active" ? "● ACTIVE" : status === "completed" ? "✓ DONE" : "STANDBY"}
                 </span>

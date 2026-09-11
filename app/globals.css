@@ -445,7 +445,7 @@ h2.section em { font-style: italic; color: var(--violet-deep); }
   box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.8), var(--lift-high);
 }
 .tint h3 { font-size: 1.3rem; margin-bottom: 0.4rem; }
-.tint p { margin: 0; font-size: 0.92rem; line-height: 1.55; color: rgba(28, 26, 23, 0.78); }
+.tint p { margin: 0; font-size: 0.92rem; line-height: 1.55; color: var(--ink-2); }
 .t-peach { background: color-mix(in oklab, #ffd9bf 85%, transparent); }
 .t-lav { background: color-mix(in oklab, #ded4f7 85%, transparent); }
 .t-leaf { background: color-mix(in oklab, #cdead9 85%, transparent); }
@@ -803,6 +803,30 @@ blockquote {
 .foot a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--hairline); }
 .foot a:hover { color: var(--violet-deep); border-color: var(--violet); }
 
+/* Centered footer variant with mascot */
+.foot.foot-centered {
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  gap: 0.8rem;
+  padding: 2.5rem var(--gutter) 3rem;
+}
+.foot-mascot {
+  border-radius: 50%;
+  filter: drop-shadow(0 4px 24px rgba(245, 178, 43, 0.35));
+  margin-bottom: 0.2rem;
+}
+.foot-title {
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.2rem;
+  justify-content: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -963,7 +987,74 @@ blockquote {
 :root[data-theme="night"] .ledger-row[data-o="escalated"] .o { color: #ffd479; }
 :root[data-theme="night"] h2.section em { color: var(--yuzu-bright); }
 :root[data-theme="night"] .foot a:hover { color: var(--yuzu-bright); border-color: var(--yuzu-bright); }
-:root[data-theme="night"] .tint { color: #16121f; }
+
+/* Night mode: ensure full WCAG AAA contrast across all tint cards, headings, and code elements */
+:root[data-theme="night"] .tint {
+  color: var(--ink);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.12), var(--lift);
+}
+:root[data-theme="night"] .tint h3 {
+  color: #ffffff;
+}
+:root[data-theme="night"] .tint p {
+  color: var(--ink-2);
+}
+:root[data-theme="night"] .tint code {
+  color: var(--yuzu-bright);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+:root[data-theme="night"] .t-peach {
+  background: rgba(255, 183, 135, 0.12);
+  border-color: rgba(255, 183, 135, 0.32);
+}
+:root[data-theme="night"] .t-lav {
+  background: rgba(179, 164, 232, 0.12);
+  border-color: rgba(179, 164, 232, 0.32);
+}
+:root[data-theme="night"] .t-leaf {
+  background: rgba(111, 191, 152, 0.12);
+  border-color: rgba(111, 191, 152, 0.32);
+}
+:root[data-theme="night"] .t-yuzu {
+  background: rgba(247, 171, 53, 0.12);
+  border-color: rgba(247, 171, 53, 0.38);
+}
+:root[data-theme="night"] .t-sky {
+  background: rgba(107, 184, 239, 0.12);
+  border-color: rgba(107, 184, 239, 0.32);
+}
+:root[data-theme="night"] .t-coral {
+  background: rgba(239, 106, 90, 0.12);
+  border-color: rgba(239, 106, 90, 0.32);
+}
+
+/* Night mode: findings, blockquotes, code, and inputs */
+:root[data-theme="night"] .finding p { color: var(--ink); }
+:root[data-theme="night"] .finding blockquote {
+  background: rgba(18, 12, 32, 0.75);
+  color: #ece7f8;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+:root[data-theme="night"] input[type="text"],
+:root[data-theme="night"] input[type="number"],
+:root[data-theme="night"] textarea {
+  background: rgba(18, 12, 32, 0.72);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+:root[data-theme="night"] input::placeholder,
+:root[data-theme="night"] textarea::placeholder {
+  color: rgba(206, 197, 221, 0.45);
+}
+:root[data-theme="night"] .livestage ol li {
+  color: #f6f1e6;
+}
+:root[data-theme="night"] .livestage ol li code {
+  color: var(--yuzu-bright);
+}
 
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-new(root) { animation: none; }
@@ -1838,51 +1929,71 @@ blockquote {
   flex-wrap: wrap;
 }
 
-/* ───────────────────────── Ethereal Glowing Amber → Ink Text Genesis Animation ───────────────────────── */
-
-@keyframes amberGlowToInk {
-  0% {
-    color: #ffe680;
-    text-shadow: 
-      0 0 10px rgba(255, 230, 128, 0.95),
-      0 0 22px rgba(247, 171, 53, 0.9),
-      0 0 38px rgba(247, 171, 53, 0.6);
-    filter: brightness(1.25);
-    opacity: 0.92;
-    transform: translateY(1px);
-  }
-  30% {
-    color: #ffd966;
-    text-shadow: 
-      0 0 14px rgba(255, 217, 102, 0.85),
-      0 0 28px rgba(247, 171, 53, 0.7);
-    filter: brightness(1.15);
-    opacity: 1;
-    transform: translateY(0);
-  }
-  65% {
-    color: color-mix(in oklab, #f7ab35 45%, var(--ink));
-    text-shadow: 0 0 8px rgba(247, 171, 53, 0.4);
-    filter: brightness(1.05);
-  }
-  100% {
-    color: var(--ink);
-    text-shadow: none;
-    filter: none;
-    opacity: 1;
-    transform: none;
-  }
-}
+/* ───────────────────────── Ethereal Radiant Quantum Scan Glow Text Animation ───────────────────────── */
 
 .glowing-reveal-text {
-  display: inline;
-  animation: amberGlowToInk 1.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: color, text-shadow, filter;
+  display: inline-block;
+  position: relative;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 0.12rem 0.5rem;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(247, 171, 53, 0.18) 0%,
+    rgba(255, 217, 102, 0.32) 50%,
+    rgba(247, 171, 53, 0.18) 100%
+  );
+  background-size: 200% 100%;
+  border-left: 3px solid var(--yuzu);
+  box-shadow: 0 0 16px rgba(247, 171, 53, 0.25);
+  animation: quantumScanSweep 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: background-position, box-shadow;
+}
+
+:root[data-theme="night"] .glowing-reveal-text {
+  color: #ffffff !important;
+  background: linear-gradient(
+    90deg,
+    rgba(247, 171, 53, 0.26) 0%,
+    rgba(255, 225, 120, 0.4) 50%,
+    rgba(247, 171, 53, 0.26) 100%
+  );
+  border-left-color: var(--yuzu-bright);
+  box-shadow: 0 0 20px rgba(247, 171, 53, 0.38), inset 0 0 8px rgba(247, 171, 53, 0.2);
+}
+
+@keyframes quantumScanSweep {
+  0% {
+    background-position: 100% 0;
+    box-shadow: 0 0 22px rgba(247, 171, 53, 0.5), inset 0 0 12px rgba(247, 171, 53, 0.3);
+    border-left-color: #ffd479;
+  }
+  65% {
+    background-position: 0% 0;
+    box-shadow: 0 0 14px rgba(247, 171, 53, 0.22);
+  }
+  100% {
+    background-position: 0% 0;
+    background: transparent;
+    border-left-color: transparent;
+    box-shadow: none;
+  }
 }
 
 .glowing-reveal-block {
-  animation: amberGlowToInk 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: color, text-shadow, filter;
+  animation: deliverableAmbientGlow 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes deliverableAmbientGlow {
+  0% {
+    background: rgba(247, 171, 53, 0.1);
+    box-shadow: inset 0 0 28px rgba(247, 171, 53, 0.2);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
 }
 
 .glowing-delivery-container {
@@ -1958,11 +2069,21 @@ blockquote {
   margin: 0;
   padding: 1.2rem 1.4rem;
   white-space: pre-wrap;
-  max-height: 22rem;
+  max-height: 24rem;
   overflow-y: auto;
   font-family: var(--mono);
   font-size: 0.88rem;
-  line-height: 1.6;
+  line-height: 1.62;
+  color: var(--ink);
+  border-left: 3.5px solid var(--yuzu);
+  background: transparent;
+  transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+:root[data-theme="night"] .glowing-delivery-quote {
+  color: #ffffff !important;
+  border-left-color: var(--yuzu-bright);
+  background: rgba(18, 12, 34, 0.4);
 }
 
 /* ───────────────────────── Sub-Agents Active Workflow Panel (Liquid Glass) ───────────────────────── */
@@ -2087,3 +2208,55 @@ blockquote {
   margin-top: 0.35rem;
   display: block;
 }
+
+/* ───────────────────────── Night Mode Subagent Node Contrast ───────────────────────── */
+:root[data-theme="night"] .subagent-node {
+  background: rgba(26, 18, 48, 0.65);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+:root[data-theme="night"] .subagent-node.active {
+  background: rgba(36, 24, 64, 0.88);
+  border-color: var(--yuzu);
+  box-shadow: var(--glass-highlight), 0 0 0 1px var(--yuzu), 0 10px 30px rgba(247, 171, 53, 0.35);
+}
+
+:root[data-theme="night"] .subagent-node.completed {
+  background: rgba(20, 36, 30, 0.65);
+  border-color: rgba(111, 191, 152, 0.45);
+}
+
+:root[data-theme="night"] .subagent-node-name {
+  color: #ffffff;
+}
+
+:root[data-theme="night"] .subagent-node-action {
+  color: #ece7f8;
+}
+
+:root[data-theme="night"] .subagent-node-cap {
+  color: var(--ink-3);
+}
+
+/* ───────────────────────── Mascot Floating & Orb Animation ───────────────────────── */
+@keyframes mascotFloat {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1.2deg);
+  }
+}
+
+.endcard-mascot-art,
+.foot-mascot {
+  animation: mascotFloat 4.2s ease-in-out infinite;
+  will-change: transform;
+}
+
+.foot-mascot-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+

@@ -397,11 +397,12 @@ export default function Page() {
               <div className="endcard-mascot-frame">
                 <img
                   src="/art/yuzu-mascot-orbs.webp"
-                  alt="Yuzu conducting 4 autonomous subagents"
-                  width={200}
-                  height={200}
+                  srcSet="/art/yuzu-mascot-orbs-512.webp 1x, /art/yuzu-mascot-orbs@2x.webp 2x"
+                  alt="Yuzu conducting 4 autonomous subagents: Catalog, Negotiation, Payment, Audit"
+                  width={240}
+                  height={240}
                   className="pixellated endcard-mascot-art"
-                  style={{ imageRendering: "pixelated" }}
+                  style={{ imageRendering: "pixelated", maxWidth: "240px", width: "100%", height: "auto" }}
                 />
                 <div className="endcard-mascot-tag">
                   <span className="endcard-mascot-label">AUTONOMOUS ORCHESTRATOR</span>
@@ -450,16 +451,28 @@ export default function Page() {
           </div>
         </section>
 
-        <footer className="foot">
-          <img src="/art/yuzu-logo-32.webp" alt="Yuzu" width={22} height={22} className="pixellated" style={{ imageRendering: "pixelated" }} />
-          <span>Yuzu · built on the SharedOS kernel</span>
-          <a href="/dashboard">The floor</a>
-          <a href="/deal">Check a receipt</a>
-          <a href="/api/manifest">Manifest</a>
-          <a href="/api/broker">Broker</a>
-          <a href="/api/assay">Assay</a>
-          <a href="/api/verify">Verify</a>
-          <a href="/api/health">Health</a>
+        <footer className="foot foot-centered">
+          <div className="foot-mascot-wrap">
+            <img
+              src="/art/yuzu-mascot-orbs-transparent.webp"
+              srcSet="/art/yuzu-mascot-orbs-transparent.webp 1x, /art/yuzu-mascot-orbs@2x.webp 2x"
+              alt="Yuzu conducting 4 autonomous subagents: Catalog, Negotiation, Payment, Audit"
+              width={200}
+              height={200}
+              className="pixellated foot-mascot"
+              style={{ imageRendering: "pixelated", maxWidth: "200px", width: "100%", height: "auto" }}
+            />
+          </div>
+          <span className="foot-title">Yuzu · built on the SharedOS kernel</span>
+          <div className="foot-links">
+            <a href="/dashboard">The floor</a>
+            <a href="/deal">Check a receipt</a>
+            <a href="/api/manifest">Manifest</a>
+            <a href="/api/broker">Broker</a>
+            <a href="/api/assay">Assay</a>
+            <a href="/api/verify">Verify</a>
+            <a href="/api/health">Health</a>
+          </div>
         </footer>
       </div>
     </>
