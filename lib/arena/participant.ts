@@ -35,7 +35,7 @@ import {
  * never told to start" has failed the round on its own.
  */
 
-const BUYER_ID = "yuzu-arena-buyer";
+const BUYER_ID = "touchstone";
 const MAX_TRIED = 5;
 /** The Arena floor: fewer than this and the round does not count. */
 const MIN_TRIED = 3;
@@ -653,7 +653,7 @@ function roundOnePost(
   suppliedCount: number,
 ): string {
   const header = [
-    `Round 1 — ${BUYER_ID} tried ${ranking.length} products. No human touched this round.`,
+    `Round 1: ${BUYER_ID} tried ${ranking.length} products. No human touched this round.`,
     suppliedCount >= MIN_TRIED
       ? ""
       : `Only ${suppliedCount} competitor${suppliedCount === 1 ? " was" : "s were"} supplied. The list below is topped ` +
@@ -664,7 +664,7 @@ function roundOnePost(
   const critiques = ranking.map((entry) => entry.critique.post);
   const table = ranking.map(
     (entry) =>
-      `#${entry.rank} ${entry.product}${entry.house === true ? " (ours, does not count)" : ""} — ` +
+      `#${entry.rank} ${entry.product}${entry.house === true ? " (ours, does not count)" : ""}: ` +
       `standing ${entry.standing}. ${entry.reason}`,
   );
   const tail =
@@ -685,7 +685,7 @@ function roundTwoPost(
 ): string {
   const lines = purchases.map(
     (purchase) =>
-      `${purchase.credits} credits to ${purchase.sellerName} — ${purchase.bought} ${purchase.why}`,
+      `${purchase.credits} credits to ${purchase.sellerName}: ${purchase.bought} ${purchase.why}`,
   );
   const tail = state.satisfiesRule
     ? `Spend rule satisfied: ${state.spent} of ${state.budget} credits across ${state.distinctSellers} distinct sellers, minimum ${MIN_SELLERS}.`
@@ -696,7 +696,7 @@ function roundTwoPost(
       : [`Refused by the ledger: ${refused.join("; ")}`];
 
   return [
-    `Round 2 — ${BUYER_ID} spending ${plan.total} credits. No human touched this round.`,
+    `Round 2: ${BUYER_ID} spending ${plan.total} credits. No human touched this round.`,
     plan.note,
     "",
     ...lines,

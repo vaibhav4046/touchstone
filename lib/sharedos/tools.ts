@@ -400,7 +400,7 @@ function tool(options: {
       name: options.name,
       description: options.description,
       namespace: ASSAY_NAMESPACE,
-      source: "touchstone",
+      source: "yuzu",
       readWrite: options.readWrite,
       inputSchema: (options.schema ?? vendorSchema) as JsonObject,
       requiredCapability: {
@@ -554,7 +554,7 @@ export function createAssayTools(options: { readonly resolver?: HostResolver } =
         description:
           "Send a bounded live request to the vendor's own endpoint. Requires an approved escalation; an order grant never covers this.",
         namespace: ASSAY_NAMESPACE,
-        source: "touchstone",
+        source: "yuzu",
         readWrite: "write",
         inputSchema: {
           type: "object",

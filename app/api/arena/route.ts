@@ -81,7 +81,7 @@ export async function GET(): Promise<Response> {
   return json({
     service: "arena",
     method: "POST",
-    body: { round: "1 | 2", candidates: "[{ name, pitch, endpoint?, price? }] — optional; a short list is topped up from the registry" },
+    body: { round: "1 | 2", candidates: "[{ name, pitch, endpoint?, price? }] (optional; a short list is topped up from the registry)" },
     ledger: ledger(),
     ranking:
       state === undefined

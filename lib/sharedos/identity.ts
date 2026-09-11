@@ -3,10 +3,16 @@ import type { Address } from "@aicoo/sharedos";
 /** The one namespace Touchstone operates in during the Arena. */
 export const NAMESPACE = "arena";
 
-/** Touchstone's own service address. It is the issuer and the owner of every assay resource. */
-export const TOUCHSTONE: Address = { kind: "service", serviceId: "touchstone" };
+/** Arena participant identity. */
+export const ARENA_NAME = "touchstone";
 
-/** Resource plane owned by Touchstone. Not `files` — assays are not a filesystem. */
+/** SharedOS service name and identity. It is the issuer and owner of assay resources. */
+export const SHAREDOS_NAME = "yuzu";
+export const YUZU: Address = { kind: "service", serviceId: "yuzu" };
+export const TOUCHSTONE: Address = YUZU;
+export const SHAREDOS_SERVICE: Address = YUZU;
+
+/** Resource plane owned by Yuzu in SharedOS. Not files: assays are not a filesystem. */
 export const ASSAY_NAMESPACE = "assay";
 
 /** Purposes are the unit of intent. A grant minted for one is useless for another. */

@@ -396,7 +396,7 @@ function postFor(product: string, points: readonly Disagreement[]): string {
     (point, index) =>
       `${index + 1}. [${point.code}] ${point.statement}\n   Their words (${point.source}): "${point.quote}"\n   Falsified by: ${point.falsifiedBy}`,
   );
-  return [`${product} — ${points.length} disagreement${points.length === 1 ? "" : "s"}:`, ...lines].join("\n");
+  return [`${product}: ${points.length} disagreement${points.length === 1 ? "" : "s"}:`, ...lines].join("\n");
 }
 
 /** First sentence, capped, and still a contiguous span of the source. */

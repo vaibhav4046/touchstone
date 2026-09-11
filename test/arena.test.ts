@@ -228,7 +228,22 @@ describe("round 2: spend", () => {
       expect(purchase.why.length).toBeGreaterThan(0);
       expect(purchase.credits).toBeGreaterThan(0);
     }
+
+    expect(result.post).toContain("Round 2: touchstone spending");
+    expect(result.post.includes("—")).toBe(false);
   }, 240_000);
+
+  it("identifies as touchstone in Arena and yuzu in SharedOS", async () => {
+    const { ARENA_NAME, SHAREDOS_NAME, YUZU, TOUCHSTONE: SHAREDOS_TOUCHSTONE } = await import("../lib/sharedos/identity");
+    expect(ARENA_NAME).toBe("touchstone");
+    expect(SHAREDOS_NAME).toBe("yuzu");
+    expect(YUZU.kind === "service" && YUZU.serviceId).toBe("yuzu");
+    expect(SHAREDOS_TOUCHSTONE.kind === "service" && SHAREDOS_TOUCHSTONE.serviceId).toBe("yuzu");
+
+    const r1 = await firstRound();
+    expect(r1.post).toContain("Round 1: touchstone tried");
+    expect(r1.post.includes("—")).toBe(false);
+  });
 
   // The live bug this replaces: `{"round":2,"candidates":[...]}` arriving at an
   // instance that had already run a round used the products from that earlier

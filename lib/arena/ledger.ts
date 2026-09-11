@@ -3,7 +3,7 @@
  *
  * The Arena issues 100 credits, requires at least 80 of them spent across at
  * least 3 distinct sellers, and disqualifies an overspend. Those are three
- * different failures — too little, too concentrated, too much — so they are
+ * different failures (too little, too concentrated, too much), so they are
  * three named shortfalls here rather than one boolean, and the one that is
  * unrecoverable is the only one enforced at write time: a purchase that would
  * pass 100 is refused, because credits that do not exist cannot be handed back
@@ -19,7 +19,8 @@ import { signPayload, verifyPayload, type Signed } from "../assay/receipt";
 
 export const ARENA_BUDGET = 100;
 /** Names the kind inside the signature, so one record cannot pose as another. */
-export const SPEND_RECORD = "yuzu.arena.spend.v1";
+export const SPEND_RECORD = "touchstone.arena.spend.v1";
+export const LEGACY_SPEND_RECORD = "yuzu.arena.spend.v1";
 export const MIN_SPEND = 80;
 export const MIN_SELLERS = 3;
 
@@ -123,7 +124,7 @@ export function restore(records: readonly unknown[]): { readonly restored: numbe
   let rejected = 0;
 
   for (const candidate of records) {
-    if (!verifyPayload<Purchase>(SPEND_RECORD, candidate)) {
+    if (!verifyPayload<Purchase>(SPEND_RECORD, candidate) && !verifyPayload<Purchase>(LEGACY_SPEND_RECORD, candidate)) {
       rejected += 1;
       continue;
     }
@@ -202,7 +203,7 @@ export interface SpendPlan {
  * Turn a ranking into a spend that satisfies the rule.
  *
  * Flagged products are excluded while three clean ones remain, and pulled back
- * in — with the reason recorded against the purchase — when they do not. That
+ * in (with the reason recorded against the purchase) when they do not. That
  * ordering matters: the rule says three distinct sellers, so an agent that
  * refuses to buy from anything it criticised would be disqualified for its
  * principles. Saying so in the ledger is the honest version of complying.
