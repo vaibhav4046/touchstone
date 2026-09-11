@@ -16,16 +16,8 @@ export default function Page() {
 
         <section className="hero">
           <div className="hero-inner">
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.8rem", flexWrap: "wrap" }}>
-              <img
-                src="/art/yuzu-logo-64.webp"
-                alt="Yuzu"
-                width={64}
-                height={64}
-                className="pixellated"
-                style={{ imageRendering: "pixelated", filter: "drop-shadow(0 4px 16px rgba(245, 178, 43, 0.4))" }}
-              />
-              <span className="eyebrow" style={{ margin: 0 }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "1.2rem" }}>
+              <span className="eyebrow">
                 <span className="dot" />
                 Built on SharedOS · live in the Arena
               </span>
