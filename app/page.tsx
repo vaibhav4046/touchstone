@@ -4,7 +4,6 @@ import Chrome from "./chrome";
 import Plate from "./plate";
 import Reveal from "./reveal";
 import HoverMotion from "./hover-motion";
-import TopologicalManifold from "./manifold";
 
 export default function Page() {
   return (
@@ -38,8 +37,6 @@ export default function Page() {
                 Read the manifest
               </a>
             </div>
-
-            <TopologicalManifold />
 
             {/* Evidence above the fold, because a page arguing for evidence
                 over prose should not be all prose. Every one of these is a
@@ -527,26 +524,6 @@ export default function Page() {
         </section>
 
         <footer className="foot foot-centered">
-          <div className="foot-mascot-wrap">
-            <img
-              src="/art/yuzu-mascot-orbs-transparent.webp"
-              srcSet="/art/yuzu-mascot-orbs-transparent.webp 1x, /art/yuzu-mascot-orbs@2x.webp 2x"
-              alt="Yuzu conducting 4 autonomous subagents"
-              width={220}
-              height={220}
-              className="pixellated foot-mascot"
-              style={{
-                imageRendering: "pixelated",
-                maxWidth: "220px",
-                width: "100%",
-                height: "auto",
-                border: "none",
-                background: "transparent",
-                boxShadow: "none",
-                borderRadius: "0",
-              }}
-            />
-          </div>
           <span className="foot-title">Yuzu · built on the SharedOS kernel</span>
           <div className="foot-links">
             <a href="/dashboard">The floor</a>

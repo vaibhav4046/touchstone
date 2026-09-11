@@ -149,14 +149,6 @@ function SubagentWorkflow({ live, busy }: { live: Stage[]; busy: boolean }) {
     <div className="subagent-workflow-deck">
       <div className="subagent-workflow-header">
         <span style={{ color: "var(--yuzu)", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px" }}>
-          <img
-            src="/art/yuzu-mascot-orbs-transparent.webp"
-            alt="Yuzu conducting 4 subagent orbs"
-            width={24}
-            height={24}
-            className="pixellated"
-            style={{ borderRadius: "50%", imageRendering: "pixelated", display: "inline-block" }}
-          />
           {busy ? "FOUR WORKERS RUNNING YOUR GOAL" : "FOUR WORKERS READY FOR YOUR GOAL"}
         </span>
         <span style={{ color: "var(--ink-3)" }}>STEP BY STEP CHECKS</span>
