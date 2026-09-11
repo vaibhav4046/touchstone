@@ -162,10 +162,43 @@ export function unfalsifiableLanguage(input: AssayInput): DimensionResult {
 export function steering(input: AssayInput): { readonly findings: readonly Finding[]; readonly hits: number } {
   const findings: Finding[] = [];
   const haystack = `${input.pitch}\n${input.transcript ?? ""}`;
+  const { normalized, hasZeroWidth, hasHomoglyphs } = P.normalizeAdversarialText(haystack);
   let hits = 0;
 
+  if (hasZeroWidth) {
+    hits += 1;
+    findings.push({
+      code: "ZERO_WIDTH_OBFUSCATION",
+      severity: "critical",
+      statement: "Contains invisible zero-width or directional control characters used for adversarial evasion.",
+      evidence: "Detected zero-width unicode characters in listing payload.",
+    });
+  }
+
+  if (hasHomoglyphs) {
+    hits += 1;
+    findings.push({
+      code: "HOMOGLYPH_OBFUSCATION",
+      severity: "critical",
+      statement: "Contains mixed-script homoglyphic characters attempting to bypass pattern detection.",
+      evidence: "Detected homoglyphic character substitutions in listing payload.",
+    });
+  }
+
+  for (const re of P.MARKDOWN_EXFILTRATION) {
+    const match = re.exec(haystack) ?? re.exec(normalized);
+    if (match === null) continue;
+    hits += 1;
+    findings.push({
+      code: "MARKDOWN_EXFILTRATION",
+      severity: "critical",
+      statement: "Contains markdown or HTML data exfiltration traps.",
+      evidence: sentenceAround(haystack, match.index),
+    });
+  }
+
   for (const re of P.STEERING) {
-    const match = re.exec(haystack);
+    const match = re.exec(haystack) ?? re.exec(normalized);
     if (match === null) continue;
     hits += 1;
     findings.push({
@@ -180,15 +213,16 @@ export function steering(input: AssayInput): { readonly findings: readonly Findi
   return { findings, hits };
 }
 
-/** D4 — does the vendor ask for authority the job does not require? */
+/** D4: does the vendor ask for authority the job does not require? */
 export function authorityOverreach(input: AssayInput): DimensionResult {
   const findings: Finding[] = [];
   const haystack = `${input.pitch}\n${input.transcript ?? ""}`;
+  const { normalized } = P.normalizeAdversarialText(haystack);
 
   for (const rule of P.OVERREACH) {
-    const match = rule.re.exec(haystack);
+    const match = rule.re.exec(haystack) ?? rule.re.exec(normalized);
     if (match === null) continue;
-    if (negated(haystack, match.index)) continue;
+    if (negated(haystack, match.index) || negated(normalized, match.index)) continue;
     findings.push({
       code: rule.code,
       severity: rule.code === "OVERREACH_STANDING" ? "high" : "critical",

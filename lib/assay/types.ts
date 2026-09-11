@@ -54,7 +54,7 @@ export interface AssayInput {
   readonly transcript?: string;
   /** What the buyer wants to spend, in Arena credits. */
   readonly askingPrice?: number;
-  readonly buyerId: string;
+  readonly buyerId?: string;
 }
 
 export interface AssayReport {

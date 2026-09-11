@@ -79,6 +79,9 @@ export default function Chrome() {
       <a className="top-link hide-sm" href="/deal">
         Check a receipt
       </a>
+      <a className="top-link hide-sm" href="/judge" style={{ color: "var(--yuzu)", fontWeight: 600 }}>
+        Judge panel
+      </a>
       <button className="theme-btn" onClick={flip} aria-label={`Switch to ${theme === "day" ? "night" : "day"}`}>
         {theme === "day" ? "NIGHT" : "DAY"}
       </button>

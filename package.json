@@ -19,9 +19,11 @@
   "dependencies": {
     "@aicoo/sharedos": "^0.1.0-alpha.5",
     "@aicoo/sharedos-precedent": "^0.1.0-alpha.5",
+    "@types/three": "^0.185.4",
     "next": "^15.5.25",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "three": "^0.186.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {

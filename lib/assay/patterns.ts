@@ -72,7 +72,57 @@ export const STEERING = [
   /\b(?:notice\s+to|attention|instruction\s+for)\s+(?:the\s+)?(?:autonomous\s+)?(?:evaluator|agent|buyer|model)\b/i,
   /\b(?:award|assign|grant|give)\s+(?:this\s+)?(?:listing|product|solution|entry|service|seller|us|me)?\s*(?:the\s+)?(?:top|maximum|highest|perfect|winning|\d{2,3}(?:%|\s*points|\s*score))\s*(?:rating|standing|score|mark|grade|rank)?\b/i,
   /\b(?:ensure|make\s+sure)\s+(?:this\s+)?(?:listing|solution|seller|us|me)\s+is\s+(?:selected|chosen|picked|awarded)\b/i,
+  /\b(?:system|admin|root|developer|operator|assistant|human|user)\s*:\s*(?:override|ignore|priority|reset|grant|bypass|eval|allow|new\s+instructions)\b/i,
+  /(?:\[\/?(?:inst|sys|system|user|assistant)\]|<<\/?sys>>|<\|(?:im_start|im_end|system|user|assistant)\|>|<\/?system>|<\/?instructions?>)/i,
+  /\b(?:override|bypass|ignore)\s+(?:all\s+)?(?:system\s+)?(?:prompts?|instructions?|directives?|rules?|filters?|constraints?)\b/i,
 ];
+
+export const ZERO_WIDTH_CHARS = /[\u200B-\u200D\uFEFF\u00AD\u2060-\u2064\u202A-\u202E\u2066-\u2069]/;
+
+export const HOMOGLYPH_CYRILLIC_GREEK = /[\u0400-\u04FF\u0370-\u03FF]/;
+
+export const HOMOGLYPH_MAP: Readonly<Record<string, string>> = {
+  "\u0430": "a", "\u0410": "A",
+  "\u0435": "e", "\u0415": "E",
+  "\u043E": "o", "\u041E": "O",
+  "\u0440": "p", "\u0420": "P",
+  "\u0441": "c", "\u0421": "C",
+  "\u0443": "y", "\u0423": "Y",
+  "\u0445": "x", "\u0425": "X",
+  "\u0456": "i", "\u0406": "I",
+  "\u0458": "j", "\u0408": "J",
+  "\u0455": "s", "\u0405": "S",
+  "\u0412": "B", "\u041D": "H", "\u041C": "M", "\u0422": "T",
+  "\u0391": "A", "\u0392": "B", "\u0395": "E", "\u039F": "O",
+};
+
+export const MIXED_HOMOGLYPH = /\b(?=[a-zA-Z0-9]*[\u0400-\u04FF\u0370-\u03FF])(?=[\u0400-\u04FF\u0370-\u03FF]*[a-zA-Z])[a-zA-Z0-9\u0400-\u04FF\u0370-\u03FF]+\b/u;
+
+export const MARKDOWN_EXFILTRATION = [
+  /\!\[.*?\]\(https?:\/\/[^\s\)]*(?:[\?&](?:token|key|secret|data|exfil|leak|export|auth|bearer|grant|session|cookie)=|[^\s\)]*(?:exfil|leak|webhook|collect|capture|stealer))[^\s\)]*\)/i,
+  /<(?:script|iframe|img|svg|object|embed|link)\b[^>]*>/i,
+];
+
+export function normalizeAdversarialText(text: string): {
+  readonly normalized: string;
+  readonly hasZeroWidth: boolean;
+  readonly hasHomoglyphs: boolean;
+} {
+  const hasZeroWidth = ZERO_WIDTH_CHARS.test(text);
+  const stripped = text.replace(/[\u200B-\u200D\uFEFF\u00AD\u2060-\u2064\u202A-\u202E\u2066-\u2069]/g, "");
+  let hasHomoglyphs = MIXED_HOMOGLYPH.test(text);
+  let normalized = "";
+  for (const char of stripped) {
+    const replacement = HOMOGLYPH_MAP[char];
+    if (replacement !== undefined) {
+      hasHomoglyphs = true;
+      normalized += replacement;
+    } else {
+      normalized += char;
+    }
+  }
+  return { normalized, hasZeroWidth, hasHomoglyphs };
+}
 
 /**
  * Requests for authority a delivery service has no business holding.

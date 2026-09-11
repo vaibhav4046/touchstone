@@ -81,18 +81,70 @@ function dotted(high: number, low: number): string {
  * what `blockedHostRefusal` below is for, and any path that fetches a
  * caller-supplied URL must go through that rather than through this directly.
  */
+function parseIpv4Octets(raw: string): [number, number, number, number] | undefined {
+  const s = raw.trim();
+  if (/^\d+$/.test(s)) {
+    const val = Number(s);
+    if (val >= 0 && val <= 0xffffffff) {
+      return [(val >>> 24) & 255, (val >>> 16) & 255, (val >>> 8) & 255, val & 255];
+    }
+  }
+  if (/^0x[0-9a-f]+$/i.test(s)) {
+    const val = Number.parseInt(s, 16);
+    if (val >= 0 && val <= 0xffffffff) {
+      return [(val >>> 24) & 255, (val >>> 16) & 255, (val >>> 8) & 255, val & 255];
+    }
+  }
+  const parts = s.split(".");
+  if (parts.length >= 1 && parts.length <= 4) {
+    const nums: number[] = [];
+    for (const part of parts) {
+      if (part.length === 0) return undefined;
+      let n: number;
+      if (/^0x[0-9a-f]+$/i.test(part)) {
+        n = Number.parseInt(part, 16);
+      } else if (/^0[0-7]+$/.test(part)) {
+        n = Number.parseInt(part, 8);
+      } else if (/^\d+$/.test(part)) {
+        n = Number.parseInt(part, 10);
+      } else {
+        return undefined;
+      }
+      if (Number.isNaN(n) || n < 0) return undefined;
+      nums.push(n);
+    }
+    if (nums.length === 4) {
+      if (nums.every((n) => n <= 255)) {
+        return [nums[0]!, nums[1]!, nums[2]!, nums[3]!];
+      }
+    } else if (nums.length === 3) {
+      if (nums[0]! <= 255 && nums[1]! <= 255 && nums[2]! <= 0xffff) {
+        return [nums[0]!, nums[1]!, (nums[2]! >>> 8) & 255, nums[2]! & 255];
+      }
+    } else if (nums.length === 2) {
+      if (nums[0]! <= 255 && nums[1]! <= 0xffffff) {
+        return [nums[0]!, (nums[1]! >>> 16) & 255, (nums[1]! >>> 8) & 255, nums[1]! & 255];
+      }
+    } else if (nums.length === 1) {
+      if (nums[0]! <= 0xffffffff) {
+        return [(nums[0]! >>> 24) & 255, (nums[0]! >>> 16) & 255, (nums[0]! >>> 8) & 255, nums[0]! & 255];
+      }
+    }
+  }
+  return undefined;
+}
+
 export function isBlockedHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
   if (host === "localhost" || host.endsWith(".localhost")) return true;
-  // The cloud metadata services, which are the whole point of most SSRF.
-  if (host === "metadata.google.internal" || host === "metadata" || host === "instance-data") return true;
-  if (host === "::1" || host === "::" || host === "0000::1") return true;
+  if (host.endsWith(".local") || host.endsWith(".internal") || host.endsWith(".corp") || host.endsWith(".lan") || host.endsWith(".home")) return true;
+  // Cloud metadata services and common internal hostnames.
+  if (host === "metadata.google.internal" || host === "metadata" || host === "instance-data" || host === "metadata.azure.com") return true;
+  if (host === "::1" || host === "::" || host === "0000::1" || host === "0:0:0:0:0:0:0:1") return true;
   // fc00::/7 unique-local and fe80::/10 link-local.
   if (/^f[cd][0-9a-f]{0,2}:/.test(host) || /^fe[89ab][0-9a-f]:/.test(host)) return true;
 
-  // `::ffff:127.0.0.1` is 127.0.0.1 wearing a hat, and `new URL` hands it back
-  // as `::ffff:7f00:1` -- the same address again, in hex, which a check written
-  // against the dotted form does not see.
+  // IPv4-mapped IPv6 in hex or dotted notation.
   const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
   const bare =
     mapped === null
@@ -100,9 +152,9 @@ export function isBlockedHost(hostname: string): boolean {
         ? host.slice(7)
         : host
       : dotted(Number.parseInt(mapped[1] ?? "0", 16), Number.parseInt(mapped[2] ?? "0", 16));
-  const octets = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(bare);
-  if (octets === null) return false;
-  const [a, b, c] = [Number(octets[1]), Number(octets[2]), Number(octets[3])];
+  const octets = parseIpv4Octets(bare);
+  if (octets === undefined) return false;
+  const [a, b, c] = [octets[0], octets[1], octets[2]];
   return (
     a === 0 || // 0.0.0.0/8, which several stacks route to localhost
     a === 127 || // loopback

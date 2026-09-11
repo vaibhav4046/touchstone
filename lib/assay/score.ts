@@ -49,7 +49,14 @@ export function weightedScore(dimensions: readonly DimensionResult[]): number {
 }
 
 /** The floors that carry a stock explanation. Everything else speaks for itself. */
-const STEERING_CODES = new Set(["STEERING_INSTRUCTION", "GUARD_INJECTION_DETECTED", "ANALYST_STEERING"]);
+const STEERING_CODES = new Set([
+  "STEERING_INSTRUCTION",
+  "GUARD_INJECTION_DETECTED",
+  "ANALYST_STEERING",
+  "ZERO_WIDTH_OBFUSCATION",
+  "HOMOGLYPH_OBFUSCATION",
+  "MARKDOWN_EXFILTRATION",
+]);
 
 /**
  * A critical finding overrides the arithmetic entirely. Any critical finding.
@@ -89,6 +96,12 @@ export function verdictFor(score: number, findings: readonly Finding[]): { verdi
  * worse than a plain one.
  */
 function floorReason(finding: Finding): string {
+  if (finding.code === "ZERO_WIDTH_OBFUSCATION" || finding.code === "HOMOGLYPH_OBFUSCATION") {
+    return "Material contains adversarial homoglyphs or zero-width evasion characters.";
+  }
+  if (finding.code === "MARKDOWN_EXFILTRATION") {
+    return "Material contains markdown or HTML data exfiltration traps.";
+  }
   if (STEERING_CODES.has(finding.code)) {
     return "Material addresses the reading agent as if it had authority over it.";
   }

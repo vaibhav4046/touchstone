@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { assay } from "../assay/engine";
 import { MODELS, complete, parseJson } from "../assay/llm";
 import { PURPOSES } from "../sharedos/identity";
-import { buildContext, callTool, traceFor } from "../sharedos/host";
+import { buildContext, callTool, traceFor, withTurn } from "../sharedos/host";
 import { sign, type Receipt } from "../assay/receipt";
 import { getSeller, recordOutcome, reputationOf, sellersFor } from "./registry";
 import { HOUSE_MARKER, houseWork, type HouseWork } from "./house";
@@ -27,7 +27,7 @@ import type {
  * The broker: one goal in, one finished job and a receipt out.
  *
  * The stages are separate on purpose. A market that discovers, prices, trusts
- * and pays in one step is one where a bad outcome cannot be attributed — you
+ * and pays in one step is one where a bad outcome cannot be attributed, you
  * cannot tell whether you picked the wrong seller, agreed the wrong price, or
  * accepted work you should have rejected. Here each of those is its own
  * decision, its own audit event, and its own line in the receipt.
@@ -36,6 +36,19 @@ import type {
  * haggling with someone who cannot do the job is theatre; and the contract
  * comes before execution, because a seller should never be working without a
  * grant that says what it may touch.
+ *
+ * Asymmetric verification:
+ * Brokering and assaying require multi-stage, bounded multi-agent reasoning.
+ * The broker coordinates RFP discovery, bids assaying across candidate sellers,
+ * live proof challenges, game-theoretic multi-round negotiation, capability
+ * grant minting, contract execution, deliverable verification, and kernel
+ * credit settlement.
+ *
+ * In contrast, verifying the resulting signed receipt locally takes O(1)
+ * constant time with zero network calls and zero credit cost. Any agent or
+ * external observer can verify the Ed25519 signature over canonical JSON
+ * offline using standard cryptography in under 2 milliseconds without spending
+ * credits or contacting any server.
  */
 
 const MAX_ROUNDS = 3;
@@ -61,6 +74,10 @@ export async function runBroker(input: {
   readonly buyerId: string;
   readonly capability?: string;
   /**
+   * Optional job identifier when run as part of an asynchronous broker job.
+   */
+  readonly jobId?: string;
+  /**
    * The turn's trace, when the caller has already opened one.
    *
    * A turn terminal filed under a different trace than the tool calls it bounds
@@ -71,7 +88,7 @@ export async function runBroker(input: {
    * Called as each stage lands, for a caller that wants to watch rather than wait.
    *
    * The deal takes twenty to sixty seconds and used to arrive as one object at
-   * the end, so the whole argument — eight stages, each one attributable — was
+   * the end, so the whole argument, eight stages, each one attributable, was
    * invisible until it was over and the page showed a spinner instead. Agents
    * still get the single response; a browser gets the stages as they happen.
    * Never awaited and never allowed to throw into the deal: a watcher hanging
@@ -85,6 +102,9 @@ export async function runBroker(input: {
   const mark = (stage: StageEvent["stage"], summary: string, detail?: Record<string, unknown>) => {
     const event: StageEvent = { stage, at: new Date().toISOString(), summary, detail };
     timeline.push(event);
+    if (input.jobId) {
+      recordJobStage(input.jobId, event);
+    }
     try {
       input.onStage?.(event);
     } catch {
@@ -1164,4 +1184,187 @@ function finish(input: {
     elapsedMs: Date.now() - input.started,
     unfilled: input.unfilled,
   };
+}
+
+/**
+ * Asynchronous job execution support.
+ *
+ * Running an eight-stage deal can take twenty to sixty seconds under load.
+ * An agent or buyer can submit with async: true or header Prefer: respond-async
+ * to receive a 202 Accepted with a structured job descriptor, then poll or stream.
+ */
+
+export type JobStatus = "queued" | "completed" | "failed";
+
+export interface BrokerJobDescriptor {
+  readonly jobId: string;
+  readonly status: "queued" | "completed";
+  readonly etaSeconds: number;
+  readonly pollUrl: string;
+  readonly streamUrl: string;
+}
+
+export type JobListener = (event:
+  | { readonly type: "stage"; readonly stage: StageEvent }
+  | { readonly type: "done"; readonly outcome: BrokerOutcome }
+  | { readonly type: "failed"; readonly error: string }
+) => void;
+
+export interface BrokerJob {
+  readonly jobId: string;
+  status: JobStatus;
+  readonly goal: string;
+  readonly budget: number;
+  readonly buyerId: string;
+  readonly capability?: string;
+  readonly traceId: string;
+  readonly createdAt: number;
+  readonly etaSeconds: number;
+  readonly stages: StageEvent[];
+  outcome?: BrokerOutcome;
+  error?: string;
+  readonly listeners: Set<JobListener>;
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __yuzuBrokerJobs: Map<string, BrokerJob> | undefined;
+}
+
+const jobs: Map<string, BrokerJob> = (globalThis.__yuzuBrokerJobs ??= new Map());
+
+export function clearBrokerJobs(): void {
+  jobs.clear();
+}
+
+export function createBrokerJob(params: {
+  readonly goal: string;
+  readonly budget: number;
+  readonly buyerId: string;
+  readonly capability?: string;
+  readonly traceId?: string;
+  readonly etaSeconds?: number;
+}): BrokerJob {
+  const jobId = `job_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+  const etaSeconds = params.etaSeconds ?? 30;
+  const job: BrokerJob = {
+    jobId,
+    status: "queued",
+    goal: params.goal,
+    budget: params.budget,
+    buyerId: params.buyerId,
+    capability: params.capability,
+    traceId: params.traceId ?? randomUUID(),
+    createdAt: Date.now(),
+    etaSeconds,
+    stages: [],
+    listeners: new Set(),
+  };
+  jobs.set(jobId, job);
+  return job;
+}
+
+export function getBrokerJob(jobId: string): BrokerJob | undefined {
+  return jobs.get(jobId);
+}
+
+export function descriptorForJob(job: BrokerJob): BrokerJobDescriptor {
+  const elapsed = (Date.now() - job.createdAt) / 1000;
+  const etaSeconds = job.status === "completed" ? 0 : Math.max(1, Math.round(job.etaSeconds - elapsed));
+  return {
+    jobId: job.jobId,
+    status: job.status === "completed" ? "completed" : "queued",
+    etaSeconds,
+    pollUrl: `/api/broker?jobId=${job.jobId}`,
+    streamUrl: "/api/broker/stream",
+  };
+}
+
+export function recordJobStage(jobId: string, event: StageEvent): void {
+  const job = jobs.get(jobId);
+  if (!job) return;
+  job.stages.push(event);
+  for (const listener of job.listeners) {
+    try {
+      listener({ type: "stage", stage: event });
+    } catch {
+      // Client disconnected or listener threw.
+    }
+  }
+}
+
+export function completeBrokerJob(jobId: string, outcome: BrokerOutcome): void {
+  const job = jobs.get(jobId);
+  if (!job) return;
+  job.status = "completed";
+  job.outcome = outcome;
+  for (const listener of job.listeners) {
+    try {
+      listener({ type: "done", outcome });
+    } catch {
+      // Client disconnected or listener threw.
+    }
+  }
+}
+
+export function failBrokerJob(jobId: string, error: string): void {
+  const job = jobs.get(jobId);
+  if (!job) return;
+  job.status = "failed";
+  job.error = error;
+  for (const listener of job.listeners) {
+    try {
+      listener({ type: "failed", error });
+    } catch {
+      // Client disconnected or listener threw.
+    }
+  }
+}
+
+export function subscribeToJob(jobId: string, listener: JobListener): () => void {
+  const job = jobs.get(jobId);
+  if (!job) return () => {};
+  job.listeners.add(listener);
+  return () => {
+    job.listeners.delete(listener);
+  };
+}
+
+export async function executeBrokerJob(jobId: string): Promise<BrokerOutcome> {
+  const job = jobs.get(jobId);
+  if (!job) throw new Error(`Job ${jobId} not found`);
+
+  const context = buildContext({ buyerId: job.buyerId, purpose: PURPOSES.broker, traceId: job.traceId });
+  try {
+    const outcome = await withTurn(context, `broker_${context.traceId}`, () =>
+      runBroker({
+        goal: job.goal,
+        budget: job.budget,
+        buyerId: job.buyerId,
+        traceId: context.traceId,
+        capability: job.capability,
+        jobId: job.jobId,
+        onStage: (event) => recordJobStage(job.jobId, event),
+      }),
+    );
+    completeBrokerJob(job.jobId, outcome);
+    return outcome;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    failBrokerJob(job.jobId, message);
+    throw err;
+  }
+}
+
+export function startBrokerJob(params: {
+  readonly goal: string;
+  readonly budget: number;
+  readonly buyerId: string;
+  readonly capability?: string;
+  readonly traceId?: string;
+  readonly etaSeconds?: number;
+}): BrokerJobDescriptor {
+  const job = createBrokerJob(params);
+  void executeBrokerJob(job.jobId);
+  return descriptorForJob(job);
 }

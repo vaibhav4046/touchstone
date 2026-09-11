@@ -347,6 +347,14 @@ export type VerifyResult =
   | { readonly valid: true; readonly expired: boolean; readonly receipt: Receipt }
   | { readonly valid: false; readonly reason: string };
 
+/**
+ * Asymmetric verification:
+ * Verifying a receipt locally takes O(1) constant time with zero network calls
+ * and zero credit cost. While brokering or assaying requires multi-agent
+ * reasoning, multi-model evaluation, and credit expenditure, verifying this
+ * signed output is a purely mathematical check over canonical JSON using the
+ * published Ed25519 public key.
+ */
 export function verify(candidate: unknown): VerifyResult {
   if (typeof candidate !== "object" || candidate === null) {
     return { valid: false, reason: "not_an_object" };

@@ -81,6 +81,16 @@ export default async function Dashboard({
                 the same thing as JSON
               </a>
             </div>
+            <div className="floor-quick-nav" style={{ marginTop: "1.2rem" }}>
+              <a href="#reach" className="floor-quick-link">⚡ Reach ({map.reach.status === "computed" ? map.reach.reach.length : "0"})</a>
+              {map.held.length > 0 && <a href="#grants" className="floor-quick-link">● Live Grants ({map.held.length})</a>}
+              <a href="#history" className="floor-quick-link">📜 Grant History ({map.history.length})</a>
+              <a href="#policy" className="floor-quick-link">🛡️ Policy ({allows.length + refusals.length})</a>
+              <a href="#stream" className="floor-quick-link">📡 Live Stream</a>
+              <a href="#registry" className="floor-quick-link">👥 Sellers ({sellers.length})</a>
+              <a href="#arena" className="floor-quick-link">🏆 Arena Ledger ({book.remaining} credits)</a>
+            </div>
+
             {/* A plain GET form. Looking somebody up should not need JavaScript,
                 and a judge holding an agent id should be able to type it in. */}
             <form className="lookup" method="get" action="/dashboard">
@@ -100,7 +110,7 @@ export default async function Dashboard({
 
         <main className="wrap deck-body">
           {/* ── reach ─────────────────────────────────────────────────── */}
-          <section className="panel" data-reveal>
+          <section className="panel" id="reach" data-reveal>
             <div className="panel-head">
               <h2>Reach</h2>
               <p>
@@ -156,7 +166,7 @@ export default async function Dashboard({
 
           {/* ── held grants and balances ──────────────────────────────── */}
           {map.held.length > 0 && (
-          <section className="panel" data-reveal>
+          <section className="panel" id="grants" data-reveal>
             <div className="panel-head">
               <h2>Live grants</h2>
               <p>
@@ -216,7 +226,7 @@ export default async function Dashboard({
           )}
 
           {/* ── grants that existed ───────────────────────────────────── */}
-          <section className="panel" data-reveal>
+          <section className="panel" id="history" data-reveal>
             <div className="panel-head">
               <h2>Grants that have existed</h2>
               <p>
@@ -275,7 +285,7 @@ export default async function Dashboard({
           </section>
 
           {/* ── the owner's table ─────────────────────────────────────── */}
-          <section className="panel" data-reveal>
+          <section className="panel" id="policy" data-reveal>
             <div className="panel-head">
               <h2>Decided before the room opened</h2>
               <p>
@@ -351,7 +361,7 @@ export default async function Dashboard({
           </section>
 
           {/* ── decisions, live ───────────────────────────────────────── */}
-          <section className="panel" data-reveal>
+          <section className="panel" id="stream" data-reveal>
             <div className="panel-head">
               <h2>Decisions, as they land</h2>
               <p>
@@ -363,7 +373,7 @@ export default async function Dashboard({
           </section>
 
           {/* ── the market itself ─────────────────────────────────────── */}
-          <section className="panel" data-reveal>
+          <section className="panel" id="registry" data-reveal>
             <div className="panel-head">
               <h2>The registry</h2>
               <p>
@@ -418,7 +428,7 @@ export default async function Dashboard({
           </section>
 
           {/* ── arena ledger ──────────────────────────────────────────── */}
-          <section className="panel" data-reveal>
+          <section className="panel" id="arena" data-reveal>
             <div className="panel-head">
               <h2>Our own hundred credits</h2>
               <p>

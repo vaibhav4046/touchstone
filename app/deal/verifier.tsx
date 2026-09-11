@@ -259,6 +259,36 @@ export default function Verifier() {
           <button
             type="button"
             className="deal-alt"
+            style={{ borderColor: "var(--yuzu)", color: "var(--yuzu-bright)", fontWeight: 600 }}
+            onClick={async () => {
+              setState({ kind: "working", note: "Generating verifiable sample receipt from kernel" });
+              try {
+                const res = await fetch("/api/broker", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ goal: "Launch competitor brief within budget", budget: 20 }),
+                });
+                const data = await res.json();
+                if (data?.receipt) {
+                  const receiptStr = JSON.stringify(data.receipt, null, 2);
+                  setText(receiptStr);
+                  await check(receiptStr);
+                  return;
+                }
+              } catch (err) {
+                setState({
+                  kind: "failed",
+                  message: "Could not fetch sample receipt.",
+                  detail: err instanceof Error ? err.message : String(err),
+                });
+              }
+            }}
+          >
+            ⚡ Load Live Sample Receipt
+          </button>
+          <button
+            type="button"
+            className="deal-alt"
             onClick={() => {
               setText("");
               setState({ kind: "idle" });

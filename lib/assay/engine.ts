@@ -203,7 +203,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
           // strictly smaller one, exactly as an approved escalation would.
           const grant = mintAutoDecidedGrant({
             requestId: decided.requestId,
-            buyerId: input.buyerId,
+            buyerId,
             capabilities: decided.capabilities,
             constraints: decided.constraints,
             metadata: (decided.metadata ?? {}) as JsonObject,
@@ -214,7 +214,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
             // Probing is its own intent, and the envelope the record handed
             // back says so. A grant minted for it authorises nothing under the
             // assay purpose, so the retry states the purpose it is for.
-            const probeContext = buildContext({ buyerId: input.buyerId, purpose: PURPOSES.probe, traceId });
+            const probeContext = buildContext({ buyerId, purpose: PURPOSES.probe, traceId });
             const retried = await callTool(probeContext, "assay.probe_vendor", probeArgs, requirement);
             const retriedProbe = probeDimension(options.probeEndpoint, retried.result);
             if (retriedProbe !== undefined) dimensions.push(retriedProbe);
@@ -229,7 +229,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
           }
         } else if (options.allowHumanEscalation === true) {
           escalation = await requestEscalation({
-            buyerId: input.buyerId,
+            buyerId,
             resourcePath: probePath,
             action: "probe",
             reason: `Buyer asked for a live probe of ${options.probeEndpoint}. An order grant does not carry authority to reach a third party.`,
@@ -327,7 +327,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
       issuedAt: now.toISOString(),
       expiresAt: new Date(now.getTime() + RECEIPT_TTL_MS).toISOString(),
       issuer: "touchstone",
-      buyerId: input.buyerId,
+      buyerId,
       purpose: PURPOSES.assay,
       traceId,
       report,

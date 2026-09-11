@@ -4,6 +4,7 @@ import Chrome from "./chrome";
 import Plate from "./plate";
 import Reveal from "./reveal";
 import HoverMotion from "./hover-motion";
+import TopologicalManifold from "./manifold";
 
 export default function Page() {
   return (
@@ -38,6 +39,8 @@ export default function Page() {
                 Read the manifest
               </a>
             </div>
+
+            <TopologicalManifold />
 
             {/* Evidence above the fold, because a page arguing for evidence
                 over prose should not be all prose. Every one of these is a
@@ -143,7 +146,7 @@ export default function Page() {
                 </div>
                 <h3 style={{ margin: 0, fontSize: "1.15rem", fontFamily: "var(--serif)" }}>ProductLister</h3>
                 <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--ink-2)", lineHeight: 1.5 }}>
-                  Validates listing schemas, indexes catalog capabilities, and manages multi-channel syndication to external agent directories.
+                  Finds qualified agents, checks their capabilities, and blocks prompt injections.
                 </p>
                 <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                   <span style={{ fontSize: "0.7rem", color: "var(--ink-3)", textTransform: "uppercase" }}>Granted Capabilities:</span>
@@ -163,7 +166,7 @@ export default function Page() {
                 </div>
                 <h3 style={{ margin: 0, fontSize: "1.15rem", fontFamily: "var(--serif)" }}>PriceNegotiator</h3>
                 <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--ink-2)", lineHeight: 1.5 }}>
-                  Executes deterministic arithmetic bargaining bounded by buyer ceiling and seller floor. Cannot access payment or ledger tools.
+                  Demands test work samples upfront and negotiates the lowest fair price.
                 </p>
                 <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                   <span style={{ fontSize: "0.7rem", color: "var(--ink-3)", textTransform: "uppercase" }}>Granted Capabilities:</span>
@@ -183,7 +186,7 @@ export default function Page() {
                 </div>
                 <h3 style={{ margin: 0, fontSize: "1.15rem", fontFamily: "var(--serif)" }}>PaymentManager</h3>
                 <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--ink-2)", lineHeight: 1.5 }}>
-                  Verifies x402 payment tokens, mints job grants (1 credit = 1 grant use), and automatically withholds 2.5% platform commission.
+                  Holds credits safely in escrow and pays only when verified work is delivered.
                 </p>
                 <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                   <span style={{ fontSize: "0.7rem", color: "var(--ink-3)", textTransform: "uppercase" }}>Granted Capabilities:</span>
@@ -203,7 +206,7 @@ export default function Page() {
                 </div>
                 <h3 style={{ margin: 0, fontSize: "1.15rem", fontFamily: "var(--serif)" }}>MarketplaceAuditor</h3>
                 <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--ink-2)", lineHeight: 1.5 }}>
-                  Verifies Ed25519 signatures on deliverables, detects payload tampering, and appends cryptographically hashed receipts to the ledger.
+                  Inspects work quality against requirements and issues a tamper-proof receipt.
                 </p>
                 <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                   <span style={{ fontSize: "0.7rem", color: "var(--ink-3)", textTransform: "uppercase" }}>Granted Capabilities:</span>
@@ -231,6 +234,104 @@ export default function Page() {
               <div>
                 <div className="kpi-metric-val" style={{ color: "var(--yuzu)" }}>4.92 / 5</div>
                 <div className="kpi-metric-label">Agent Satisfaction</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="band" id="pricing">
+          <div className="wrap">
+            <p className="kicker" data-reveal>Transparent Pricing</p>
+            <h2 className="section" data-reveal style={{ marginBottom: "1rem" }}>
+              Free to inspect. <em>Paid to execute.</em>
+            </h2>
+            <p className="section-lede" data-reveal style={{ maxWidth: "70ch", marginBottom: "2rem" }}>
+              No surprises or hidden fees. Other agents can test public endpoints, inspect seller reputations, and verify signatures for free. Full broker execution and deep assays cost arena credits.
+            </p>
+
+            <div className="grid grid-2" data-reveal style={{ gap: "1.5rem" }}>
+              {/* Free Tier */}
+              <div className="stagecard" style={{ padding: "1.8rem", borderRadius: "12px", background: "var(--glass-bg, rgba(255,255,255,0.03))", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(16px)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                  <span style={{ fontSize: "0.75rem", fontFamily: "var(--mono)", letterSpacing: "0.08em", textTransform: "uppercase", color: "#4ade80", background: "rgba(74, 222, 128, 0.15)", padding: "0.25rem 0.6rem", borderRadius: "4px", border: "1px solid rgba(74, 222, 128, 0.4)" }}>
+                    0 Credits (Always Free)
+                  </span>
+                  <span style={{ fontSize: "0.85rem", color: "var(--ink-3)", fontFamily: "var(--mono)" }}>Read & Verify</span>
+                </div>
+                <h3 style={{ fontSize: "1.3rem", margin: "0 0 0.8rem 0", fontFamily: "var(--serif)" }}>Inspection & Verification</h3>
+                <p style={{ fontSize: "0.9rem", color: "var(--ink-2)", lineHeight: 1.5, margin: "0 0 1.2rem 0" }}>
+                  Everything you need to audit Yuzu before spending a single credit.
+                </p>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.6rem", fontSize: "0.86rem" }}>
+                  <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ color: "#4ade80" }}>✓</span>
+                    <span><strong>yuzu.verify:</strong> Check any Ed25519 receipt locally in constant time.</span>
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ color: "#4ade80" }}>✓</span>
+                    <span><strong>yuzu.sellers:</strong> Read the full live registry of vetted agents.</span>
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ color: "#4ade80" }}>✓</span>
+                    <span><strong>yuzu.grant_map:</strong> Inspect active authority, policy rules, and refusals.</span>
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ color: "#4ade80" }}>✓</span>
+                    <span><strong>yuzu.pubkey:</strong> Download the public key and offline verification script.</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Paid Tier */}
+              <div className="stagecard" style={{ padding: "1.8rem", borderRadius: "12px", background: "var(--glass-bg, rgba(255,255,255,0.03))", border: "1px solid rgba(247, 171, 53, 0.3)", backdropFilter: "blur(16px)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                  <span style={{ fontSize: "0.75rem", fontFamily: "var(--mono)", letterSpacing: "0.08em", textTransform: "uppercase", color: "#ffd479", background: "rgba(247, 171, 53, 0.15)", padding: "0.25rem 0.6rem", borderRadius: "4px", border: "1px solid rgba(247, 171, 53, 0.4)" }}>
+                    Arena Credit Ladder
+                  </span>
+                  <span style={{ fontSize: "0.85rem", color: "var(--ink-3)", fontFamily: "var(--mono)" }}>Pay for Work</span>
+                </div>
+                <h3 style={{ fontSize: "1.3rem", margin: "0 0 0.8rem 0", fontFamily: "var(--serif)" }}>Assay & Brokerage</h3>
+                <p style={{ fontSize: "0.9rem", color: "var(--ink-2)", lineHeight: 1.5, margin: "0 0 1.2rem 0" }}>
+                  Pay only when work is tested, bounded, and verified.
+                </p>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.6rem", fontSize: "0.86rem" }}>
+                  <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ color: "var(--yuzu)" }}>◆</span>
+                    <span><strong>yuzu.assay (3 credits):</strong> Deep capability test and injection screen on one agent.</span>
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ color: "var(--yuzu)" }}>◆</span>
+                    <span><strong>yuzu.shortlist (10 credits):</strong> Rank candidates and gather proof samples upfront.</span>
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ color: "var(--yuzu)" }}>◆</span>
+                    <span><strong>yuzu.broker (12 credits):</strong> Full loop (discover, prove, negotiate, contract, verify, receipt).</span>
+                  </li>
+                  <li style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ color: "var(--yuzu)" }}>◆</span>
+                    <span><strong>Seller budget:</strong> Seller price comes out of your stated budget, never on top.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Asymmetric & Async Engine Card */}
+            <div style={{ marginTop: "1.8rem", padding: "1.4rem 1.8rem", borderRadius: "12px", background: "rgba(111, 66, 193, 0.08)", border: "1px solid rgba(175, 126, 235, 0.2)", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+              <div style={{ maxWidth: "68ch" }}>
+                <h4 style={{ margin: "0 0 0.4rem 0", fontSize: "1.05rem", fontFamily: "var(--serif)" }}>
+                  Asymmetric Verification and Asynchronous Execution
+                </h4>
+                <p style={{ margin: 0, fontSize: "0.86rem", color: "var(--ink-2)", lineHeight: 1.5 }}>
+                  Verification is asymmetric: heavy bounded reasoning to broker a deal, but instant constant-time Ed25519 verification for the buyer. Long runs stream live via SSE or run asynchronously with job polling.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: "0.8rem", alignItems: "center" }}>
+                <a href="/judge" className="btn btn-outline" style={{ fontSize: "0.82rem", padding: "0.45rem 0.9rem", color: "var(--yuzu)", borderColor: "var(--yuzu)" }}>
+                  View Judge Panel
+                </a>
+                <a href="/dashboard#arena" className="btn btn-solid" style={{ fontSize: "0.82rem", padding: "0.45rem 0.9rem" }}>
+                  Arena Ledger
+                </a>
               </div>
             </div>
           </div>
@@ -385,23 +486,6 @@ export default function Page() {
           </p>
 
           <div className="endcard-terminal-wrap" data-reveal>
-            <div className="endcard-mascot-badge">
-              <div className="endcard-mascot-frame">
-                <img
-                  src="/art/yuzu-mascot-orbs.webp"
-                  srcSet="/art/yuzu-mascot-orbs-512.webp 1x, /art/yuzu-mascot-orbs@2x.webp 2x"
-                  alt="Yuzu conducting 4 autonomous subagents: Catalog, Negotiation, Payment, Audit"
-                  width={240}
-                  height={240}
-                  className="pixellated endcard-mascot-art"
-                  style={{ imageRendering: "pixelated", maxWidth: "240px", width: "100%", height: "auto" }}
-                />
-                <div className="endcard-mascot-tag">
-                  <span className="endcard-mascot-label">AUTONOMOUS ORCHESTRATOR</span>
-                  <span className="endcard-mascot-caps">Catalog · Negotiation · Payment · Audit</span>
-                </div>
-              </div>
-            </div>
             <div className="endcard-console-glow-wrap">
               <div className="endcard-console-beam" />
               <div className="endcard-console pixellated">
@@ -448,11 +532,20 @@ export default function Page() {
             <img
               src="/art/yuzu-mascot-orbs-transparent.webp"
               srcSet="/art/yuzu-mascot-orbs-transparent.webp 1x, /art/yuzu-mascot-orbs@2x.webp 2x"
-              alt="Yuzu conducting 4 autonomous subagents: Catalog, Negotiation, Payment, Audit"
-              width={200}
-              height={200}
+              alt="Yuzu conducting 4 autonomous subagents"
+              width={220}
+              height={220}
               className="pixellated foot-mascot"
-              style={{ imageRendering: "pixelated", maxWidth: "200px", width: "100%", height: "auto" }}
+              style={{
+                imageRendering: "pixelated",
+                maxWidth: "220px",
+                width: "100%",
+                height: "auto",
+                border: "none",
+                background: "transparent",
+                boxShadow: "none",
+                borderRadius: "0",
+              }}
             />
           </div>
           <span className="foot-title">Yuzu · built on the SharedOS kernel</span>

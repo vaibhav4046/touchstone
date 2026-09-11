@@ -8,6 +8,7 @@ import { listSellers, allReputations } from "../../../lib/market/registry";
 import { buildContext, drainAudit, host, withTurn } from "../../../lib/sharedos/host";
 import { PURPOSES } from "../../../lib/sharedos/identity";
 import { admit, json, parseAmount, rateLimited, resolveBuyer } from "../../../lib/api";
+import { SPLIT_SUMMARY } from "../../../lib/market/pricing";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -17,7 +18,7 @@ export const maxDuration = 120;
  *
  * The reason this is worth having rather than a second spelling of the REST
  * routes: an MCP client asks `tools/list` before it does anything, and the list
- * it gets back here is computed by the kernel from the caller's own grants —
+ * it gets back here is computed by the kernel from the caller's own grants,
  * `listPublishedTools` is the catalogue "as an external harness receives it",
  * permission-filtered and hashed, which is precisely the boundary MCP crosses.
  * A tool an agent may not use is not a tool it is offered and then refused; it
@@ -46,8 +47,17 @@ const PROTOCOL = "2024-11-05";
 const TOOLS = [
   {
     name: "yuzu_broker",
+    tier: "PAID",
+    cost: 12,
+    pricing: {
+      tier: "PAID",
+      cost: 12,
+      currency: "arena-credits",
+      isPaid: true,
+      note: "Full brokered deal run. Seller payment comes out of your budget.",
+    },
     description:
-      "Plant a goal and a budget; Yuzu finds agents that answer to it, makes each prove it can do the job " +
+      "[PAID: 12 Arena credits] Plant a goal and a budget; Yuzu finds agents that answer to it, makes each prove it can do the job " +
       "before any money moves, settles a price inside your budget, and returns the finished work with a " +
       "signed receipt of who was allowed to touch what. Returns an unfilled result with a stated reason " +
       "rather than buying something when nothing meets the brief.",
@@ -64,14 +74,23 @@ const TOOLS = [
   },
   {
     name: "yuzu_assay",
+    tier: "PAID",
+    cost: 3,
+    pricing: {
+      tier: "PAID",
+      cost: 3,
+      currency: "arena-credits",
+      isPaid: true,
+      note: "Single listing evaluation.",
+    },
     description:
-      "Judge one agent's listing before you trust it. Returns a verdict, a score on published weights, a " +
+      "[PAID: 3 Arena credits] Judge one agent listing before you trust it. Returns a verdict, a score on published weights, a " +
       "separate deterministic score that is identical on every run, and every finding quoting the sentence " +
       "that produced it. Prompt injection in a listing is detected and never obeyed.",
     inputSchema: {
       type: "object",
       properties: {
-        vendor: { type: "string", description: "The seller's name." },
+        vendor: { type: "string", description: "The seller name." },
         pitch: { type: "string", description: "The listing text, exactly as the seller wrote it." },
         askingPrice: { type: "number", description: "Optional. What the seller is asking, in credits." },
       },
@@ -81,8 +100,17 @@ const TOOLS = [
   },
   {
     name: "yuzu_verify_receipt",
+    tier: "FREE",
+    cost: 0,
+    pricing: {
+      tier: "FREE",
+      cost: 0,
+      currency: "arena-credits",
+      isPaid: false,
+      note: "Receipt verification is 100% free.",
+    },
     description:
-      "Check a Yuzu receipt against the published Ed25519 key. Free, and you do not have to take our word " +
+      "[FREE: 0 Arena credits] Check a Yuzu receipt against the published Ed25519 key. Free, and you do not have to take our word " +
       "for the answer: the key and an offline script are at /api/pubkey, and this endpoint runs the same " +
       "check you would run yourself.",
     inputSchema: {
@@ -94,10 +122,19 @@ const TOOLS = [
   },
   {
     name: "yuzu_grant_map",
+    tier: "FREE",
+    cost: 0,
+    pricing: {
+      tier: "FREE",
+      cost: 0,
+      currency: "arena-credits",
+      isPaid: false,
+      note: "Authority map lookup is free and non-consuming.",
+    },
     description:
-      "Who may touch what. The kernel's own answer for one actor: where it may operate, the grants behind " +
-      "that reach with the part of each budget already spent, every grant that has existed, and the owner's " +
-      "table of decisions taken before the room opened — refusals included, because a refusal carrying no " +
+      "[FREE: 0 Arena credits] Who may touch what. The kernel answer for one actor: where it may operate, the grants behind " +
+      "that reach with the part of each budget already spent, every grant that has existed, and the owner " +
+      "table of decisions taken before the room opened, refusals included, because a refusal carrying no " +
       "width is why a later request cannot read a permission off the back of a no. Non-consuming.",
     inputSchema: {
       type: "object",
@@ -108,16 +145,34 @@ const TOOLS = [
   },
   {
     name: "yuzu_sellers",
+    tier: "FREE",
+    cost: 0,
+    pricing: {
+      tier: "FREE",
+      cost: 0,
+      currency: "arena-credits",
+      isPaid: false,
+      note: "Registry search is free.",
+    },
     description:
-      "The registry: every seller, what it sells, its floor price, and a reputation that starts neutral and " +
-      "moves only on a verified delivery — never on what a listing claimed about itself.",
+      "[FREE: 0 Arena credits] The registry: every seller, what it sells, its floor price, and a reputation that starts neutral and " +
+      "moves only on a verified delivery, never on what a listing claimed about itself.",
     inputSchema: { type: "object", properties: {}, required: [] },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
     name: "yuzu_shortlist",
+    tier: "PAID",
+    cost: 10,
+    pricing: {
+      tier: "PAID",
+      cost: 10,
+      currency: "arena-credits",
+      isPaid: true,
+      note: "Batch evaluation of up to 12 candidate vendor listings.",
+    },
     description:
-      "Rank candidate vendor listings and generate an optimal credit allocation plan inside your budget. " +
+      "[PAID: 10 Arena credits] Rank candidate vendor listings and generate an optimal credit allocation plan inside your budget. " +
       "Flags hostile or unproven listings and produces signed receipts per vendor.",
     inputSchema: {
       type: "object",
@@ -180,11 +235,12 @@ export async function POST(request: Request): Promise<Response> {
       return ok(id, {
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "yuzu", version: "1.0.0", title: "Yuzu — the market where agents hire agents" },
+        serverInfo: { name: "yuzu", version: "1.0.0", title: "Yuzu: the market where agents hire agents" },
         instructions:
-          "Plant a goal with yuzu_broker and you get finished work plus a signed receipt. Assay a listing " +
-          "with yuzu_assay before you trust it. Every tool call here is authorised by the SharedOS kernel " +
-          "on the same path as any other call, and yuzu_grant_map will show you exactly what that " +
+          "Plant a goal with yuzu_broker (PAID: 12 credits) and you get finished work plus a signed receipt. " +
+          "Assay a listing with yuzu_assay (PAID: 3 credits) or batch rank with yuzu_shortlist (PAID: 10 credits). " +
+          "Free exploration tools: yuzu_sellers (FREE: 0 credits), yuzu_verify_receipt (FREE: 0 credits), and yuzu_grant_map (FREE: 0 credits). " +
+          "Every tool call here is authorised by the SharedOS kernel on the same path as any other call, and yuzu_grant_map will show you exactly what that " +
           "authority covers. Receipts verify offline against the key at /api/pubkey.",
       });
     }
@@ -200,9 +256,9 @@ export async function POST(request: Request): Promise<Response> {
       const context = buildContext({ buyerId, purpose: PURPOSES.broker });
       try {
         const published = await host().kernel.listPublishedTools(context, { executionId: `mcp_list_${context.traceId}` });
-        return ok(id, { tools: TOOLS, catalogHash: published.catalogHash });
+        return ok(id, { tools: TOOLS, catalogHash: published.catalogHash, splitSummary: SPLIT_SUMMARY });
       } catch {
-        return ok(id, { tools: TOOLS });
+        return ok(id, { tools: TOOLS, splitSummary: SPLIT_SUMMARY });
       }
     }
 
@@ -351,7 +407,14 @@ export async function GET(request: Request): Promise<Response> {
     protocolVersion: PROTOCOL,
     endpoint: "POST /api/mcp",
     methods: ["initialize", "tools/list", "tools/call", "ping"],
-    tools: TOOLS.map((tool) => tool.name),
+    tools: TOOLS.map((tool) => ({
+      name: tool.name,
+      tier: tool.tier,
+      cost: tool.cost,
+      currency: tool.pricing.currency,
+      description: tool.description,
+    })),
+    splitSummary: SPLIT_SUMMARY,
     howToCall:
       `curl -X POST https://yuzu-market.vercel.app/api/mcp -H 'content-type: application/json' ` +
       `-d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`,

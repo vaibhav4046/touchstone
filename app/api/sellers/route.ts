@@ -5,8 +5,8 @@ import { admit, json, rateLimited, resolveBuyer } from "../../../lib/api";
 import { getSeller, listSellers, registerSeller, reputationOf } from "../../../lib/market/registry";
 import type { Capability, SellerAgent } from "../../../lib/market/types";
 import { slug } from "../../../lib/sharedos/identity";
-import { blockedHostRefusal, isBlockedHost } from "../../../lib/sharedos/tools";
 import { drainAudit } from "../../../lib/sharedos/host";
+import { vetSellerEndpoint } from "../../../lib/assay/sellers";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -300,30 +300,7 @@ function quoted(risks: readonly Finding[]): ReadonlyArray<Record<string, string>
  * costs a registrant one retry, which is the cheaper of the two mistakes.
  */
 async function endpointRefusal(candidate: string): Promise<string | undefined> {
-  let url: URL;
-  try {
-    url = new URL(candidate);
-  } catch {
-    return "not a URL. Give an absolute one, e.g. https://your-host/health.";
-  }
-  if (url.protocol !== "https:") {
-    return `${url.protocol} is not fetched. Registered endpoints are called over https only.`;
-  }
-  if (url.username.length > 0 || url.password.length > 0) {
-    return "credentials in the URL are not accepted. A probe of ours does not carry your secrets.";
-  }
-
-  // Cheap and DNS-free, so an obvious literal never costs a lookup — and so
-  // this stays decidable offline, which is what keeps the tests hermetic.
-  if (isBlockedHost(url.hostname)) {
-    return `${url.hostname} is a loopback, private, link-local or metadata address. A registered endpoint has to be reachable from outside our network, and this one names ours.`;
-  }
-
-  const refusal = await blockedHostRefusal(url.hostname);
-  if (refusal === undefined) return undefined;
-  return refusal.kind === "blocked"
-    ? `${refusal.message} It is a public name, and it points inward.`
-    : `${refusal.message}. An endpoint that does not resolve cannot be called, so it is not stored as one. If that was a transient failure, register again.`;
+  return vetSellerEndpoint(candidate);
 }
 
 function toCapabilities(value: unknown): readonly Capability[] {
