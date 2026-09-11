@@ -98,82 +98,33 @@ function getSubagentForStage(stage: string): string {
   return "MarketplaceAuditor";
 }
 
-function TypewriterText({ text, speed = 25 }: { text: string; speed?: number }) {
-  const [displayed, setDisplayed] = useState("");
-  useEffect(() => {
-    let index = 0;
-    setDisplayed("");
-    const step = 3;
-    const interval = setInterval(() => {
-      index += step;
-      if (index >= text.length) {
-        setDisplayed(text);
-        clearInterval(interval);
-      } else {
-        setDisplayed(text.slice(0, index));
-      }
-    }, speed);
-    return () => clearInterval(interval);
-  }, [text, speed]);
-
-  const isDone = displayed.length >= text.length;
-  return (
-    <span>
-      {displayed}
-      {!isDone && <span className="typewriter-cursor" />}
-    </span>
-  );
+function GlowingText({ text, glow = true }: { text: string; glow?: boolean }) {
+  return <span className={glow ? "glowing-reveal-text" : ""}>{text}</span>;
 }
 
-function TypewriterDelivery({ text }: { text: string }) {
-  const [displayed, setDisplayed] = useState("");
-  const [skipped, setSkipped] = useState(false);
-
-  useEffect(() => {
-    if (skipped) {
-      setDisplayed(text);
-      return;
+function GlowingDelivery({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
-    let index = 0;
-    const step = Math.max(6, Math.floor(text.length / 50));
-    const interval = setInterval(() => {
-      index += step;
-      if (index >= text.length) {
-        setDisplayed(text);
-        clearInterval(interval);
-      } else {
-        setDisplayed(text.slice(0, index));
-      }
-    }, 30);
-    return () => clearInterval(interval);
-  }, [text, skipped]);
-
-  const isComplete = skipped || displayed.length >= text.length;
+  };
 
   return (
-    <div>
-      {!isComplete && (
-        <button
-          type="button"
-          className="typewriter-skip-btn"
-          onClick={() => setSkipped(true)}
-        >
-          ⚡ Instant View (Skip Typing)
+    <div className="glowing-delivery-container">
+      <div className="glowing-delivery-toolbar">
+        <span className="glowing-delivery-status">
+          <span className="glowing-pulse-orb" />
+          VERIFIED DELIVERABLE STREAM
+        </span>
+        <button type="button" className="glowing-copy-btn" onClick={copy}>
+          {copied ? "✓ Copied" : "📋 Copy Deliverable"}
         </button>
-      )}
-      <blockquote
-        style={{
-          whiteSpace: "pre-wrap",
-          maxHeight: "17rem",
-          overflowY: "auto",
-          marginBottom: "1.2rem",
-          fontFamily: "var(--mono)",
-          fontSize: "0.88rem",
-          lineHeight: 1.5,
-        }}
-      >
-        {displayed}
-        {!isComplete && <span className="typewriter-cursor" />}
+      </div>
+      <blockquote className="glowing-delivery-quote glowing-reveal-block">
+        {text}
       </blockquote>
     </div>
   );
@@ -221,7 +172,7 @@ function SubagentWorkflow({ live, busy }: { live: Stage[]; busy: boolean }) {
                 </span>
               </div>
               <div className="subagent-node-action">
-                {isCurrent ? <TypewriterText text={actionText} speed={25} /> : actionText}
+                {isCurrent ? <GlowingText text={actionText} key={actionText} /> : actionText}
               </div>
               <div className="subagent-node-cap">
                 {agent.caps.map((cap) => (
@@ -301,23 +252,25 @@ export default function Market() {
   const typeGoal = useCallback(
     (target: string, autoSend = false) => {
       if (busy) return;
+      if (!autoSend) {
+        setGoal(target);
+        return;
+      }
       let i = 0;
       setGoal("");
-      const step = 2;
+      const step = 4;
       const timer = setInterval(() => {
         i += step;
         if (i >= target.length) {
           setGoal(target);
           clearInterval(timer);
-          if (autoSend) {
-            setTimeout(() => {
-              executePlant(target, budget);
-            }, 250);
-          }
+          setTimeout(() => {
+            executePlant(target, budget);
+          }, 100);
         } else {
           setGoal(target.slice(0, i));
         }
-      }, 30);
+      }, 12);
     },
     [busy, executePlant, budget]
   );
@@ -393,7 +346,7 @@ export default function Market() {
             <SubagentWorkflow live={live} busy={busy} />
             {live.length === 0 ? (
               <p className="muted">
-                Reading the goal… <span className="typewriter-cursor" />
+                Reading the goal… <span className="glowing-pulse-orb" style={{ display: "inline-block", verticalAlign: "middle", marginLeft: "6px" }} />
               </p>
             ) : (
               <ol>
@@ -408,7 +361,7 @@ export default function Market() {
                       </span>
                       <span>
                         {isLatest ? (
-                          <TypewriterText text={event.summary} speed={25} />
+                          <GlowingText text={event.summary} key={event.summary} />
                         ) : (
                           event.summary
                         )}
@@ -587,7 +540,7 @@ function Outcome({ result }: { result: Result }) {
       {result.delivery !== undefined && (
         <>
           <p className="kicker">What came back</p>
-          <TypewriterDelivery text={result.delivery.output} />
+          <GlowingDelivery text={result.delivery.output} />
         </>
       )}
 

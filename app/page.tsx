@@ -394,47 +394,56 @@ export default function Page() {
 
           <div className="endcard-terminal-wrap" data-reveal>
             <div className="endcard-mascot-badge">
-              <img
-                src="/art/yuzu-logo.webp"
-                alt="Yuzu"
-                width={112}
-                height={112}
-                className="pixellated"
-                style={{ imageRendering: "pixelated", filter: "drop-shadow(0 8px 24px rgba(245, 178, 43, 0.45))" }}
-              />
-            </div>
-            <div className="endcard-console pixellated">
-              <div className="endcard-console-bar">
-                <span className="endcard-dot red" />
-                <span className="endcard-dot yellow" />
-                <span className="endcard-dot green" />
-                <span className="endcard-console-title">yuzu-kernel · ed25519-attested · sharedos</span>
+              <div className="endcard-mascot-frame">
+                <img
+                  src="/art/yuzu-mascot-orbs.webp"
+                  alt="Yuzu conducting 4 autonomous subagents"
+                  width={200}
+                  height={200}
+                  className="pixellated endcard-mascot-art"
+                  style={{ imageRendering: "pixelated" }}
+                />
+                <div className="endcard-mascot-tag">
+                  <span className="endcard-mascot-label">AUTONOMOUS ORCHESTRATOR</span>
+                  <span className="endcard-mascot-caps">Catalog · Negotiation · Payment · Audit</span>
+                </div>
               </div>
-              <div className="endcard-console-body">
-                <div className="endcard-terminal-line">
-                  <span className="endcard-prompt">$</span>
-                  <span className="endcard-cmd">curl -X POST https://yuzu-market.vercel.app/api/broker \</span>
+            </div>
+            <div className="endcard-console-glow-wrap">
+              <div className="endcard-console-beam" />
+              <div className="endcard-console pixellated">
+                <div className="endcard-console-bar">
+                  <span className="endcard-dot red" />
+                  <span className="endcard-dot yellow" />
+                  <span className="endcard-dot green" />
+                  <span className="endcard-console-title">yuzu-kernel · ed25519-attested · sharedos</span>
                 </div>
-                <div className="endcard-terminal-line ind">
-                  <span className="endcard-flag">-H</span> <span className="endcard-str">&apos;content-type: application/json&apos;</span> \
-                </div>
-                <div className="endcard-terminal-line ind">
-                  <span className="endcard-flag">-d</span> <span className="endcard-str">&apos;&#123;&quot;goal&quot;:&quot;Competitor brief within budget&quot;,&quot;budget&quot;:22&#125;&apos;</span>
-                </div>
-                <div className="endcard-terminal-output">
-                  <span className="endcard-out-badge">RECEIPT SEALED</span>
-                  <span className="endcard-out-text">Ed25519 · 100% Deterministic Weights · Zero Ambient Authority</span>
-                </div>
-                <div className="endcard-actions-row">
-                  <a href="#market" className="btn btn-solid" style={{ padding: "0.6rem 1.4rem", fontSize: "0.85rem" }}>
-                    ⚡ Plant a Goal in the Arena
-                  </a>
-                  <a href="/dashboard" className="btn btn-ghost" style={{ padding: "0.6rem 1.4rem", fontSize: "0.85rem", color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}>
-                    Inspect The Floor (Live Grants)
-                  </a>
-                  <a href="/api/pubkey" className="btn btn-ghost" style={{ padding: "0.6rem 1.4rem", fontSize: "0.85rem", color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}>
-                    Verify Offline (Public Key)
-                  </a>
+                <div className="endcard-console-body">
+                  <div className="endcard-terminal-line">
+                    <span className="endcard-prompt">$</span>
+                    <span className="endcard-cmd">curl -X POST https://yuzu-market.vercel.app/api/broker \</span>
+                  </div>
+                  <div className="endcard-terminal-line ind">
+                    <span className="endcard-flag">-H</span> <span className="endcard-str">&apos;content-type: application/json&apos;</span> \
+                  </div>
+                  <div className="endcard-terminal-line ind">
+                    <span className="endcard-flag">-d</span> <span className="endcard-str">&apos;&#123;&quot;goal&quot;:&quot;Competitor brief within budget&quot;,&quot;budget&quot;:22&#125;&apos;</span>
+                  </div>
+                  <div className="endcard-terminal-output">
+                    <span className="endcard-out-badge">RECEIPT SEALED</span>
+                    <span className="endcard-out-text">Ed25519 · 100% Deterministic Weights · Zero Ambient Authority</span>
+                  </div>
+                  <div className="endcard-actions-row">
+                    <a href="#market" className="btn btn-solid" style={{ padding: "0.6rem 1.4rem", fontSize: "0.85rem" }}>
+                      ⚡ Plant a Goal in the Arena
+                    </a>
+                    <a href="/dashboard" className="btn btn-ghost" style={{ padding: "0.6rem 1.4rem", fontSize: "0.85rem", color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}>
+                      Inspect The Floor (Live Grants)
+                    </a>
+                    <a href="/api/pubkey" className="btn btn-ghost" style={{ padding: "0.6rem 1.4rem", fontSize: "0.85rem", color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}>
+                      Verify Offline (Public Key)
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
