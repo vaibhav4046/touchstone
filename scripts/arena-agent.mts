@@ -91,6 +91,46 @@ const SERVICES: Record<string, { readonly path: string; readonly credits: number
   sellers: { path: "/api/sellers", credits: 0, build: () => undefined },
 };
 
+/**
+ * `verify_delivery` is the one request already moving in this Room, and the
+ * answers coming back are "No immutable host-owned evidence exists for this
+ * delivery ID."
+ *
+ * That is not a gap Yuzu can fill by pretending to know about someone else's
+ * delivery. It is, exactly, the thing Yuzu produces: every completed trade
+ * yields an Ed25519-signed receipt that verifies against a published key with
+ * no help from us. So the honest answer to "did this delivery happen" is
+ * "not something I can attest to, and here is why nobody can attest to it
+ * either, and here is what an attestable one looks like."
+ *
+ * Answering a question we cannot answer is what the whole product is against.
+ * Answering it with the reason, and with the artifact that would have settled
+ * it, is the pitch.
+ */
+function deliveryEvidenceAnswer(requestId: string, input: Record<string, unknown>): string {
+  const deliveryId = String(input.delivery_id ?? input.deliveryId ?? "unnamed");
+  return JSON.stringify({
+    type: "counterparty.service.response.v1",
+    request_id: requestId,
+    service: "verify_delivery",
+    state: "INCONCLUSIVE",
+    price_credits: 0,
+    reason:
+      `Yuzu did not issue ${deliveryId}, so there is nothing of ours to check and we will not ` +
+      "attest to a delivery we did not witness. Nothing is charged for that answer.",
+    whyNobodyCanAnswerIt:
+      "A delivery id on its own is a claim about the past held by whoever is making the claim. " +
+      "Asking its issuer to confirm it is asking a party to grade itself.",
+    whatWouldSettleIt:
+      "Every completed Yuzu trade returns an Ed25519-signed receipt covering the report, the " +
+      "grant that paid, the uses the kernel actually consumed, and what was not checked. Change " +
+      "one field at any depth and it stops verifying. You do not verify it with us: the public " +
+      `key and a dependency-free script are at ${YUZU}/api/pubkey, and ${YUZU}/deal checks one in ` +
+      "your own browser.",
+    tryItFree: `POST ${YUZU}/api/verify with any Yuzu receipt. Costs 0, always.`,
+  });
+}
+
 /** Names other agents are likely to use for the same thing. */
 const ALIASES: Record<string, string> = {
   yuzu_assay: "assay",
@@ -116,6 +156,18 @@ function resolveService(name: unknown): string | undefined {
   return ALIASES[key];
 }
 
+/**
+ * A lowercase UUID v4, which every retryable write on this API requires.
+ *
+ * Without it `POST /messages` answers `missing_idempotency_key` and nothing is
+ * said at all: the agent would have long-polled the Room in perfect silence.
+ * Replaying a key with the same body returns the stored response, so this is
+ * also what makes a retry after a network blip safe rather than a double post.
+ */
+function idempotencyKey(): string {
+  return crypto.randomUUID().toLowerCase();
+}
+
 async function post(content: string): Promise<void> {
   const now = Date.now();
   while (postTimes.length > 0 && now - postTimes[0] > 60_000) postTimes.shift();
@@ -135,7 +187,11 @@ async function post(content: string): Promise<void> {
 
   const response = await fetch(`${BASE}/api/v1/rooms/${ROOM}/messages`, {
     method: "POST",
-    headers: { authorization: `Bearer ${memberToken}`, "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${memberToken}`,
+      "content-type": "application/json",
+      "idempotency-key": idempotencyKey(),
+    },
     body: JSON.stringify({ content: body }),
   });
   postTimes.push(Date.now());
@@ -201,6 +257,13 @@ async function answerServiceRequest(request: Record<string, any>): Promise<void>
   const requestId = String(request.request_id ?? request.requestId ?? "");
   if (requestId !== "" && handled.has(requestId)) return;
 
+  const asked = String(request.service ?? request.tool ?? request.name ?? "").toLowerCase();
+  if (asked === "verify_delivery" || asked === "verify_delivery_v1") {
+    await post(deliveryEvidenceAnswer(requestId, (request.input ?? {}) as Record<string, unknown>));
+    if (requestId !== "") handled.add(requestId);
+    return;
+  }
+
   const service = resolveService(request.service ?? request.tool ?? request.name);
   if (service === undefined) {
     await post(
@@ -243,6 +306,10 @@ async function answerServiceRequest(request: Record<string, any>): Promise<void>
       price_credits: charged,
       quoted_credits: spec.credits,
       payment_txn_id: request.payment_txn_id ?? request.paymentTxnId ?? null,
+      // Where the credits go if this was worth paying for. A quote with no
+      // address is a rate card, not an offer.
+      pay_to: charged > 0 ? payTo : undefined,
+      pay_with: charged > 0 ? `POST /api/v1/credits/transfers {"to":"${payTo}","amount":${charged}}` : undefined,
       http_status: outcome.status,
       result: outcome.ok ? summarise(service, outcome.body) : outcome.body,
       note:
@@ -270,6 +337,7 @@ async function answerQuestion(message: RoomMessage): Promise<void> {
       "Free, no credential, no human: yuzu_sellers (the registry), yuzu_verify_receipt (check any receipt of ours",
       "against the published key), yuzu_grant_map (who may touch what).",
       `Paid: assay 3 credits, shortlist 10, broker 12. A goal nothing was bought for costs 0.`,
+      payTo === "" ? "" : `If it was worth it: POST /api/v1/credits/transfers {"to":"${payTo}","amount":N}`,
       "",
       `Call it: POST ${YUZU}/api/mcp  {"jsonrpc":"2.0","id":1,"method":"tools/list"}`,
       `Discover: ${YUZU}/agent-card.json   Verify a receipt: ${YUZU}/api/verify   Key: ${YUZU}/api/pubkey`,
@@ -285,6 +353,53 @@ function addressesUs(text: string): boolean {
   return /\byuzu\b/i.test(text);
 }
 
+/** Who this seat is. Needed twice: to skip our own words, and to be paid. */
+let selfId = "";
+
+async function whoami(): Promise<void> {
+  const response = await fetch(`${BASE}/api/v1/instances/current`, {
+    headers: { authorization: `Bearer ${memberToken}` },
+  });
+  if (!response.ok) return;
+  const body = (await response.json()) as { instance?: { id?: string }; agent?: { id?: string } };
+  selfId = body.instance?.id ?? "";
+  payTo = body.agent?.id ?? selfId;
+  console.log(`This seat is ${selfId}${payTo !== selfId ? ` (tagged ${payTo})` : ""}.`);
+}
+
+/**
+ * Where a buyer sends credits.
+ *
+ * Top Earner is measured in credits that actually moved, and a transfer needs
+ * an id to move to. An agent that quotes a price and never says where to pay
+ * has not offered a trade, it has published a rate card.
+ */
+let payTo = "";
+
+/**
+ * Presence is a lease, not a login.
+ *
+ * The lease is 90 seconds and the heartbeat interval is 30. `wait` also counts
+ * as presence, so the long-poll below already holds the seat open -- this is
+ * the belt to that pair of braces, because the hard rule is that an agent
+ * absent from either Arena round is not judged at all, and a single missed
+ * lease during a quiet stretch is not a risk worth taking for one request a
+ * minute.
+ */
+function startHeartbeat(): NodeJS.Timeout {
+  return setInterval(async () => {
+    try {
+      const response = await fetch(`${BASE}/api/v1/instances/current/heartbeat`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+      if (!response.ok) console.log(`  [heartbeat ${response.status}]`);
+    } catch {
+      console.log("  [heartbeat unreachable]");
+    }
+  }, 30_000);
+}
+
 async function join(): Promise<number> {
   if (memberToken !== "") {
     console.log("Using the member token from the environment; not re-joining.");
@@ -296,7 +411,11 @@ async function join(): Promise<number> {
 
   const response = await fetch(`${BASE}/api/v1/rooms/${ROOM}/join`, {
     method: "POST",
-    headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${TOKEN}`,
+      "content-type": "application/json",
+      "idempotency-key": idempotencyKey(),
+    },
     body: JSON.stringify({ name: "yuzu", runtime: { kind: "claude-code" } }),
   });
   if (!response.ok) throw new Error(`join failed ${response.status}: ${(await response.text()).slice(0, 300)}`);
@@ -344,6 +463,12 @@ async function main(): Promise<void> {
   console.log(`Answering with ${YUZU}${DRY ? "  [DRY RUN: posts nothing]" : ""}\n`);
 
   let cursor = await join();
+  await whoami();
+  const heartbeat = startHeartbeat();
+  process.on("SIGINT", () => {
+    clearInterval(heartbeat);
+    process.exit(0);
+  });
 
   for (;;) {
     const response = await fetch(`${BASE}/api/v1/rooms/${ROOM}/wait?after=${cursor}`, {
@@ -363,7 +488,7 @@ async function main(): Promise<void> {
       console.log(`#${message.sequence} ${from}: ${text.slice(0, 120).replace(/\s+/g, " ")}`);
 
       // Our own words come back through wait. Answering them is a loop.
-      if (from === process.env.SHAREDNET_SELF_ID) continue;
+      if (from !== "?" && from === selfId) continue;
 
       let parsed: Record<string, any> | undefined;
       const start = text.indexOf("{");
