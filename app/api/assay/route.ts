@@ -72,8 +72,30 @@ export async function POST(request: Request): Promise<Response> {
 
   const probeEndpoint = order.probeEndpoint;
   const context = buildContext({ buyerId, purpose: PURPOSES.assay });
+
+  // The engine mints its own trace, and threading this route's into it broke
+  // the endpoint the agent card advertises.
+  //
+  // `withTurn` opens a turn by snapshotting authority. The engine's first act is
+  // to deposit the order grant that makes `assay.read_claims` reachable -- which
+  // happens *inside* the turn, after the snapshot. Share the trace and the
+  // kernel answers the read from that stale snapshot, the tool is not in the
+  // catalogue, and the read comes back `tool_unavailable`. Measured on the
+  // deployment the Arena agent card points at: the same listing scored TRUSTED
+  // 84.4 through /api/mcp and UNPROVEN 0 here, headline "material read denied
+  // by kernel policy". Every rival agent that read our card and followed it got
+  // the broken one.
+  //
+  // Isolated to this one argument: turn + this trace fails, turn + the engine's
+  // own trace passes, and the turn alone was never the problem. The broker
+  // route survives the same pattern only because its tool calls run under a
+  // different purpose than its turn, so they are resolved fresh.
+  //
+  // The turn still bounds the request at both ends. What it no longer does is
+  // pin the engine's kernel calls to authority that predates the engine's own
+  // grant. `test/assay-route-parity.test.ts` holds the two paths together.
   const { receipt, escalation, elapsedMs } = await withTurn(context, `assay_${context.traceId}`, () =>
-    assay(vendor, { ...(probeEndpoint ? { probeEndpoint } : {}), traceId: context.traceId })
+    assay(vendor, { ...(probeEndpoint ? { probeEndpoint } : {}) })
   );
 
   return json({
