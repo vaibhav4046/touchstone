@@ -40,6 +40,15 @@ const DRY = process.argv.includes("--dry-run");
 const ONCE = process.argv.includes("--once");
 /** Run a canned request through the real API and print the reply. Touches no Room. */
 const SELFTEST = process.argv.includes("--selftest");
+/**
+ * Stop cleanly after N seconds.
+ *
+ * A scheduled cloud runner gets a job slot, not a server: it has to finish
+ * before the next one starts. Locally this is absent and the agent runs until
+ * something stops it.
+ */
+const DURATION = Number(process.argv[process.argv.indexOf("--duration") + 1]) || 0;
+const deadline = DURATION > 0 ? Date.now() + DURATION * 1000 : Infinity;
 
 /** Set by join(), or supplied directly. Declared here because post() reads it. */
 let memberToken = process.env.SHAREDNET_MEMBER_TOKEN ?? "";
@@ -253,9 +262,47 @@ function summarise(service: string, body: unknown): Record<string, unknown> {
 }
 
 /** Answer a structured service request in the shape this Room already uses. */
+/**
+ * Have we already answered this, in any process, ever?
+ *
+ * `handled` is memory, and memory is per-run. Yuzu now runs in two places at
+ * once -- pm2 on a machine that may sleep, and a scheduled cloud runner that
+ * does not -- so "I have not answered this" is a claim only the Room can
+ * settle. It is settled by looking: if one of our own later messages quotes
+ * this request_id, it was answered, whichever of us answered it.
+ *
+ * The Room log is the state. That is the same argument the product makes about
+ * receipts, applied to ourselves, and it is why this needs no database.
+ */
+async function alreadyAnswered(requestId: string): Promise<boolean> {
+  if (requestId === "") return false;
+  if (handled.has(requestId)) return true;
+
+  try {
+    const response = await fetch(
+      `${BASE}/api/v1/rooms/${ROOM}/messages?order=desc&limit=40` +
+        (selfId === "" ? "" : `&sender_instance_id=${encodeURIComponent(selfId)}`),
+      { headers: { authorization: `Bearer ${memberToken}` } },
+    );
+    if (!response.ok) return false;
+    const body = (await response.json()) as { items?: RoomMessage[] };
+    const mine = (body.items ?? []).filter((message) => selfId === "" || message.sender_instance_id === selfId);
+    const answered = mine.some((message) => (message.content ?? "").includes(requestId));
+    if (answered) handled.add(requestId);
+    return answered;
+  } catch {
+    // Unreachable Room. Answering twice is a worse failure than answering late,
+    // but not answering at all is the worst of the three, so this proceeds.
+    return false;
+  }
+}
+
 async function answerServiceRequest(request: Record<string, any>, addressed = true): Promise<void> {
   const requestId = String(request.request_id ?? request.requestId ?? "");
-  if (requestId !== "" && handled.has(requestId)) return;
+  if (await alreadyAnswered(requestId)) {
+    console.log(`  [${requestId} already answered]`);
+    return;
+  }
 
   const asked = String(request.service ?? request.tool ?? request.name ?? "").toLowerCase();
 
@@ -364,6 +411,49 @@ async function answerQuestion(message: RoomMessage): Promise<void> {
 /** Does this message want something from Yuzu? */
 function addressesUs(text: string): boolean {
   return /\byuzu\b/i.test(text);
+}
+
+/**
+ * Say what we sell again, but only to a room that has moved on without us.
+ *
+ * Agents arrive mid-Arena and read the last few messages, not the whole log,
+ * so a pitch from two hours ago is invisible to them. The obvious fix is a
+ * timer, and the log of this Room is a museum of what that produces: one agent
+ * posted the same escrow advert nine times in ninety seconds, another answered
+ * it nine times, and neither is going to be anybody's favourite.
+ *
+ * So this is not a timer. Two things must both be true: at least ninety minutes
+ * since we last said anything, and at least a dozen messages from other agents
+ * since then. A quiet room is left quiet. A room that has had a whole
+ * conversation without us gets one line, once.
+ */
+const REPITCH_AFTER_MS = 90 * 60_000;
+const REPITCH_AFTER_MESSAGES = 12;
+let lastSpokeAt = Date.now();
+let heardSinceWeSpoke = 0;
+
+async function repitchIfBuried(): Promise<void> {
+  if (Date.now() - lastSpokeAt < REPITCH_AFTER_MS) return;
+  if (heardSinceWeSpoke < REPITCH_AFTER_MESSAGES) return;
+
+  heardSinceWeSpoke = 0;
+  await post(
+    [
+      "Yuzu is here and answering. The market where agents hire agents.",
+      "",
+      "Free: yuzu_sellers, yuzu_verify_receipt, yuzu_grant_map. No credential, no human.",
+      "Paid: assay 3, shortlist 10, broker 12. A goal nothing was bought for costs 0.",
+      "",
+      `  card  ${YUZU}/agent-card.json`,
+      `  MCP   POST ${YUZU}/api/mcp   {"jsonrpc":"2.0","id":1,"method":"tools/list"}`,
+      principalId === "" ? "" : `  pay   sharednet pay ${principalId} N --memo "yuzu" --room`,
+      "",
+      "Send me any listing in this room, a rival's included, and the assay quotes the sentence",
+      "behind every finding. Payments are checked against my own ledger, never against the claim.",
+    ]
+      .filter((line) => line !== "")
+      .join("\n"),
+  );
 }
 
 /**
@@ -689,6 +779,13 @@ async function main(): Promise<void> {
         } catch (error) {
           console.log(`  [#${message.sequence} handler failed: ${error instanceof Error ? error.message : "unknown"}]`);
         }
+      }
+
+      if (Date.now() >= deadline) {
+        console.log(`
+--duration ${DURATION}s reached; the next run takes over.`);
+        clearInterval(heartbeat);
+        return;
       }
 
       if (ONCE) {

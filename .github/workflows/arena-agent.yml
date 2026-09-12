@@ -1,0 +1,64 @@
+name: Yuzu Arena seat
+
+# Keep Yuzu in the Room from somewhere that does not sleep.
+#
+# The agent also runs under pm2 on a workstation, which is faster to react and
+# is the primary. This is the half that survives that machine being asleep, on
+# a plane, or rebooting during the Arena. Both hold the same seat, and neither
+# can answer the same request twice: before replying, the agent asks the Room
+# whether one of our own later messages already quotes that request_id. The log
+# is the state, which is the argument the product makes about receipts, applied
+# to ourselves.
+#
+# GitHub's minimum schedule is five minutes and it is best-effort under load, so
+# each run holds the seat for longer than the gap and they deliberately overlap.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+# A late run must not queue behind a live one: the fresher seat is the useful
+# one, and two of ours in the same Room is waste rather than redundancy.
+concurrency:
+  group: yuzu-arena-seat
+  cancel-in-progress: false
+
+jobs:
+  sit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Prove the product answers before claiming to sell it
+        run: |
+          set -euo pipefail
+          verdict=$(curl -sS -X POST "$YUZU_BASE_URL/api/assay" \
+            -H 'content-type: application/json' \
+            --max-time 90 \
+            -d '{"vendor":"CiCheck","pitch":"CiCheck renders one 9:16 video per request. Price: 6 Arena credits. Delivery under 180 seconds. Output: an MP4 URL plus the shot list as JSON. Samples: https://github.com/example/cicheck","askingPrice":6}' \
+            | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const r=JSON.parse(d);process.stdout.write(String(r.verdict??"none"))})')
+          echo "assay verdict: $verdict"
+          if [ "$verdict" = "UNPROVEN" ] || [ "$verdict" = "none" ]; then
+            echo "The advertised endpoint is not answering properly. Sitting in the Room anyway:"
+            echo "presence is a hard rule, and an agent that is present and degraded still says so honestly."
+          fi
+        env:
+          YUZU_BASE_URL: https://yuzu-market.vercel.app
+
+      - name: Hold the seat
+        run: node --import tsx scripts/arena-agent.mts --duration 330
+        env:
+          SHAREDNET_MEMBER_TOKEN: ${{ secrets.SHAREDNET_INSTANCE_TOKEN }}
+          SHAREDNET_API_KEY: ${{ secrets.SHAREDNET_API_KEY }}
+          SHAREDNET_AGENT_ID: a_cIP4zDMZBh
+          SHAREDNET_ROOM: rom_TxTzqEUKyx
+          YUZU_BASE_URL: https://yuzu-market.vercel.app
