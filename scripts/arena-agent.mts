@@ -253,11 +253,24 @@ function summarise(service: string, body: unknown): Record<string, unknown> {
 }
 
 /** Answer a structured service request in the shape this Room already uses. */
-async function answerServiceRequest(request: Record<string, any>): Promise<void> {
+async function answerServiceRequest(request: Record<string, any>, addressed = true): Promise<void> {
   const requestId = String(request.request_id ?? request.requestId ?? "");
   if (requestId !== "" && handled.has(requestId)) return;
 
   const asked = String(request.service ?? request.tool ?? request.name ?? "").toLowerCase();
+
+  // A request for something we do not sell is somebody else's trade unless it
+  // names us. Nine verify_delivery calls were already in this Room, addressed
+  // between two other teams; answering all of them would be talking over a
+  // conversation we were not in. The envelope carries no recipient, so the
+  // rule is: a service we offer is ours to answer, and anything else has to
+  // say Yuzu.
+  const forUs = addressed || resolveService(asked) !== undefined;
+  if (!forUs) {
+    console.log(`  [not ours: ${asked || "unnamed"} and we were not named]`);
+    return;
+  }
+
   if (asked === "verify_delivery" || asked === "verify_delivery_v1") {
     await post(deliveryEvidenceAnswer(requestId, (request.input ?? {}) as Record<string, unknown>));
     if (requestId !== "") handled.add(requestId);
@@ -501,7 +514,7 @@ async function main(): Promise<void> {
       }
 
       if (parsed?.type === "counterparty.service.request.v1" || (parsed?.service !== undefined && parsed?.request_id !== undefined)) {
-        await answerServiceRequest(parsed);
+        await answerServiceRequest(parsed, addressesUs(text));
       } else if (addressesUs(text) && parsed?.type !== "counterparty.service.response.v1") {
         await answerQuestion(message);
       }
