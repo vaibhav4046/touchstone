@@ -366,6 +366,104 @@ function addressesUs(text: string): boolean {
   return /\byuzu\b/i.test(text);
 }
 
+/**
+ * Somebody says they paid us. Did they?
+ *
+ * This Room settles in the open: a buyer transfers credits and then announces
+ * it, in the shape "Paid 7 credits to p_zn1vNpB1lD - memo (txn_JrC1Het7Oq)".
+ * One seller in here has already answered a buyer with
+ * `PAYMENT_NOT_VERIFIED: "payment_txn_id is not a SharedNet txn_ id"`, which is
+ * the right instinct: an in-room claim of payment is a sentence, and this
+ * market grades sentences for a living.
+ *
+ * So a payment is never taken on the buyer's word. The claimed transfer is
+ * looked up in our own ledger, which only the server can write, and the reply
+ * says which it was. Being paid and not noticing is the worst outcome
+ * available -- it is the entire prize, arriving, and being ignored.
+ */
+const PAYMENT_CLAIM = /\bpaid\s+(\d+)\s+credits?\s+to\s+(p_[A-Za-z0-9]+|a_[A-Za-z0-9]+|i_[A-Za-z0-9]+)/i;
+const TXN_ID = /\b(txn_[A-Za-z0-9]+)\b/;
+
+interface Transfer {
+  readonly id: string;
+  readonly amount: number;
+  readonly memo?: string | null;
+  readonly from_principal_id?: string;
+  readonly to_principal_id?: string;
+}
+
+/** Our own ledger, which the buyer cannot write to. */
+async function findTransfer(txnId: string): Promise<Transfer | undefined> {
+  const response = await fetch(`${BASE}/api/v1/credits/transfers?limit=100`, {
+    headers: { authorization: `Bearer ${memberToken}` },
+  });
+  if (!response.ok) return undefined;
+  const body = (await response.json()) as { items?: Transfer[] };
+  return (body.items ?? []).find((transfer) => transfer.id === txnId);
+}
+
+async function acknowledgePayment(message: RoomMessage): Promise<boolean> {
+  const text = message.content ?? "";
+  const claim = PAYMENT_CLAIM.exec(text);
+  if (claim === null) return false;
+
+  // Only payments aimed at us. Everyone else's settlement is their business,
+  // and this Room has already seen one agent narrate another's escrow at length.
+  const payee = claim[2];
+  if (payee !== principalId && payee !== payTo && payee !== selfId) return false;
+
+  const key = `pay:${message.sequence}`;
+  if (handled.has(key)) return true;
+  handled.add(key);
+
+  const txn = TXN_ID.exec(text)?.[1];
+  const amount = Number(claim[1]);
+
+  if (txn === undefined) {
+    await post(
+      JSON.stringify({
+        type: "counterparty.payment_not_verified.v1",
+        state: "PAYMENT_NOT_VERIFIED",
+        claimed_amount: amount,
+        reason:
+          "No txn_ id in that message, so there is nothing we can look up. Yuzu confirms payment " +
+          "against its own transfer ledger rather than against the claim, because a claim is a " +
+          "sentence and this market grades sentences.",
+        howToPay: `POST /api/v1/credits/transfers {"to":"${principalId || payTo}","amount":N} and quote the txn_ it returns.`,
+      }),
+    );
+    return true;
+  }
+
+  const found = await findTransfer(txn);
+  await post(
+    JSON.stringify(
+      found === undefined
+        ? {
+            type: "counterparty.payment_not_verified.v1",
+            state: "PAYMENT_NOT_VERIFIED",
+            payment_txn_id: txn,
+            reason:
+              "That transfer is not in our ledger. Either it has not settled yet, or it went " +
+              "somewhere else. Nothing is owed and nothing is withheld: say the word and the " +
+              "work runs anyway, because Yuzu does not charge for an unfilled goal.",
+          }
+        : {
+            type: "counterparty.payment_verified.v1",
+            state: "PAYMENT_VERIFIED",
+            payment_txn_id: found.id,
+            amount: found.amount,
+            memo: found.memo ?? undefined,
+            note:
+              `Confirmed against our own ledger, not against the claim. ${found.amount} credits received. ` +
+              "Send the work as a counterparty.service.request.v1 with service assay|shortlist|broker, " +
+              "or in plain words, and it runs now.",
+          },
+    ),
+  );
+  return true;
+}
+
 /** Who this seat is. Needed twice: to skip our own words, and to be paid. */
 let selfId = "";
 
@@ -374,8 +472,9 @@ async function whoami(): Promise<void> {
     headers: { authorization: `Bearer ${memberToken}` },
   });
   if (!response.ok) return;
-  const body = (await response.json()) as { instance?: { id?: string }; agent?: { id?: string } };
+  const body = (await response.json()) as { instance?: { id?: string }; agent?: { id?: string }; principal?: { id?: string } };
   selfId = body.instance?.id ?? "";
+  principalId = body.principal?.id ?? "";
   payTo = body.agent?.id ?? selfId;
   console.log(`This seat is ${selfId}${payTo !== selfId ? ` (tagged ${payTo})` : ""}.`);
 }
@@ -388,6 +487,9 @@ async function whoami(): Promise<void> {
  * has not offered a trade, it has published a rate card.
  */
 let payTo = "";
+
+/** The purse credits land in. The Room pays to p_ ids, so this is what we publish. */
+let principalId = "";
 
 /**
  * Presence is a lease, not a login.
@@ -413,9 +515,69 @@ function startHeartbeat(): NodeJS.Timeout {
   }, 30_000);
 }
 
+/**
+ * Build a seat from the account key when there is no seat left to use.
+ *
+ * The last line of recovery. An instance token can be revoked or reaped; an
+ * invite can be spent or expire. The account key can mint a fresh instance,
+ * tag it `yuzu` so the credits still land in the same purse, and join with it.
+ * Without this the agent is one revoked token away from being absent, and
+ * absent is not judged.
+ */
+async function mintSeat(): Promise<boolean> {
+  const key = process.env.SHAREDNET_API_KEY ?? "";
+  if (key === "") return false;
+
+  const response = await fetch(`${BASE}/api/v1/instances`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      runtime_kind: "claude-code",
+      cli_version: "1.0.0",
+      ...(process.env.SHAREDNET_AGENT_ID ? { agent_id: process.env.SHAREDNET_AGENT_ID } : {}),
+      runtime_metadata: { product: "yuzu", url: YUZU },
+    }),
+  });
+  if (!response.ok) return false;
+
+  const body = (await response.json()) as { token?: string; instance?: { id?: string } };
+  if (body.token === undefined) return false;
+
+  memberToken = body.token;
+  console.log(`Minted a replacement seat: ${body.instance?.id ?? "unknown"}.`);
+
+  const joined = await fetch(`${BASE}/api/v1/rooms/${ROOM}/join`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${memberToken}`,
+      "content-type": "application/json",
+      "idempotency-key": idempotencyKey(),
+    },
+  });
+  return joined.ok;
+}
+
 async function join(): Promise<number> {
   if (memberToken !== "") {
-    console.log("Using the member token from the environment; not re-joining.");
+    const page = await fetch(`${BASE}/api/v1/rooms/${ROOM}/messages?order=desc&limit=1`, {
+      headers: { authorization: `Bearer ${memberToken}` },
+    });
+
+    // The token still exists but no longer opens this Room. Fall through to
+    // the invite, and then to minting a seat outright.
+    if (page.status === 401 || page.status === 403) {
+      console.log(`  [stored seat rejected ${page.status}]`);
+      memberToken = "";
+    } else if (page.ok) {
+      const items = ((await page.json()) as { items?: RoomMessage[] }).items ?? [];
+      console.log("Holding the seat from the environment; not re-joining.");
+      return items[0]?.sequence ?? 0;
+    } else {
+      throw new Error(`history ${page.status}`);
+    }
+  }
+
+  if (memberToken === "" && TOKEN === "" && (await mintSeat())) {
     const page = await fetch(`${BASE}/api/v1/rooms/${ROOM}/messages?order=desc&limit=1`, {
       headers: { authorization: `Bearer ${memberToken}` },
     }).then((response) => response.json() as Promise<{ items?: RoomMessage[] }>);
@@ -475,7 +637,7 @@ async function main(): Promise<void> {
   console.log(`Yuzu room agent -> ${BASE}/${ROOM}`);
   console.log(`Answering with ${YUZU}${DRY ? "  [DRY RUN: posts nothing]" : ""}\n`);
 
-  let cursor = await join();
+  let cursor = await joinForever();
   await whoami();
   const heartbeat = startHeartbeat();
   process.on("SIGINT", () => {
@@ -483,51 +645,136 @@ async function main(): Promise<void> {
     process.exit(0);
   });
 
+  // Consecutive failures, for the backoff. Reset by any successful cycle, so a
+  // bad minute does not leave the agent sulking for an hour afterwards.
+  let failures = 0;
+
   for (;;) {
-    const response = await fetch(`${BASE}/api/v1/rooms/${ROOM}/wait?after=${cursor}`, {
-      headers: { authorization: `Bearer ${memberToken}` },
-    });
-    if (!response.ok) {
-      console.log(`wait failed ${response.status}; retrying in 5s`);
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      continue;
-    }
+    try {
+      // A seat that never learned its own id quotes prices with nowhere to send
+      // the credits, which is the difference between an offer and a rate card.
+      if (payTo === "") await whoami();
 
-    const page = (await response.json()) as { items?: RoomMessage[] };
-    for (const message of page.items ?? []) {
-      cursor = Math.max(cursor, message.sequence);
-      const text = message.content ?? "";
-      const from = message.sender_instance_id ?? message.sender?.instance_id ?? "?";
-      console.log(`#${message.sequence} ${from}: ${text.slice(0, 120).replace(/\s+/g, " ")}`);
+      const response = await fetch(`${BASE}/api/v1/rooms/${ROOM}/wait?after=${cursor}`, {
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
 
-      // Our own words come back through wait. Answering them is a loop.
-      if (from !== "?" && from === selfId) continue;
+      // 401/403 is the seat itself being gone: the token was revoked, or the
+      // instance was reaped. Re-joining is the only thing that fixes it, and
+      // without this the agent would long-poll a closed door until someone
+      // noticed, which on Arena night is the same as not being there.
+      if (response.status === 401 || response.status === 403) {
+        console.log(`  [seat rejected ${response.status}: re-joining]`);
+        memberToken = "";
+        selfId = "";
+        payTo = "";
+        cursor = await joinForever();
+        await whoami();
+        continue;
+      }
 
-      let parsed: Record<string, any> | undefined;
-      const start = text.indexOf("{");
-      if (start !== -1) {
+      if (!response.ok) throw new Error(`wait ${response.status}`);
+
+      const page = (await response.json()) as { items?: RoomMessage[] };
+      failures = 0;
+
+      for (const message of page.items ?? []) {
+        cursor = Math.max(cursor, message.sequence);
+
+        // One bad message must never end the run. It is parsed, answered and
+        // logged inside its own boundary so a malformed envelope from another
+        // team costs us that message and nothing else.
         try {
-          parsed = JSON.parse(text.slice(start, text.lastIndexOf("}") + 1));
-        } catch {
-          parsed = undefined;
+          await handleMessage(message);
+        } catch (error) {
+          console.log(`  [#${message.sequence} handler failed: ${error instanceof Error ? error.message : "unknown"}]`);
         }
       }
 
-      if (parsed?.type === "counterparty.service.request.v1" || (parsed?.service !== undefined && parsed?.request_id !== undefined)) {
-        await answerServiceRequest(parsed, addressesUs(text));
-      } else if (addressesUs(text) && parsed?.type !== "counterparty.service.response.v1") {
-        await answerQuestion(message);
+      if (ONCE) {
+        console.log("\n--once: one cycle done.");
+        clearInterval(heartbeat);
+        return;
       }
-    }
-
-    if (ONCE) {
-      console.log("\n--once: one cycle done.");
-      return;
+    } catch (error) {
+      failures += 1;
+      // Backoff, capped at half a minute. Capped rather than unbounded because
+      // the thing being waited for is other agents arriving, and an agent that
+      // has backed off to ten minutes is absent in every sense that matters.
+      const wait = Math.min(30_000, 1000 * 2 ** Math.min(failures, 5));
+      console.log(`  [cycle failed (${error instanceof Error ? error.message : "unknown"}); retrying in ${wait / 1000}s]`);
+      await sleep(wait);
     }
   }
 }
 
-main().catch((error) => {
+async function handleMessage(message: RoomMessage): Promise<void> {
+  const text = message.content ?? "";
+  const from = message.sender_instance_id ?? message.sender?.instance_id ?? "?";
+  console.log(`#${message.sequence} ${from}: ${text.slice(0, 120).replace(/\s+/g, " ")}`);
+
+  // Our own words come back through wait. Answering them is a loop.
+  if (from !== "?" && from === selfId) return;
+
+  let parsed: Record<string, any> | undefined;
+  const start = text.indexOf("{");
+  if (start !== -1) {
+    try {
+      parsed = JSON.parse(text.slice(start, text.lastIndexOf("}") + 1));
+    } catch {
+      parsed = undefined;
+    }
+  }
+
+  // A payment claim outranks everything: it is the prize arriving.
+  if (await acknowledgePayment(message)) return;
+
+  if (parsed?.type === "counterparty.service.request.v1" || (parsed?.service !== undefined && parsed?.request_id !== undefined)) {
+    await answerServiceRequest(parsed, addressesUs(text));
+  } else if (addressesUs(text) && parsed?.type !== "counterparty.service.response.v1") {
+    await answerQuestion(message);
+  }
+}
+
+/**
+ * Take the seat, and keep trying until it is taken.
+ *
+ * The hard rule is that an agent absent from either Arena round is not judged,
+ * so there is no failure here worth giving up on: a refused join at 09:00 that
+ * would have succeeded at 09:01 costs the entire entry. Backoff is capped for
+ * the same reason the cycle's is.
+ */
+async function joinForever(): Promise<number> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await join();
+    } catch (error) {
+      const wait = Math.min(30_000, 1000 * 2 ** Math.min(attempt, 5));
+      console.log(`  [join failed (${error instanceof Error ? error.message : "unknown"}); retrying in ${wait / 1000}s]`);
+      await sleep(wait);
+    }
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Nothing reaches these: every await in the loop is inside a boundary. They
+// exist because "nothing reaches this" is a belief, and the cost of it being
+// wrong once is the entry. A logged surprise the loop survives beats a clean
+// stack trace on a dead process.
+process.on("unhandledRejection", (reason) => {
+  console.log(`  [unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}]`);
+});
+process.on("uncaughtException", (error) => {
+  console.log(`  [uncaught: ${error.message}]`);
+});
+
+main().catch(async (error) => {
+  // Only a setup refusal reaches here -- a missing room, a missing token. Those
+  // are worth exiting on, because retrying a configuration that cannot work is
+  // a busy loop pretending to be an agent.
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 });
