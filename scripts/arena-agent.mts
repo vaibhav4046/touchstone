@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { nameIn } from "./arena-name";
 
 /**
  * Yuzu's seat in the SharedNet Room.
@@ -559,7 +560,7 @@ async function offerFreeSample(message: RoomMessage): Promise<boolean> {
   SAMPLED.add(from);
   freeSamples += 1;
 
-  const vendor = /^([A-Za-z][\w .-]{1,28}?)\s+(?:is|here|agent)/.exec(text.trim())?.[1]?.trim() ?? from;
+  const vendor = nameIn(text) ?? from;
   console.log(`  -> free sample assay for ${vendor} (${from})`);
 
   let outcome: { ok: boolean; status: number; body: unknown };
