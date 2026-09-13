@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 /**
  * Yuzu's seat in the SharedNet Room.
  *
@@ -177,7 +179,34 @@ function idempotencyKey(): string {
   return crypto.randomUUID().toLowerCase();
 }
 
-async function post(content: string): Promise<void> {
+/**
+ * The same answer, from either runner, under the same key.
+ *
+ * Yuzu sits in the Room twice -- pm2 locally and a scheduled cloud job -- and
+ * asking the Room "have I already answered this" is a check, then a call to our
+ * own API, then a post. Two runners both passed that check before either had
+ * posted, and request yuzu-transport-check-001 was answered twice, in public,
+ * three seconds apart. A market that sells evidence should not be visibly
+ * double-posting.
+ *
+ * Reading cannot fix a race; writing can. The idempotency key is derived from
+ * the request id instead of being random, so both runners present the same key
+ * for the same answer and the server settles it: identical body replays the
+ * stored message, a differing one (the two scores differed, 12.8 and 11.3,
+ * because half the score is model-derived) is refused 409. Either way the Room
+ * gets exactly one reply, and which runner won does not matter.
+ *
+ * Shaped as a v4 UUID because the API requires that shape, with the version and
+ * variant nibbles pinned so a hash cannot accidentally produce an invalid one.
+ */
+function idempotencyKeyFor(seed: string): string {
+  const hash = crypto.createHash("sha256").update(`${ROOM}:${seed}`).digest("hex");
+  const version = `4${hash.slice(13, 16)}`;
+  const variant = `${((parseInt(hash[16], 16) & 0x3) | 0x8).toString(16)}${hash.slice(17, 20)}`;
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${version}-${variant}-${hash.slice(20, 32)}`;
+}
+
+async function post(content: string, dedupeSeed?: string): Promise<void> {
   const now = Date.now();
   while (postTimes.length > 0 && now - postTimes[0] > 60_000) postTimes.shift();
   if (postTimes.length >= MAX_POSTS_PER_MINUTE) {
@@ -199,14 +228,18 @@ async function post(content: string): Promise<void> {
     headers: {
       authorization: `Bearer ${memberToken}`,
       "content-type": "application/json",
-      "idempotency-key": idempotencyKey(),
+      "idempotency-key": dedupeSeed === undefined ? idempotencyKey() : idempotencyKeyFor(dedupeSeed),
     },
     body: JSON.stringify({ content: body }),
   });
   postTimes.push(Date.now());
   lastSpokeAt = Date.now();
   heardSinceWeSpoke = 0;
-  if (!response.ok) console.log(`  [post failed ${response.status}] ${(await response.text()).slice(0, 200)}`);
+  if (response.status === 409) {
+    console.log("  [duplicate refused by the server: the other runner answered this first]");
+  } else if (!response.ok) {
+    console.log(`  [post failed ${response.status}] ${(await response.text()).slice(0, 200)}`);
+  }
   else console.log(`  [posted ${body.length} chars]`);
 }
 
@@ -321,7 +354,7 @@ async function answerServiceRequest(request: Record<string, any>, addressed = tr
   }
 
   if (asked === "verify_delivery" || asked === "verify_delivery_v1") {
-    await post(deliveryEvidenceAnswer(requestId, (request.input ?? {}) as Record<string, unknown>));
+    await post(deliveryEvidenceAnswer(requestId, (request.input ?? {}) as Record<string, unknown>), `vd:${requestId}`);
     if (requestId !== "") handled.add(requestId);
     return;
   }
@@ -336,6 +369,7 @@ async function answerServiceRequest(request: Record<string, any>, addressed = tr
         state: "REJECTED",
         reason: `Yuzu has no service by that name. Free: sellers, verify_receipt. Paid: assay (3), shortlist (10), broker (12). Machine-readable: ${YUZU}/api/mcp`,
       }),
+      `unknown:${requestId}`,
     );
     if (requestId !== "") handled.add(requestId);
     return;
@@ -380,6 +414,7 @@ async function answerServiceRequest(request: Record<string, any>, addressed = tr
           : undefined,
       verify: `${YUZU}/api/verify`,
     }),
+    `svc:${requestId}`,
   );
   if (requestId !== "") handled.add(requestId);
 }
