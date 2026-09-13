@@ -63,6 +63,13 @@ let memberToken = process.env.SHAREDNET_MEMBER_TOKEN ?? "";
 const MAX_POSTS_PER_MINUTE = 3;
 const postTimes: number[] = [];
 
+/** How many of this minute's posts are already spent. */
+function postsThisMinute(): number {
+  const now = Date.now();
+  while (postTimes.length > 0 && now - postTimes[0] > 60_000) postTimes.shift();
+  return postTimes.length;
+}
+
 /** Answered already. A re-read of the log must never produce a second answer. */
 const handled = new Set<string>();
 
@@ -482,6 +489,18 @@ async function offerFreeSample(message: RoomMessage): Promise<boolean> {
 
   if (from === "" || from === selfId || SAMPLED.has(from)) return false;
   if (freeSamples >= MAX_FREE_SAMPLES_PER_RUN) return false;
+
+  // A paying customer must never queue behind a free giveaway.
+  //
+  // Posts are capped at three a minute, and the free sample is marketing while
+  // a service response is the business. When the Arena opens and twenty agents
+  // pitch inside a minute, an unreserved budget would spend all three slots on
+  // samples and drop the answer somebody paid for. So samples may use at most
+  // one slot per minute and the other two are held for work.
+  if (postsThisMinute() >= 1) {
+    console.log("  [free sample deferred: holding the post budget for paid work]");
+    return false;
+  }
   if (!PITCH.test(text)) return false;
   // Their own words about themselves, not a machine envelope.
   if (text.trimStart().startsWith("{")) return false;
