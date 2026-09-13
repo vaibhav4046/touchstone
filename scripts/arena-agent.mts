@@ -451,6 +451,83 @@ function addressesUs(text: string): boolean {
 }
 
 /**
+ * One free assay of your own listing, once, unasked.
+ *
+ * Demand cannot be manufactured. Buying from ourselves, inventing traction or
+ * staging purchases would be the one dishonest artefact in a product whose
+ * whole argument is that claims must be checkable -- and it is what this
+ * market exists to catch other agents doing. So the only honest way to make an
+ * agent want to pay is to show it something worth paying for.
+ *
+ * Every agent in this Room has published a listing, which is exactly the input
+ * Yuzu grades. So when one pitches, it gets the real assay of its own words:
+ * the verdict a buyer would see, the score on published weights, and every rule
+ * hit quoting the sentence that produced it. It costs them nothing, it happens
+ * once per agent, and it is the paid product run in full rather than described.
+ *
+ * Deliberately not hostile: the same engine that flags a credential request
+ * returns TRUSTED in the nineties for a listing that names its price, its
+ * deliverable and its samples. Most agents here will like what they get. The
+ * ones who do not are being told something a buyer was going to notice anyway.
+ */
+const SAMPLED = new Set<string>();
+/** A pitch, rather than chatter: it names a price or offers a service. */
+const PITCH = /\b\d{1,3}\s*credits?\b|\bmcp\b|\/agent[-.]card|\bagent\.json\b|\bis (?:online|live)\b/i;
+const MAX_FREE_SAMPLES_PER_RUN = 6;
+let freeSamples = 0;
+
+async function offerFreeSample(message: RoomMessage): Promise<boolean> {
+  const from = message.sender_instance_id ?? "";
+  const text = message.content ?? "";
+
+  if (from === "" || from === selfId || SAMPLED.has(from)) return false;
+  if (freeSamples >= MAX_FREE_SAMPLES_PER_RUN) return false;
+  if (!PITCH.test(text)) return false;
+  // Their own words about themselves, not a machine envelope.
+  if (text.trimStart().startsWith("{")) return false;
+  if (text.length < 120) return false;
+
+  SAMPLED.add(from);
+  freeSamples += 1;
+
+  const vendor = /^([A-Za-z][\w .-]{1,28}?)\s+(?:is|here|agent)/.exec(text.trim())?.[1]?.trim() ?? from;
+  console.log(`  -> free sample assay for ${vendor} (${from})`);
+
+  let outcome: { ok: boolean; status: number; body: unknown };
+  try {
+    outcome = await callYuzu("assay", { vendor, pitch: text.slice(0, 6000) });
+  } catch {
+    return false;
+  }
+  if (!outcome.ok) return false;
+
+  const report = summarise("assay", outcome.body) as Record<string, any>;
+  await post(
+    JSON.stringify({
+      type: "yuzu.free_sample.v1",
+      for: from,
+      vendor,
+      price_credits: 0,
+      note:
+        "Unasked and free, once per agent: this is the 3-credit assay run on your own listing, " +
+        "so you can see what a buying agent sees before one reads it. Nothing is owed for this.",
+      verdict: report.verdict,
+      score: report.score,
+      deterministicScore: report.deterministicScore,
+      recommendedMaxPrice: report.recommendedMaxPrice,
+      headline: report.headline,
+      findings: report.findings,
+      howScored: `${YUZU}/api/manifest publishes the weights; deterministicScore uses the rule sets alone and is identical on every run of the same text.`,
+      next:
+        'Send me another listing -- a rival\'s included -- as service "assay" for 3 credits. ' +
+        (principalId === "" ? "Payment address on request." : `Pay ${principalId}.`),
+    }),
+    `sample:${from}`,
+  );
+  return true;
+}
+
+/**
  * Say what we sell again, but only to a room that has moved on without us.
  *
  * Agents arrive mid-Arena and read the last few messages, not the whole log,
@@ -755,6 +832,30 @@ async function main(): Promise<void> {
       console.log(`--- ${request.service} ---`);
       await answerServiceRequest(request);
     }
+
+    // The unasked free sample, against a listing shaped like the ones actually
+    // in the Room, so the whole path is exercised without posting into it.
+    console.log("--- free sample (unasked) ---");
+    const sampled = await offerFreeSample({
+      sequence: -1,
+      sender_instance_id: "i_selftest_peer",
+      content:
+        "Witness is online. Test before you buy. Send a seller endpoint and advertised claims. " +
+        "Witness performs real executions and returns an Ed25519-signed evidence docket showing HELD, " +
+        "FAILED, or ESCALATED. Probe: 8 credits. Docket: 15 credits. " +
+        "MCP: https://witness-swart.vercel.app/api/mcp",
+    });
+    console.log(`  sampled: ${sampled}`);
+
+    // And the guard that stops it becoming spam: the same agent, twice.
+    const again = await offerFreeSample({
+      sequence: -2,
+      sender_instance_id: "i_selftest_peer",
+      content:
+        "Witness is online again with the same offer. Probe: 8 credits. Docket: 15 credits. " +
+        "MCP: https://witness-swart.vercel.app/api/mcp and more words to clear the length floor.",
+    });
+    console.log(`  sampled the same agent twice: ${again}  (must be false)`);
     return;
   }
 
@@ -867,6 +968,10 @@ async function handleMessage(message: RoomMessage): Promise<void> {
 
   // A payment claim outranks everything: it is the prize arriving.
   if (await acknowledgePayment(message)) return;
+
+  // An agent that just pitched has published the exact input this product
+  // grades. Show it the answer, free, once.
+  if (await offerFreeSample(message)) return;
 
   if (parsed?.type === "counterparty.service.request.v1" || (parsed?.service !== undefined && parsed?.request_id !== undefined)) {
     await answerServiceRequest(parsed, addressesUs(text));
