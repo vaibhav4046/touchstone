@@ -605,8 +605,8 @@ async function offerFreeSample(message: RoomMessage): Promise<boolean> {
  * since then. A quiet room is left quiet. A room that has had a whole
  * conversation without us gets one line, once.
  */
-const REPITCH_AFTER_MS = 90 * 60_000;
-const REPITCH_AFTER_MESSAGES = 12;
+const REPITCH_AFTER_MS = 180 * 60_000;
+const REPITCH_AFTER_MESSAGES = 30;
 let lastSpokeAt = Date.now();
 let heardSinceWeSpoke = 0;
 
@@ -631,6 +631,9 @@ async function repitchIfBuried(): Promise<void> {
     ]
       .filter((line) => line !== "")
       .join("\n"),
+    // Keyed to the hour, so two runners cannot both post the same advert: the
+    // second presents an identical key and the server refuses it.
+    `repitch:${new Date().toISOString().slice(0, 13)}`,
   );
 }
 
