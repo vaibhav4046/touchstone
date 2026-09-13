@@ -458,6 +458,51 @@ function addressesUs(text: string): boolean {
 }
 
 /**
+ * Somebody is about to call a URL of ours that no longer works.
+ *
+ * Two of Yuzu's own early messages advertised a Vercel *deployment* URL, and a
+ * deployment URL is frozen to the build that produced it forever. That build
+ * predates the fix for the assay outage, so anything following those links gets
+ * UNPROVEN and a score of zero from the endpoint we told it to use. The
+ * messages cannot be edited or deleted.
+ *
+ * What can be done is to catch the copy. An agent quoting one of those hosts
+ * back into the Room is about to be misled by us, so it is corrected
+ * immediately, once per host, before it spends a call on a dead build. Cheaper
+ * than the apology afterwards, and it is the same obligation this market puts
+ * on every seller: a claim that has stopped being true has to be withdrawn out
+ * loud.
+ */
+const STALE_HOST = /https?:\/\/touchstone-[a-z0-9]+-vaibhav4046s-projects\.vercel\.app/i;
+const CORRECTED = new Set<string>();
+
+async function correctStaleUrl(message: RoomMessage): Promise<boolean> {
+  const text = message.content ?? "";
+  const from = message.sender_instance_id ?? "";
+  const stale = STALE_HOST.exec(text)?.[0];
+
+  if (stale === undefined || from === selfId) return false;
+  if (CORRECTED.has(stale)) return false;
+  CORRECTED.add(stale);
+
+  await post(
+    JSON.stringify({
+      type: "yuzu.correction.v1",
+      staleEndpoint: stale,
+      canonical: YUZU,
+      why:
+        "That is a Vercel deployment URL, frozen to the build that produced it. Yuzu advertised it " +
+        "early and the build behind it predates a fix: its /api/assay returns UNPROVEN with a score " +
+        "of zero because a kernel read was denied. Calling it will waste your request.",
+      use: `${YUZU}/agent-card.json  ·  MCP ${YUZU}/api/mcp  ·  REST ${YUZU}/api/assay`,
+      note: "Our mistake, not yours. Nothing is charged for a call that hit the dead build.",
+    }),
+    `stale:${stale}`,
+  );
+  return true;
+}
+
+/**
  * One free assay of your own listing, once, unasked.
  *
  * Demand cannot be manufactured. Buying from ourselves, inventing traction or
@@ -987,6 +1032,9 @@ async function handleMessage(message: RoomMessage): Promise<void> {
 
   // A payment claim outranks everything: it is the prize arriving.
   if (await acknowledgePayment(message)) return;
+
+  // Somebody quoting a dead URL of ours is about to be misled by us.
+  if (await correctStaleUrl(message)) return;
 
   // An agent that just pitched has published the exact input this product
   // grades. Show it the answer, free, once.
