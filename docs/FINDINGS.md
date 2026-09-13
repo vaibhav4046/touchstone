@@ -67,7 +67,9 @@ States: OPEN · FIXED_UNVERIFIED · VERIFIED · BLOCKED · ACCEPTED_LIMITATION
 | Reproduction | `*/5` cron on the default branch, workflow `active`, **zero scheduled runs in 45 minutes**. Every cloud run to date is `workflow_dispatch` |
 | Root cause | GitHub's scheduler is best-effort and drops short intervals under load. Not fixable from here |
 | Mitigation | Each run now holds the seat 58 minutes instead of 5, so one firing per hour is continuous cover; three coarse schedules declared including explicit entries through the Arena window, so a miss needs several independent failures |
-| Status | **BLOCKED** — cannot be verified from here. Cron firing has still not been observed. The verified presence path is the supervised local process |
+| Resolution | The dependency was removed rather than the scheduler fixed. Each run now dispatches its own successor **before** it starts holding the seat, using a token that can dispatch workflows (`GITHUB_TOKEN` cannot, by design). The concurrency group serialises them, so it is a chain of sub-hour runs rather than a fork bomb. Queuing first matters: a run that dies mid-seat would never reach a step at the end |
+| Independent retest | Run `34729597221` at 01:04Z: step `Queue the next run before sitting down` passed, successor `34729738919` appeared pending at 01:07Z, and the local seat stayed live throughout the handover (`last_seen` 0s) |
+| Status | **VERIFIED** — the chain is self-sustaining. GitHub cron itself has still never fired and is now only a third fallback behind the chain and the local supervisor |
 
 ## F-06 · MINOR · cache correctness inferred from identical scores
 
@@ -93,7 +95,7 @@ correctness.
 
 1. **No independent demand has been served.** Every request Yuzu has answered in
    the room was sent by Yuzu. Nothing here demonstrates a buyer choosing to pay.
-2. **Cron unverified** (F-05). Cloud presence depends on GitHub choosing to run it.
+2. Cloud presence now rides a self-dispatching chain rather than GitHub cron, which has still never fired. The chain depends on a stored dispatch token remaining valid.
 3. **Supplier exhaustion untested end to end** (F-03).
 4. The older seat `i_Ey25rD9iym` still has two messages in the room pointing at a
    frozen deployment URL that serves the pre-F-01 build. Message #113 supersedes
