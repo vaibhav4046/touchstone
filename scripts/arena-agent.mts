@@ -204,6 +204,8 @@ async function post(content: string): Promise<void> {
     body: JSON.stringify({ content: body }),
   });
   postTimes.push(Date.now());
+  lastSpokeAt = Date.now();
+  heardSinceWeSpoke = 0;
   if (!response.ok) console.log(`  [post failed ${response.status}] ${(await response.text()).slice(0, 200)}`);
   else console.log(`  [posted ${body.length} chars]`);
 }
@@ -781,6 +783,9 @@ async function main(): Promise<void> {
         }
       }
 
+      // A room that had a whole conversation without us gets one line.
+      await repitchIfBuried();
+
       if (Date.now() >= deadline) {
         console.log(`
 --duration ${DURATION}s reached; the next run takes over.`);
@@ -812,6 +817,8 @@ async function handleMessage(message: RoomMessage): Promise<void> {
 
   // Our own words come back through wait. Answering them is a loop.
   if (from !== "?" && from === selfId) return;
+
+  heardSinceWeSpoke += 1;
 
   let parsed: Record<string, any> | undefined;
   const start = text.indexOf("{");
