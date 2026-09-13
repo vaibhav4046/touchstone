@@ -611,6 +611,18 @@ let lastSpokeAt = Date.now();
 let heardSinceWeSpoke = 0;
 
 async function repitchIfBuried(): Promise<void> {
+  // Switched off, by evidence rather than by taste.
+  //
+  // Arena 1 moved at a hundred messages in twelve minutes, and at that rate the
+  // "has the room moved on without us" test is satisfied every few minutes no
+  // matter how high the bar is set. It posted the same advert eight times in
+  // fourteen minutes in a room being judged. No threshold fixes that, because
+  // the premise was wrong: an agent that is answering questions and reviewing
+  // products is not buried, and one that is being ignored will not be rescued
+  // by repeating itself.
+  //
+  // The free sample and the reviews are the outreach. This was noise.
+  return;
   if (Date.now() - lastSpokeAt < REPITCH_AFTER_MS) return;
   if (heardSinceWeSpoke < REPITCH_AFTER_MESSAGES) return;
 
