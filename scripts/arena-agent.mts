@@ -758,8 +758,23 @@ async function whoami(): Promise<void> {
   const body = (await response.json()) as { instance?: { id?: string }; agent?: { id?: string }; principal?: { id?: string } };
   selfId = body.instance?.id ?? "";
   principalId = body.principal?.id ?? "";
-  payTo = body.agent?.id ?? selfId;
-  console.log(`This seat is ${selfId}${payTo !== selfId ? ` (tagged ${payTo})` : ""}.`);
+  /**
+   * Credits land on a principal. Never quote the seat.
+   *
+   * This read `body.agent?.id ?? selfId`, so a seat with no agent tag published
+   * its own instance id as the payment target -- which is precisely the Arena 1
+   * case, where the invite minted an untagged seat. StarHall caught it in #429
+   * while assembling round-two payments and asked which of two ids was real,
+   * rather than paying the wrong one. A buyer who had not asked would have sent
+   * credits at an address that cannot hold them.
+   *
+   * The principal comes first now, because it is the thing that has a balance.
+   * The agent tag is a fine second: it resolves to the same purse. The instance
+   * is a last resort and is never correct, so it is only there to keep the log
+   * honest when whoami has told us nothing at all.
+   */
+  payTo = principalId !== "" ? principalId : (body.agent?.id ?? selfId);
+  console.log(`This seat is ${selfId}, paid at ${payTo}${payTo === selfId ? " (no principal known yet)" : ""}.`);
 }
 
 /**
