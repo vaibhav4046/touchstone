@@ -62,6 +62,21 @@ export interface AnalystResult {
   readonly ms: number;
 }
 
+/**
+ * Compare quotes the way a reader would, not byte for byte.
+ *
+ * A model re-wraps lines and normalises quote marks when it echoes a span, so
+ * an exact-substring test would drop honest evidence and leave the dishonest
+ * kind untouched. Whitespace and quote shape collapse; the words do not.
+ */
+function normaliseForQuote(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[‘’“”]/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function runAnalyst(input: AssayInput): Promise<AnalystResult> {
   const nonce = randomUUID().slice(0, 12);
   const fence = `-----EVIDENCE ${nonce}-----`;
@@ -168,19 +183,66 @@ export async function runAnalyst(input: AssayInput): Promise<AnalystResult> {
    * buyer still sees them: severity sorts them to the top of the report's risk
    * list either way.
    */
-  const critical = reported.filter((risk) => risk.severity === "critical");
-  const risks = reported.filter((risk) => risk.severity !== "critical");
+  /**
+   * Evidence has to come from the material, or it is not evidence.
+   *
+   * Caught in Arena 1 by StarHall and by an independent judge notice: three of
+   * our assays cited `"Return JSON with exactly these keys"` as the vendor's
+   * steering attempt. StarHall grepped the room and proved that string appears
+   * only in our own outputs, never in the listing being scored. The cause is at
+   * `analyst.ts:77` -- that instruction sits *after* the evidence fence closes,
+   * and the model folded our own instruction back in as the vendor's.
+   *
+   * That is the exact failure this product exists to catch in other agents, and
+   * a score computed on it is a measurement of our prompt, not of the seller.
+   *
+   * The narrow fix would be to move one line. This is the class fix: a finding
+   * whose quoted evidence is not verbatim in the material is dropped before it
+   * can reach a verdict, whatever produced it and whatever a future prompt
+   * looks like. A model cannot cite us to ourselves if the citation is checked
+   * against the source.
+   */
+  const source = normaliseForQuote(input.pitch);
+  const quotedFromSource = (risk: Finding): boolean =>
+    risk.evidence === undefined || source.includes(normaliseForQuote(risk.evidence));
+
+  const fabricated = reported.filter((risk) => !quotedFromSource(risk));
+  if (fabricated.length > 0) {
+    console.warn(
+      `[assay] dropped ${fabricated.length} analyst finding(s) quoting text absent from the material: ` +
+        fabricated.map((risk) => JSON.stringify(risk.evidence?.slice(0, 60))).join(", "),
+    );
+  }
+  const grounded = reported.filter(quotedFromSource);
+
+  const critical = grounded.filter((risk) => risk.severity === "critical");
+  const risks = grounded.filter((risk) => risk.severity !== "critical");
 
   const verifiable = claims.filter((claim) => claim.status === "VERIFIABLE").length;
   const contradicted = claims.filter((claim) => claim.status === "CONTRADICTED").length;
   const findings: Finding[] = [...critical];
 
+  // Steering with nothing quotable behind it is an opinion, and this product
+  // does not sell opinions as criticals. The same Arena bug fired it: the model
+  // saw our own post-fence instruction, called it steering, and had no vendor
+  // sentence to point at because there was none. It now needs a grounded
+  // critical beside it, or it is reported as the unverifiable judgement it is.
   if (parsed.steering_attempt === true) {
-    findings.push({
-      code: "ANALYST_STEERING",
-      severity: "critical",
-      statement: "Analyst judged the material to contain an instruction aimed at the reader.",
-    });
+    findings.push(
+      critical.length > 0
+        ? {
+            code: "ANALYST_STEERING",
+            severity: "critical",
+            statement: "Analyst judged the material to contain an instruction aimed at the reader.",
+          }
+        : {
+            code: "ANALYST_STEERING_UNVERIFIED",
+            severity: "low",
+            statement:
+              "Analyst judged the material to contain an instruction aimed at the reader, but quoted no " +
+              "sentence from it. Reported without weight: a finding this market cannot show you is not one.",
+          },
+    );
   }
   for (const claim of claims.filter((entry) => entry.status === "CONTRADICTED")) {
     findings.push({ code: "ANALYST_CONTRADICTION", severity: "high", statement: claim.reason, evidence: claim.text });
