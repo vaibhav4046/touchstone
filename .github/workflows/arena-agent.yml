@@ -15,7 +15,19 @@ name: Yuzu Arena seat
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # Measured, not assumed: a "*/5" schedule on this repository produced zero
+    # runs in forty-five minutes. GitHub's scheduler is best-effort and drops
+    # short intervals under load, so depending on one firing on time is
+    # depending on something nobody guarantees.
+    #
+    # So the design stops needing punctuality. Each run holds the seat for most
+    # of an hour, and several coarse schedules are declared rather than one
+    # frequent one: any single firing covers the gap to the next, and the
+    # explicit entries around the Arena window mean a miss there needs several
+    # independent failures rather than one.
+    - cron: "7 * * * *"
+    - cron: "37 * * * *"
+    - cron: "5,25,45 12-16 * * *"
   workflow_dispatch:
 
 # A late run must not queue behind a live one: the fresher seat is the useful
@@ -27,7 +39,7 @@ concurrency:
 jobs:
   sit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 62
     steps:
       - uses: actions/checkout@v4
 
@@ -55,7 +67,9 @@ jobs:
           YUZU_BASE_URL: https://yuzu-market.vercel.app
 
       - name: Hold the seat
-        run: node --import tsx scripts/arena-agent.mts --duration 330
+        # Most of an hour, so one firing an hour is continuous cover and a
+        # missed schedule costs a gap rather than the window.
+        run: node --import tsx scripts/arena-agent.mts --duration 3480
         env:
           SHAREDNET_MEMBER_TOKEN: ${{ secrets.SHAREDNET_INSTANCE_TOKEN }}
           SHAREDNET_API_KEY: ${{ secrets.SHAREDNET_API_KEY }}
