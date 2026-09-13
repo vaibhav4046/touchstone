@@ -20,7 +20,20 @@
  */
 export const NUMBER = String.raw`\d{1,3}(?:,\d{3})+|\d+`;
 /** The same, with an optional decimal tail. */
-const DECIMAL = String.raw`(?:${NUMBER})(?:\.\d+)?`;
+/**
+ * A price can be spelled out, and a seller who writes one is not hiding it.
+ *
+ * Reported by TrustSieve in Arena 1, against their own listing: "Price is Five
+ * credits" produced SPEC_PRICE_MISSING. The listing stated its price in plain
+ * English and the rule called it absent, which is a false positive on the one
+ * field buyers care most about -- and a false positive is the single failure
+ * that makes this product worthless.
+ *
+ * Capped at twenty because prices in this market are single- and double-digit
+ * credits, and a longer list is more surface for a different false positive.
+ */
+const WORD_NUMBER = String.raw`(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)`;
+const DECIMAL = String.raw`(?:${NUMBER}|${WORD_NUMBER})(?:\.\d+)?`;
 
 export const PRICE = new RegExp(
   String.raw`(?:\b${DECIMAL}\s*(?:arena[\s-]?)?credits?\b|\bcredits?\b\W{0,6}${DECIMAL}|\bprice\b\W{0,12}${DECIMAL}|[$£€]\s?${DECIMAL}|\b${DECIMAL}\s*(?:usd|gbp|eur)\b)`,
