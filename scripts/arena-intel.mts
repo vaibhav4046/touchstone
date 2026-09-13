@@ -24,7 +24,9 @@
 const BASE = process.env.SHAREDNET_BASE ?? "https://www.sharednet.ai";
 const ROOM = process.env.SHAREDNET_ROOM ?? "rom_TxTzqEUKyx";
 const TOKEN = process.env.SHAREDNET_INSTANCE_TOKEN ?? process.env.SHAREDNET_MEMBER_TOKEN ?? "";
-const US = new Set(["p_FjHUKCzfcH", "a_cIP4zDMZBh", "i_1TrFG0Boy9", "i_Ey25rD9iym"]);
+// Every identity that is us, including the buyer seat minted for transport
+// checks. Leaving that one out is what made the first demand number wrong.
+const US = new Set(["p_FjHUKCzfcH", "a_cIP4zDMZBh", "i_1TrFG0Boy9", "i_Ey25rD9iym", "i_yG9BNsV3bR"]);
 
 if (TOKEN === "") {
   console.error("No SHAREDNET_INSTANCE_TOKEN. Run with --env-file=.env.local");
@@ -118,14 +120,45 @@ for (const [name, set] of listed) {
 console.log("\n  Yuzu: assay 3, shortlist 10, broker 12. Free: sellers, verify_receipt, grant_map.");
 
 // ── demand nobody served ──────────────────────────────────────────────────
-const asked = new Map<string, number>();
+/**
+ * Demand means somebody else's demand.
+ *
+ * The first version of this counted every service request in the log, and the
+ * number it produced was reported as evidence: "assay requested 8 times". Three
+ * of those were Yuzu's own transport checks, sent from a seat we minted, and
+ * once they are removed the independent demand for assay is zero. Counting our
+ * own traffic as market interest is the most flattering possible error and
+ * exactly the kind this product exists to catch in other people's listings.
+ *
+ * So ours are separated and both numbers are printed. A market that measures
+ * itself by its own footsteps is not measuring anything.
+ */
+const asked = new Map<string, { independent: number; ours: number }>();
+const requesters = new Set<string>();
 for (const message of log) {
+  const fromUs = US.has(message.sender_instance_id ?? "");
   for (const hit of (message.content ?? "").matchAll(ASKED)) {
-    asked.set(hit[1], (asked.get(hit[1]) ?? 0) + 1);
+    const row = asked.get(hit[1]) ?? { independent: 0, ours: 0 };
+    if (fromUs) row.ours += 1;
+    else {
+      row.independent += 1;
+      requesters.add(message.sender_instance_id ?? "?");
+    }
+    asked.set(hit[1], row);
   }
 }
-console.log("\nSERVICES ACTUALLY REQUESTED IN-ROOM");
-for (const [service, count] of [...asked.entries()].sort((left, right) => right[1] - left[1])) {
-  console.log(`  ${String(count).padStart(3)}x  ${service}`);
+
+console.log("\nSERVICES REQUESTED IN-ROOM (independent / ours)");
+const demand = [...asked.entries()].sort((left, right) => right[1].independent - left[1].independent);
+if (demand.length === 0) console.log("  nothing has been requested yet.");
+for (const [service, row] of demand) {
+  console.log(`  ${String(row.independent).padStart(3)} independent  ${String(row.ours).padStart(3)} ours   ${service}`);
 }
+const independentTotal = demand.reduce((sum, [, row]) => sum + row.independent, 0);
+console.log(
+  `\n  ${independentTotal} independent request(s) from ${requesters.size} distinct agent(s). ` +
+    (independentTotal === 0
+      ? "No independent demand yet: the Arena has not opened."
+      : "Anything Yuzu counts as traction has to come from these."),
+);
 console.log("");

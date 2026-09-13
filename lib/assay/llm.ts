@@ -90,6 +90,40 @@ export function llmAvailable(): boolean {
   );
 }
 
+/**
+ * The whole failover, end to end, is bounded.
+ *
+ * Per-provider timeouts do not bound anything: the bench is four Groq models
+ * and three further suppliers, each allowed thirty seconds, so an exhausted
+ * bench can spend 210 seconds being told no -- against a route whose platform
+ * ceiling is 120. Past that the call dies with a platform timeout and the buyer
+ * gets no receipt at all, which is the worst outcome this market can produce:
+ * worse than a refusal, because a refusal is an answer.
+ *
+ * Sustained supplier exhaustion is not the unlucky case here, it is the Arena
+ * case -- every agent in the room calling every other for two hours. So the
+ * budget is wall-clock and it is checked before each attempt rather than after:
+ * a supplier is only asked if there is time to hear it out, and when there is
+ * not, the bench stops and the caller degrades to the deterministic score and
+ * still returns a signed receipt.
+ */
+const DEFAULT_BUDGET_MS = 45_000;
+/** Below this there is no point asking anyone: the answer cannot arrive in time. */
+export const MIN_ATTEMPT_MS = 3_000;
+
+/**
+ * How long the next supplier may have, or nothing if it must not be asked.
+ *
+ * Pulled out of the loop so the decision is testable on its own. The first
+ * version of the budget was only exercised through `complete`, and with healthy
+ * suppliers the first attempt always succeeded, so disabling the budget
+ * entirely still passed the test. A guard nothing can falsify is not a guard.
+ */
+export function attemptWindow(budgetMs: number, elapsedMs: number, perCallMs: number): number | undefined {
+  const left = budgetMs - elapsedMs;
+  if (left < MIN_ATTEMPT_MS) return undefined;
+  return Math.max(MIN_ATTEMPT_MS, Math.min(perCallMs, left));
+}
 export async function complete(options: {
   readonly model: string;
   readonly system?: string;
@@ -97,7 +131,19 @@ export async function complete(options: {
   readonly maxTokens?: number;
   readonly temperature?: number;
   readonly timeoutMs?: number;
+  /** Wall clock for every attempt together, not per supplier. */
+  readonly budgetMs?: number;
 }): Promise<LlmOutcome> {
+  const startedAt = Date.now();
+  const budgetMs = options.budgetMs ?? DEFAULT_BUDGET_MS;
+  const remaining = (): number => budgetMs - (Date.now() - startedAt);
+  /** Shrink a per-call timeout to whatever is actually left. */
+  const within = <T extends { readonly timeoutMs?: number }>(shape: T): T => ({
+    ...shape,
+    timeoutMs: attemptWindow(budgetMs, Date.now() - startedAt, shape.timeoutMs ?? 30_000) ?? MIN_ATTEMPT_MS,
+  });
+  /** True when there is still time to ask somebody and hear the answer. */
+  const mayAsk = (): boolean => attemptWindow(budgetMs, Date.now() - startedAt, 1) !== undefined;
   // Retry the upstream being briefly unwell; fail over when it is out.
   //
   // These are different facts and they used to share a branch. A 5xx or a
@@ -107,11 +153,12 @@ export async function complete(options: {
   // per call, against a route that has to finish eight stages inside 120.
   // Under the load the Arena actually produces, that was most of the budget
   // spent on being told no.
-  let last = await attempt(options);
+  let last = await attempt(within(options));
   if (!last.ok && TRANSIENT.test(last.error ?? "")) {
     for (const wait of [700, 2200]) {
+      if (attemptWindow(budgetMs, Date.now() - startedAt + wait, 1) === undefined) break;
       await new Promise((resolve) => setTimeout(resolve, wait));
-      const again = await attempt(options);
+      const again = await attempt(within(options));
       if (again.ok) return again;
       last = again;
       if (!TRANSIENT.test(last.error ?? "")) break;
@@ -129,7 +176,8 @@ export async function complete(options: {
     outer: for (const [index, key] of keys.entries()) {
       for (const model of ANALYST_BENCH.slice(index === 0 ? 1 : 0)) {
         const supplier = index === 0 ? undefined : { endpoint: ENDPOINT, key, prefix: undefined };
-        const sideways = await attempt({ ...options, model }, supplier);
+        if (!mayAsk()) break outer;
+        const sideways = await attempt(within({ ...options, model }), supplier);
         if (sideways.ok) return { ...sideways, model };
         const label = `${model.split("/").pop() ?? model}${keys.length > 1 ? `#${index + 1}` : ""}`;
         benchCodes.push(`${label}:${sideways.error ?? "unknown"}`);
@@ -164,7 +212,11 @@ export async function complete(options: {
    */
   const codes = [last.error ?? "unknown"];
   for (const supplier of [viaBazaar, viaOpenRouter, viaGemini]) {
-    const next = await supplier(options);
+    if (!mayAsk()) {
+      codes.push("budget_spent");
+      break;
+    }
+    const next = await supplier(within(options));
     if (next.ok) return next;
     codes.push(next.error ?? "unknown");
   }
