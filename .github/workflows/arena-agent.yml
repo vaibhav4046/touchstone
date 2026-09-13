@@ -66,6 +66,37 @@ jobs:
         env:
           YUZU_BASE_URL: https://yuzu-market.vercel.app
 
+      # Hand off before holding the seat, not after.
+      #
+      # GitHub's scheduler has never fired for this repository: every cloud run
+      # so far was dispatched by hand, and a schedule that has not been observed
+      # to work is not a plan. So the chain does not depend on it. Each run asks
+      # for its own successor before it starts sitting, because a run that
+      # crashes mid-seat would otherwise never queue the next one -- and the
+      # failure it is most likely to have is the one that stops it reaching a
+      # step at the end.
+      #
+      # The concurrency group means the successor waits rather than overlapping,
+      # so this is a chain and not a fork bomb. GITHUB_TOKEN deliberately cannot
+      # dispatch workflows (that is GitHub's anti-recursion guard), so this uses
+      # a token that can, and the chain is one run of under an hour at a time.
+      - name: Queue the next run before sitting down
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+            -H "authorization: Bearer $DISPATCH_TOKEN" \
+            -H "accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/arena-agent.yml/dispatches \
+            -d '{"ref":"master"}')
+          echo "successor dispatch: HTTP $code"
+          if [ "$code" != "204" ]; then
+            echo "Could not queue a successor. This run still holds the seat for its full duration;"
+            echo "the schedules and the local supervised process are the other two ways back in."
+          fi
+        env:
+          DISPATCH_TOKEN: ${{ secrets.ARENA_DISPATCH_TOKEN }}
+
       - name: Hold the seat
         # Most of an hour, so one firing an hour is continuous cover and a
         # missed schedule costs a gap rather than the window.
