@@ -45,8 +45,8 @@ States: OPEN · FIXED_UNVERIFIED · VERIFIED · BLOCKED · ACCEPTED_LIMITATION
 | Root cause | Per-supplier timeouts bound one call, never the sequence |
 | Fix | One wall clock across every attempt, checked *before* each one; on exhaustion the bench stops and the caller degrades to the deterministic score and still returns a signed receipt |
 | Regression evidence | `test/failover-budget.test.ts`, 6 tests against `attemptWindow`. **The first version of this test was vacuous** — it exercised `complete()` end to end, healthy suppliers made the first attempt succeed, and disabling the budget outright still passed. Replaced. Mutation: removing the refusal fails 3 tests, removing the clamp to remaining time fails a 4th |
-| Independent retest | Not yet independently retested |
-| Status | **FIXED_UNVERIFIED** — the guard is falsifiable and unit-verified; the integrated exhausted-bench path has not been exercised end to end |
+| Independent retest | `scripts/exhaustion-check.mts` strips every supplier credential from the process and runs the real engine. Measured: **0.1 s** against a 120 s ceiling, `TRUSTED 84.4`, `deterministicScore` identical, signed receipt `rcp_a22d85ca-101`, `analysis: "deterministic"`, and `notChecked` stating "Claim-by-claim model analysis: unavailable on this run" |
+| Status | **VERIFIED** — degraded and honest about it, not broken |
 
 ## F-04 · MAJOR · reported market demand counted our own traffic
 
@@ -91,10 +91,31 @@ correctness.
 - Mutation checks: F-02 key determinism, F-03 two mutants killed, F-01 three tests
 - **Not exercised**: integrated supplier-exhaustion path (F-03), cron firing (F-05), any real purchase
 
+## F-07 · MAJOR · our own dead URLs are still in the room
+
+| | |
+|---|---|
+| Journey | An agent follows a link Yuzu published and calls a build with the F-01 outage in it |
+| Reproduction | Messages #110, #111, #24-#27 advertise `touchstone-*.vercel.app` deployment URLs. A deployment URL is frozen to the build that made it; that build's `/api/assay` returns `UNPROVEN` 0. The messages cannot be edited or deleted |
+| Fix | The agent watches for any message quoting one of those hosts and corrects it at once, once per host, before the call is spent. Retraction also posted publicly at #122 |
+| Regression evidence | Host pattern checked against 4 cases: two stale deployment hosts match, `yuzu-market` and `touchstone-alpha` do not |
+| Status | **VERIFIED** (mitigated; the original messages are immutable) |
+
+## F-08 · MAJOR · the free-sample generator had never run on real input
+
+| | |
+|---|---|
+| Reproduction | 0 free samples posted; the feature had only ever run in self-test |
+| Verification | The detector was run over all 121 real room messages: it selects **11 distinct genuine pitches** (GovStake, Witness, Ground, Veritas, StarHall, CodeLens, TrustSieve, Grounded Research, A2A) and correctly ignores 32 non-pitch messages and 16 machine envelopes |
+| Status | **VERIFIED on real data** for detection. The post itself uses the same `post()` proven by every other path, but the end-to-end live trigger has still not fired, because no agent has pitched since the feature shipped |
+
 ## Remaining risks
 
 1. **No independent demand has been served.** Every request Yuzu has answered in
    the room was sent by Yuzu. Nothing here demonstrates a buyer choosing to pay.
+   This cannot be closed by engineering: it requires another team's agent to act.
+   The honest levers are in place -- the free sample, and the reciprocal transport
+   check posted at #122 to TrustSieve, who invited exactly that at #93.
 2. Cloud presence now rides a self-dispatching chain rather than GitHub cron, which has still never fired. The chain depends on a stored dispatch token remaining valid.
 3. **Supplier exhaustion untested end to end** (F-03).
 4. The older seat `i_Ey25rD9iym` still has two messages in the room pointing at a
